@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<title>MXLO &amp; Då är det Shirt – Strategi 12 månader</title>
+<style>
+:root{
+  color-scheme: light;
+  --surface-1:#fcfcfb; --plane:#f9f9f7;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,0.10);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+  --good-text:#006300;
+  --radius:14px;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --surface-1:#1a1a19; --plane:#0d0d0d;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,0.10);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+    --good-text:#0ca30c;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px 80px}
+header.hero{padding:56px 0 32px;border-bottom:1px solid var(--grid)}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 12px}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.12;margin:0 0 14px;letter-spacing:-0.02em}
+h2{font-size:clamp(21px,3vw,28px);margin:0 0 6px;letter-spacing:-0.015em}
+h3{font-size:17px;margin:0 0 8px;letter-spacing:-0.01em}
+h4{font-size:14px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+p{margin:0 0 14px;color:var(--ink-2)}
+.lede{font-size:18px;color:var(--ink-2);max-width:68ch}
+section{padding:44px 0;border-bottom:1px solid var(--grid)}
+section:last-of-type{border-bottom:none}
+.sec-head{margin-bottom:22px}
+.sec-head p{max-width:70ch;margin-bottom:0}
+.card{background:var(--surface-1);border:1px solid var(--ring);border-radius:var(--radius);padding:20px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:820px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.tile{background:var(--surface-1);border:1px solid var(--ring);border-radius:var(--radius);padding:18px}
+.tile .val{font-size:34px;font-weight:650;letter-spacing:-0.03em;line-height:1.05;margin-bottom:2px}
+.tile .lbl{font-size:13px;color:var(--muted)}
+.tile .note{font-size:12.5px;color:var(--ink-2);margin-top:8px;border-top:1px solid var(--grid);padding-top:8px}
+.callout{border-left:3px solid var(--s1);background:var(--surface-1);border-radius:0 var(--radius) var(--radius) 0;padding:18px 20px;margin:20px 0}
+.callout.warnbox{border-left-color:var(--crit)}
+.callout.goodbox{border-left-color:var(--good)}
+.callout h3{margin-bottom:6px}
+.callout p:last-child{margin-bottom:0}
+ul,ol{margin:0 0 14px;padding-left:20px;color:var(--ink-2)}
+li{margin-bottom:6px}
+li strong{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--axis)}
+td{padding:9px 10px;border-bottom:1px solid var(--grid);color:var(--ink-2);vertical-align:top}
+td strong{color:var(--ink)}
+tbody tr:hover td{background:var(--plane)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto;background:var(--surface-1);border:1px solid var(--ring);border-radius:var(--radius);padding:6px 10px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:99px;border:1px solid var(--ring);white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:99px;background:currentColor}
+.p-go{color:var(--good-text)} .p-wait{color:var(--ink-2)} .p-kill{color:var(--crit)} .p-care{color:var(--serious)}
+.bar-row{display:grid;grid-template-columns:190px 1fr 78px;gap:12px;align-items:center;padding:5px 0}
+@media(max-width:640px){.bar-row{grid-template-columns:1fr;gap:2px}.bar-row .num{text-align:left}}
+.bar-row .nm{font-size:13.5px;color:var(--ink)}
+.track{background:var(--grid);border-radius:4px;height:16px;position:relative;overflow:hidden}
+.fill{height:100%;border-radius:0 4px 4px 0;transition:width .3s ease}
+.bar-row .num{font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin:14px 0 4px;font-size:12.5px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.swatch{width:11px;height:11px;border-radius:3px;display:inline-block}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.tab{font:inherit;font-size:13.5px;font-weight:600;padding:9px 15px;border-radius:10px;border:1px solid var(--ring);background:var(--surface-1);color:var(--ink-2);cursor:pointer;transition:.15s}
+.tab:hover{border-color:var(--axis)}
+.tab[aria-selected="true"]{background:var(--s1);color:#fff;border-color:var(--s1)}
+.panel[hidden]{display:none}
+.q-title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.q-theme{font-size:13px;color:var(--muted);font-style:italic}
+.steps{list-style:none;padding:0;margin:16px 0 0;counter-reset:st}
+.steps li{counter-increment:st;position:relative;padding-left:38px;margin-bottom:14px;color:var(--ink-2)}
+.steps li::before{content:counter(st);position:absolute;left:0;top:1px;width:25px;height:25px;border-radius:99px;background:var(--s1);color:#fff;font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.steps li b{color:var(--ink);display:block;margin-bottom:1px}
+.swot{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:820px){.swot{grid-template-columns:1fr}}
+.swot .card{border-top:3px solid}
+.sw-s{border-top-color:var(--s3)} .sw-w{border-top-color:var(--s4)}
+.sw-o{border-top-color:var(--s1)} .sw-t{border-top-color:var(--s8)}
+.calc{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+@media(max-width:820px){.calc{grid-template-columns:1fr}}
+.ctrl{margin-bottom:18px}
+.ctrl label{display:flex;justify-content:space-between;align-items:baseline;font-size:13.5px;color:var(--ink);font-weight:600;margin-bottom:7px;gap:10px}
+.ctrl output{font-variant-numeric:tabular-nums;color:var(--s1);font-weight:700}
+input[type=range]{width:100%;accent-color:var(--s1);height:22px}
+.calc-out{background:var(--surface-1);border:1px solid var(--ring);border-radius:var(--radius);padding:20px}
+.calc-out .big{font-size:38px;font-weight:650;letter-spacing:-0.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+.calc-out .sub{font-size:13px;color:var(--muted);margin-bottom:16px}
+.calc-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--grid);font-size:14px}
+.calc-row span:first-child{color:var(--ink-2)}
+.calc-row span:last-child{font-weight:650;font-variant-numeric:tabular-nums}
+.kpi-list{display:grid;gap:10px}
+.kpi{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;background:var(--surface-1);border:1px solid var(--ring);border-radius:10px;padding:12px 15px}
+.kpi b{display:block;font-size:14px}
+.kpi small{color:var(--muted);font-size:12.5px}
+.kpi .tgt{font-size:13.5px;font-weight:650;color:var(--s1);font-variant-numeric:tabular-nums;text-align:right}
+.assump{font-size:12.5px;color:var(--muted);margin-top:12px;font-style:italic}
+a{color:var(--s1)}
+footer{padding:34px 0;color:var(--muted);font-size:13px}
+footer a{color:var(--ink-2)}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
+.toc a{font-size:13px;text-decoration:none;color:var(--ink-2);border:1px solid var(--ring);background:var(--surface-1);padding:6px 12px;border-radius:99px}
+.toc a:hover{border-color:var(--s1);color:var(--s1)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">Strategiplan · augusti 2026 – juli 2027</p>
+  <h1>MXLO &amp; Då är det Shirt</h1>
+  <p class="lede">Ni har en fungerande varumärkesmotor och åtta parallella satsningar på ungefär 1,5 heltidstjänster. Den här planen handlar mindre om vad ni ska börja med och mer om vad ni ska låta bli – och i vilken ordning resten ska släppas fram. Alla kalkyler bygger på era faktiska inköps- och utpriser.</p>
+  <nav class="toc">
+    <a href="#diagnos">Diagnos</a><a href="#lonsamhet">Lönsamhet</a><a href="#prio">Prioritering</a><a href="#varumarken">Flera varumärken</a>
+    <a href="#kalkyl">Break-even</a><a href="#roadmap">12-månadersplan</a><a href="#swot">SWOT</a>
+    <a href="#kanaler">Kanaler</a><a href="#plattform">Printörfist &amp; Sporttrikåer</a><a href="#nya">Nya affärer</a><a href="#kpi">KPI:er</a>
+  </nav>
+</header>
+
+<!-- DIAGNOS -->
+<section id="diagnos">
+  <div class="sec-head">
+    <h2>Diagnosen</h2>
+    <p>Innan planen: en ärlig lägesbild. Allt annat i dokumentet följer av den här.</p>
+  </div>
+  <div class="grid g4">
+    <div class="tile"><div class="val" style="color:var(--s3)">20×</div><div class="lbl">ROAS på senaste Instagram-inlägget</div><div class="note">1 000 kr annons → 20 000 kr försäljning. Det här är er verkliga tillgång.</div></div>
+    <div class="tile"><div class="val" style="color:var(--s8)">1,5</div><div class="lbl">Heltidstjänster totalt</div><div class="note">2 delägare på halvtid + 1 anställd på halvtid. Detta är den bindande begränsningen.</div></div>
+    <div class="tile"><div class="val" style="color:var(--s8)">8+</div><div class="lbl">Parallella satsningar i planen</div><div class="note">5 nischbutiker, 2 plattformar, DTG, screentryck, lokal, event.</div></div>
+    <div class="tile"><div class="val" style="color:var(--s3)">+26 %</div><div class="lbl">tillväxt kvar till break-even</div><div class="note">Utan ägarlöner ligger break-even runt 0,96 Mkr ex moms/år. Ni är närmare än ni tror.</div></div>
+  </div>
+
+  <div class="callout warnbox">
+    <h3>Kärnproblemet är inte affärsidén – det är spridningen</h3>
+    <p>Varje enskild idé i er plan är rimlig. Problemet är att de kräver tre helt olika kompetenser samtidigt: <strong>kreativ innehållsproduktion</strong> (nischbutikerna), <strong>utgående B2B-försäljning</strong> (Printörfist, Sporttrikåer) och <strong>industriell produktionsuppbyggnad</strong> (DTG, screentryck, lokal). Ni har idag bevisad förmåga i den första. Ni har ingen säljare. Och ni ökar de fasta kostnaderna – lokal plus anställd – innan intäkten har skalat.</p>
+    <p style="margin-bottom:0">Den vanligaste dödsorsaken för bolag i ert läge är inte att en satsning misslyckas, utan att sex satsningar blir halvfärdiga samtidigt och att den lönsamma kärnan svälter på uppmärksamhet.</p>
+  </div>
+
+  <div class="callout goodbox">
+    <h3>Regeln som styr hela året</h3>
+    <p style="margin-bottom:0"><strong>Max en ny satsning i lanseringsfas åt gången.</strong> Allt annat är antingen i drift (kräver bara underhåll) eller i kö (kräver noll). Om något ska in i lanseringsfas måste något annat först nå drift. Det här är det enskilt viktigaste beslutet i planen – och det enda som gör resten möjligt att genomföra.</p>
+  </div>
+</section>
+
+<!-- LÖNSAMHET -->
+<section id="lonsamhet">
+  <div class="sec-head">
+    <h2>1. Hur blir det lönsamt?</h2>
+    <p>Ni har tre helt olika sätt att tjäna pengar på, och de skalar på olika saker. Att blanda ihop dem är det vanligaste sättet att bygga bort sin egen marginal.</p>
+  </div>
+
+  <div class="grid g3">
+    <div class="card">
+      <h4 style="color:var(--s3)">A · Varumärkesmarginal</h4>
+      <h3>Då är det Shirt, nischbutikerna</h3>
+      <p style="font-size:14px">50–67 % täckningsbidrag på era faktiska priser. Skalar med <strong>kreativ output och räckvidd</strong> – inte med maskiner. Kräver noll kapital och mycket uppmärksamhet.</p>
+      <p style="font-size:14px;margin-bottom:0"><strong>Detta är motorn.</strong> Den finansierar allt annat.</p>
+    </div>
+    <div class="card">
+      <h4 style="color:var(--s1)">B · Legoproduktion</h4>
+      <h3>MXLO mot externa kunder</h3>
+      <p style="font-size:14px">25–45 % täckningsbidrag. Skalar med <strong>beläggning och volym</strong>. Låg risk, jämnt kassaflöde, men taket är lågt och kunden äger relationen.</p>
+      <p style="font-size:14px;margin-bottom:0"><strong>Detta fyller luckorna</strong> mellan era egna släpp.</p>
+    </div>
+    <div class="card">
+      <h4 style="color:var(--s2)">C · Plattform</h4>
+      <h3>Printörfist, Sporttrikåer</h3>
+      <p style="font-size:14px">Hög marginal <em>på sikt</em>, men kräver stor investering i tid innan första kronan. Skalar med <strong>antal anslutna kunder</strong>.</p>
+      <p style="font-size:14px;margin-bottom:0"><strong>Detta är framtiden</strong> – men får aldrig finansieras med lånade pengar eller stulen tid från A.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <h3>Kapacitet är inte er flaskhals. Efterfrågan är.</h3>
+    <p>Räkna: en transferpress med en person klarar realistiskt 15–25 färdigpackade plagg i timmen. Med 1,5 FTE där kanske 40 % av tiden går till produktion har ni cirka 1 500–2 400 plagg per månad i teoretisk kapacitet. Ni är inte i närheten av det taket.</p>
+    <p style="margin-bottom:0">Slutsats: <strong>varje krona som går till maskiner istället för till efterfrågan är för tidigt investerad.</strong> Detta är huvudargumentet mot DTG-printern och screentrycket under år 1 – och huvudargumentet för e-post, TikTok och fler event.</p>
+  </div>
+
+  <h3 style="margin-top:32px">Täckningsbidrag per produkt – era faktiska siffror</h3>
+  <p style="font-size:14px">Beräknat på era inköpspriser och priserna i Då är det Shirt-butiken. Arbetstiden är värderad till 250 kr/timme, vilket är vad den anställde faktiskt kostar er per timme inklusive arbetsgivaravgift och semesterersättning.</p>
+  <div class="legend">
+    <span><i class="swatch" style="background:var(--s3)"></i> Stark marginal</span>
+    <span><i class="swatch" style="background:var(--s4)"></i> Acceptabel – men bör ses över</span>
+    <span><i class="swatch" style="background:var(--s8)"></i> Förlorar pengar åt er</span>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <div id="marginBars"></div>
+    <p class="assump">Täckningsbidrag i procent av pris ex moms, efter material, tryck, arbete (250 kr/h) och emballage. Fraktintäkt antas täcka fraktkostnad.</p>
+  </div>
+
+  <div class="tablewrap" style="margin-top:16px">
+  <table>
+    <thead><tr><th>Produkt</th><th class="num">Pris inkl moms</th><th class="num">Pris ex moms</th><th class="num">Material + tryck</th><th class="num">Arbete + emb.</th><th class="num">TB kr</th><th class="num">TB %</th></tr></thead>
+    <tbody id="marginTable"></tbody>
+  </table>
+  </div>
+
+  <div class="callout warnbox" style="margin-top:26px">
+    <h3>Fyra saker era siffror avslöjar – åtgärda dem den här månaden</h3>
+    <ul style="margin-bottom:0">
+      <li><strong>Tygväskan: prishöjningen till 130 kr räcker inte hela vägen.</strong> Ni går från 5 kr till <strong>21 kr</strong> i täckningsbidrag per väska – en fyrdubbling, så det var rätt beslut. Men 20 % är fortfarande sortimentets svagaste marginal, och problemet sitter inte i utpriset utan i inköpspriset: 70 kr in på en produkt som säljs för 104 kr ex moms lämnar helt enkelt inte tillräckligt kvar. <strong>Byter ni till en blank runt 30 kr går samma väska till 51 kr och 49 % – utan att kunden betalar en krona mer.</strong> Precis samma mönster som kepsen. Tills dess: sälj den som påfyllnad i en order eller på event, aldrig som fristående leverans, och rabattera den aldrig.</li>
+      <li><strong>Kepsen är er sämsta produkt i dag och kan bli en av de bästa.</strong> Vid 250 kr i inköp och 450 kr utpris är täckningsbidraget knappt 18 %. Med den nya leverantören på 65 kr kan ni sälja för <em>350 kr</em> – alltså hundra kronor billigare för kunden – och ändå gå från 64 kr till 169 kr i täckningsbidrag per keps. Det är den enskilt största marginalförbättringen i hela sortimentet och den kräver bara ett leverantörsbyte.</li>
+      <li><strong>Linnet är underprissatt relativt t-shirten.</strong> Samma inköp, samma tryck, samma arbete – men 220 kr istället för 280 kr. Ni ger bort 48 kr i täckningsbidrag per linne utan att kunden efterfrågat rabatten. 249 kr är rimligt.</li>
+      <li><strong>Ett klistermärke som säljs ensamt är olönsamt.</strong> 33 kr ger 26,40 kr ex moms; plock, kuvert och porto äter upp nästan allt. Som tillägg i en tröjorder är samma märke däremot 61 % täckningsbidrag. Slutsats: klistermärken ska vara <em>merförsäljning</em>, aldrig en egen order. Sätt en lägsta ordersumma eller bunta dem – "5 märken för 129".</li>
+    </ul>
+  </div>
+
+  <div class="callout goodbox">
+    <h3>Tygmärket är er bästa produkt – och den ni pratar minst om</h3>
+    <p>22,50 kr in, 100 kr ut, nästan inget arbete eftersom det köps färdigt: <strong>67 % täckningsbidrag och 53 kr rent per märke.</strong> Ingen storlek, ingen retur, ryms i ett kuvert. Per nedlagd minut slår det allt annat ni säljer.</p>
+      <p style="margin-bottom:0">Det gör märken till den perfekta merförsäljningen. En order med en t-shirt och två märken går från 135 kr till 242 kr i täckningsbidrag – en ökning på 79 % utan en enda ny besökare och utan en krona i annonsbudget. Detta är den snabbaste lönsamhetsförbättring ni kan göra och den tar en eftermiddag att sätta upp.</p>
+  </div>
+
+  <h3 style="margin-top:34px">Fri frakt från 666 kr – vad tröskeln faktiskt gör med marginalen</h3>
+  <p style="font-size:14px">Nedan är samma produkter räknade som hela korgar, med den frakt ni tar på er dragen från täckningsbidraget. Fraktkostnaden är antagen till 55 kr ex moms per paket – byt siffran mot ert verkliga avtal.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Korg</th><th class="num">Inkl moms</th><th class="num">Ex moms</th><th class="num">TB efter frakt</th><th class="num">TB %</th></tr></thead>
+    <tbody id="basketTable"></tbody>
+  </table>
+  </div>
+
+  <div class="callout goodbox">
+    <h3>Tröskeln är rätt tänkt – täckningsbidraget i kronor mer än fördubblas</h3>
+    <p>En ensam t-shirt där kunden betalar frakten ger 62 % i marginal men bara <strong>140 kr</strong> i täckningsbidrag. Två tröjor plus ett märke och ett klistermärke ger lägre procent – 53 % – men <strong>295 kr</strong> i täckningsbidrag. Ni tjänar mer än dubbelt så mycket på samma paket, samma packtid och samma fraktsedel.</p>
+    <p style="margin-bottom:0">Det är hela poängen med en frakttröskel, och det är också varför ni inte ska bli oroliga när marginalprocenten sjunker. <strong>Procent betalar inga löner. Kronor gör det.</strong> Styr på täckningsbidrag per order, inte på TB-procent.</p>
+  </div>
+
+  <div class="callout warnbox">
+    <h3>Men 666 kr ligger högt – och två korgar förstör affären</h3>
+    <p>En t-shirt kostar 280 kr. Tröskeln ligger alltså på 2,4 gånger er vanligaste order. Tumregeln är att en frakttröskel biter bäst 15–30 % över nuvarande snittorder; hamnar den för högt blir den dekoration som ingen når. <strong>Kolla i Shopify hur många ordrar som i dag ligger mellan 400 och 665 kr</strong> – det är exakt de kunderna tröskeln kan konvertera. Är de få gör 666 kr ingen nytta, hur bra siffran än är för varumärket.</p>
+    <p><strong>Två kombinationer ska ni aktivt styra bort från:</strong> tygväskan som utfyllnad drar korgen till 45 % eftersom den bidrar med 21 kr men utlöser 55 kr i fraktkostnad – den gör er alltså <em>fattigare</em> som tröskelfyllare. Och en huvtröja plus två klistermärken landar på 43 %, den sämsta korgen i tabellen.</p>
+    <p style="margin-bottom:0"><strong>Lösningen är att styra utfyllnaden mot tygmärken.</strong> Ett märke stänger ett hundralapps glapp, väger ingenting, kräver ingen extra frakt och ger 53 kr rakt in. Två tröjor plus två märken är korgen med högst täckningsbidrag i hela tabellen: 333 kr.</p>
+  </div>
+
+  <div class="callout">
+    <h3>Tre konkreta grepp för att få tröskeln att bita</h3>
+    <ul style="margin-bottom:0">
+      <li><strong>Sätt en framstegsmätare i kundvagnen.</strong> "Du är 86 kr från fri frakt" plus en knapp som lägger till ett tygmärke. Det är den enskilt mest effektiva funktionen ni kan aktivera i Shopify och den finns i de flesta kundvagnsappar.</li>
+      <li><strong>Föreslå alltid ett märke, aldrig en väska.</strong> Låt förslaget i kundvagnen vara styrt, inte slumpmässigt. Skillnaden mellan att kunden fyller upp med ett märke eller en väska är 33 kr i er ficka på varje order.</li>
+      <li><strong>Lägg ett steg till på vägen.</strong> Glappet mellan 280 kr och 666 kr är stort. Ett mellanerbjudande – "5 märken för 129" eller "två tröjor för 499" – lyfter de ordrar som aldrig kommer att nå 666 kr. Behåll 666 som frakttröskel; siffran är för bra för ert varumärke för att kastas bort.</li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <h3>Om skärmaskinen</h3>
+    <p style="margin-bottom:0">Ni har rätt i att den inte gör klistermärken till Då är det Shirt – den skär, den printar inte. Men för <strong>raggarspåret i Dalarna-butiken är skuren vinyl en riktigt bra affär</strong>: fönsterdekaler och texter i skuren folie har ungefär 90 % bruttomarginal eftersom materialet knappt kostar något. Haken är rensningen – att peta bort överflödig folie tar tid, och vid åtta minuter per dekal landar täckningsbidraget runt 66 % istället för 90 %. Håll motiven enkla och feta i formen, undvik tunna typsnitt och små detaljer, och sälj i standardstorlekar istället för på beställning. Då är det en av era bättre produkter. Med krångliga specialbeställningar är det ett tidshål.</p>
+  </div>
+</section>
+
+<!-- PRIORITERING -->
+<section id="prio">
+  <div class="sec-head">
+    <h2>5. Vad ska bort, vad ska in?</h2>
+    <p>Här är den hårda delen. Rekommendationen per satsning, med skäl.</p>
+  </div>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Satsning</th><th style="width:120px">Beslut</th><th>Motivering</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Då är det Shirt</strong></td><td><span class="pill p-go">Dubbla ner</span></td><td>Det enda som bevisat fungerar. Ska ha mest tid, inte minst. Målet är att fördubbla det innan något nytt får uppmärksamhet.</td></tr>
+      <tr><td><strong>Dalarna-butiken</strong></td><td><span class="pill p-go">Bygg – först</span></td><td>Ni bor där, insiderkunskapen är gratis och äkta. Ingen IP-risk. Och den enda nischen med <strong>fysisk B2B-kanal</strong>: turistbutiker, campingar, hotell, marknader i Siljansbygden.</td></tr>
+      <tr><td><strong>Raggarkultur</strong></td><td><span class="pill p-wait">Nr 2 i kön</span></td><td>Eget varumärke, egen identitet – ni har rätt, raggarestetik och Dalarnaestetik är två olika visuella världar och ska inte blandas. Lansera våren 2027 med <strong>Classic Car Week i Rättvik i juli som måldatum</strong>. Fönsterdekaler i skuren vinyl hör hemma här och är hög marginal. Att butikerna är åtskilda hindrar inte att ni är på plats med båda på samma event.</td></tr>
+      <tr><td><strong>Printörfist</strong></td><td><span class="pill p-go">Ja – men enkelt</span></td><td>Bäst strategisk passform ni har: samma subkultur som DÄDS, samma mässor, samma nätverk. Men lansera som <strong>offert och bulkorder</strong>, inte som plattform. Se avsnittet nedan.</td></tr>
+      <tr><td><strong>Svartsytt (häx/astro)</strong></td><td><span class="pill p-wait">Nr 3 i kön</span></td><td>Stark nisch och den enda som balanserar er kundbas mot en yngre kvinnlig publik. Men ni har ingen särskild edge och konkurrensen är global. År 2, inte år 1.</td></tr>
+      <tr><td><strong>Sporttrikåer</strong></td><td><span class="pill p-care">Pilot, inte plattform</span></td><td>Uppgraderad bedömning: med befintliga föreningskontakter och en möjlig säljare försvinner min största invändning, som var att ni saknade utgående försäljning. Kör en <strong>större pilot – 5–8 föreningar</strong> – men fortfarande manuellt. Konkurrenterna har varumärkesavtal ni inte har, så vinn på sponsortryck, snabbhet och närhet istället för på plaggen.</td></tr>
+      <tr><td><strong>Retro-dansband</strong></td><td><span class="pill p-kill">Gör om</span></td><td>Att trycka gamla dansbands logotyper utan licens är juridiskt samma sak som att trycka Metallica-loggor. Målgruppen är dessutom den sämsta för Instagram-driven impulshandel. <strong>Men vänd på den:</strong> kontakta banden och gör deras merch mot royalty. Då är det Printörfist – och en riktigt bra ingång dit.</td></tr>
+      <tr><td><strong>Trippy / svamp</strong></td><td><span class="pill p-wait">Nr 4 i kön</span></td><td>Jag hade fel tidigare: med separata konton smittar inte en eventuell Meta-begränsning av era andra varumärken. Kvar står två invändningar. Den ena är att <em>det egna</em> kontot fortfarande riskerar att få annonsering begränsad för drogrelaterat bildspråk – bygg den organiskt, räkna inte med betald räckvidd. Den andra är att nischen är den mest generiska av era fem, med hårdast global konkurrens och utan lokal eller kulturell edge. Motvikten är att psykedeliskt bildspråk har ovanligt stark organisk spridning på Reels och TikTok. Sist i kön, men inte struken.</td></tr>
+      <tr><td><strong>DTG-printer</strong></td><td><span class="pill p-kill">Stryk permanent</span></td><td>DTF gör allt DTG gör – plus polyester, kepsar och väskor – utan förbehandling och till lägre kostnad på mörka plagg. DTG är fel maskin för er produktmix.</td></tr>
+      <tr><td><strong>DTF-printer</strong></td><td><span class="pill p-wait">Villkorat</span></td><td>Köp när er externa transferkostnad passerar cirka 15–20 tkr/mån, eller när Printörfist behöver enstyckstryck samma dag. Motivet är <strong>ledtid och flexibilitet</strong>, inte besparing – återbetalningen på ren styckkostnad tar flera år.</td></tr>
+      <tr><td><strong>Screentryck</strong></td><td><span class="pill p-wait">Pausa till 2027</span></td><td>Lönar sig först vid 50–100+ plagg per motiv. Er affär är många motiv i små upplagor – screentryck skulle direkt motarbeta den flexibiliteten. Köp externt vid stora upplagor.</td></tr>
+      <tr><td><strong>Sporadiska profilkunder</strong></td><td><span class="pill p-care">Sätt golv</span></td><td>De äter oproportionerligt mycket tid för dålig marginal och drar er mot att bli det profilföretag ni sagt att ni inte vill vara. Publicera prislista och ett minimum – exempelvis 10 plagg eller 2 500 kr. Säg nej under det.</td></tr>
+      <tr><td><strong>Festivaler &amp; mässor</strong></td><td><span class="pill p-go">Uppgradera</span></td><td>Ni behandlar det som marknadsföring. Det är ett <strong>eget affärsområde</strong>: 60–70 % marginal, kontant betalning, noll returer, noll fraktkostnad. Boka 2027 nu – många har ansökningsdeadline redan i höst.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="assump">Nettoeffekt: från 8+ parallella satsningar till 3 aktiva spår (DÄDS, Dalarna, Printörfist) plus 1 pilot, med resten i en tydlig kö. Det är genomförbart på 1,5 FTE. Åtta är det inte.</p>
+</section>
+
+<!-- FLERVARUMÄRKE -->
+<section id="varumarken">
+  <div class="sec-head">
+    <h2>Att driva fem separata varumärken</h2>
+    <p>Ni har rätt i att butikerna ska vara helt åtskilda utåt. Det är en riktig strategisk position – men den har ett pris som måste planeras för, inte upptäckas i efterhand.</p>
+  </div>
+
+  <div class="callout">
+    <h3>Vad separationen kostar – och varför den gör sekvenseringen viktigare</h3>
+    <p>Separata varumärken innebär att ni inte får någon draghjälp mellan butikerna. <strong>Varje ny butik startar från noll följare.</strong> Ni kan inte posta om Dalarna-butiken på Då är det Shirt-kontot, inte mejla er befintliga kundlista, inte återanvända en enda recension eller ett enda socialt bevis. Det tog ungefär ett år att få Då är det Shirt dit det är i dag – och nästa varumärke får ingen genväg.</p>
+    <p style="margin-bottom:0">Det gör inte separationen fel. Den är förmodligen rätt: ett raggarvarumärke och ett häxvarumärke som delar konto blir otydliga och båda tappar. Men slutsatsen blir den motsatta mot vad man kanske hoppas – <strong>separation är ett argument för att lansera färre butiker och en i taget, inte fler parallellt.</strong> Fem varumärken samtidigt på 1,5 heltidstjänster betyder fem halvdöda konton.</p>
+  </div>
+
+  <div class="grid g2">
+    <div class="card" style="border-top:3px solid var(--s8)">
+      <h4 style="color:var(--s8)">Måste vara separat – allt kunden ser</h4>
+      <ul style="font-size:14px;margin-bottom:0">
+        <li>Varumärkesnamn, logotyp, färg och typografi</li>
+        <li>Visuell identitet och bildmanér</li>
+        <li>Tonalitet i texter och kundtjänst</li>
+        <li>Shopify-butik och domän</li>
+        <li>Instagram- och TikTok-konto</li>
+        <li>Annonskonto och pixel</li>
+        <li>Produktbilder och modellval</li>
+        <li>E-postlista och avsändarnamn</li>
+        <li>Förpackningsdekal och eventuell insert</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--s3)">
+      <h4 style="color:var(--s3)">Ska vara gemensamt – allt kunden inte ser</h4>
+      <ul style="font-size:14px;margin-bottom:0">
+        <li>MXLO som producent bakom alla</li>
+        <li>Leverantörer, blanklager och transferleverantör</li>
+        <li>Pressar, packstation och produktionsflöde</li>
+        <li>Fraktavtal och emballage i standardformat</li>
+        <li>Shopify-tema som mall, samma appstack</li>
+        <li>E-postplattform med separata listor</li>
+        <li>Designprocess, filstruktur och mallar</li>
+        <li>Bokföring, orderflöde och rapportering</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout goodbox">
+    <h3>Bygg en butiksfabrik, inte fem butiker</h3>
+    <p>Om varje varumärke ska kosta lika mycket som det förra att starta kommer ni aldrig längre än till två. Poängen med att MXLO ligger under är att <strong>lanseringen ska bli billigare för varje gång</strong>. Gör Dalarna-lanseringen till en dokumenterad mall: en checklista för butiksuppsättning, ett tema som bara byter färg och logotyp, en färdig appstack, färdiga mallar för produktbilder, en fastställd sortimentsbredd vid start, och ett innehållsupplägg som säger hur många inlägg per vecka varumärket kräver.</p>
+    <p style="margin-bottom:0">Mät hur många timmar Dalarna tar från beslut till första order. Målet är att raggarbutiken ska ta hälften. Får ni ner en lansering till några veckors arbete blir fem varumärken realistiskt – på år tre, inte år ett.</p>
+  </div>
+
+  <div class="callout warnbox">
+    <h3>Tre saker att bestämma innan butik nummer två</h3>
+    <ul style="margin-bottom:0">
+      <li><strong>Hur mycket innehåll kräver ett varumärke som minimum?</strong> Räkna ärligt. Om Då är det Shirt behöver tre till fem inlägg i veckan för att hålla trycket, och ni har 1,5 heltidstjänster, så är det talet som avgör hur många konton ni kan ha – inte ambitionen. Skriv ner minimum per varumärke och multiplicera innan ni öppnar nästa.</li>
+      <li><strong>Vad står det på paketet?</strong> Med helt separata varumärken bör inte Då är det Shirt-logotypen sitta på ett Svartsytt-paket. Neutralt emballage plus en varumärkesdekal per butik löser det billigt. Avsändaradressen blir densamma – det är normalt och inget kunder reagerar på, men bestäm vilket bolagsnamn som ska stå där.</li>
+      <li><strong>Vilka varumärken konkurrerar med varandra?</strong> Svartsytt och trippy-butiken siktar på delvis samma publik – ung, visuell, andlig-adjacent. Två egna varumärken som slåss om samma köpare är dubbelt arbete för samma intäkt. Om båda ska finnas måste de differentieras skarpt, annars ska bara ett byggas.</li>
+    </ul>
+  </div>
+
+  <h3 style="margin-top:30px">Lanseringsordning</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th style="width:44px">#</th><th>Varumärke</th><th style="width:150px">Lansering</th><th>Varför i den här ordningen</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1</strong></td><td><strong>Dalarna</strong></td><td>Q4 2026</td><td>Lokal insiderkunskap gratis, ingen IP-risk, och den enda nischen med fysisk B2B-kanal. Öppnar inför julhandeln.</td></tr>
+      <tr><td><strong>2</strong></td><td><strong>Raggarvarumärket</strong></td><td>Vår 2027</td><td>Eget uttryck, egen identitet. Har ett naturligt måldatum i Classic Car Week i juli – bygg innehåll under våren och toppa där. Fönsterdekaler i skuren vinyl passar in och har hög marginal.</td></tr>
+      <tr><td><strong>3</strong></td><td><strong>Svartsytt</strong></td><td>År 2</td><td>Balanserar kundbasen mot en helt annan demografi. Men ingen edge, hård konkurrens – kräver att butiksfabriken sitter först.</td></tr>
+      <tr><td><strong>4</strong></td><td><strong>Trippy / svamp</strong></td><td>År 2–3</td><td>Störst organisk potential men svårast att annonsera och mest generisk. Bygg den bara om Svartsytt visat att ni kan starta ett varumärke utan lokal förankring.</td></tr>
+      <tr><td><strong>–</strong></td><td><strong>Dansband</strong></td><td>Som licensaffär</td><td>Blir aldrig en egen butik. Ligger under Printörfist som royaltyupplägg med rättighetsinnehavarna.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="assump">Två nya varumärken under tolv månader är taket vid nuvarande bemanning – och det förutsätter att Printörfist hålls enkelt och att Sporttrikåer stannar vid en pilot.</p>
+</section>
+
+<!-- KALKYLATOR -->
+<section id="kalkyl">
+  <div class="sec-head">
+    <h2>Vad krävs för att gå ihop?</h2>
+    <p>Dra i reglagen med era verkliga siffror. Det här är den enda uträkning som avgör om lokalen och anställningen bär sig.</p>
+  </div>
+  <div class="calc">
+    <div>
+      <div class="ctrl">
+        <label for="rLokal">Lokal, el, försäkring, larm <output id="oLokal"></output></label>
+        <input type="range" id="rLokal" min="0" max="30000" step="1000" value="14000">
+      </div>
+      <div class="ctrl">
+        <label for="rAnst">Anställd halvtid, allt inräknat <output id="oAnst"></output></label>
+        <input type="range" id="rAnst" min="0" max="40000" step="500" value="20600">
+      </div>
+      <div class="ctrl">
+        <label for="rAgare">Ägarlöner (ni tar 0 i dag) <output id="oAgare"></output></label>
+        <input type="range" id="rAgare" min="0" max="90000" step="2000" value="0">
+      </div>
+      <div class="ctrl">
+        <label for="rOvrigt">Shopify, appar, bokföring, maskiner, försäkring <output id="oOvrigt"></output></label>
+        <input type="range" id="rOvrigt" min="0" max="40000" step="1000" value="12000">
+      </div>
+      <div class="ctrl">
+        <label for="rTB">Genomsnittligt täckningsbidrag <output id="oTB"></output></label>
+        <input type="range" id="rTB" min="20" max="75" step="1" value="58">
+      </div>
+      <div class="ctrl">
+        <label for="rPris">Genomsnittligt ordervärde ex moms <output id="oPris"></output></label>
+        <input type="range" id="rPris" min="120" max="900" step="10" value="250">
+      </div>
+      <div class="ctrl">
+        <label for="rUtd">Önskad utdelning per år, totalt <output id="oUtd"></output></label>
+        <input type="range" id="rUtd" min="0" max="644800" step="20000" value="200000">
+      </div>
+    </div>
+    <div class="calc-out">
+      <div class="big" id="outRev"></div>
+      <div class="sub">omsättning ex moms per månad för att gå jämnt upp</div>
+      <div class="calc-row"><span>Fasta kostnader per månad</span><span id="outFix"></span></div>
+      <div class="calc-row"><span>Omsättning per år ex moms</span><span id="outYear"></span></div>
+      <div class="calc-row"><span>Ordrar per månad</span><span id="outOrders"></span></div>
+      <div class="calc-row"><span>Ordrar per arbetsdag</span><span id="outPerDay"></span></div>
+      <div class="calc-row"><span>Andel av kapacitetstaket</span><span id="outCap"></span></div>
+      <p class="assump" id="capNote"></p>
+      <div style="margin-top:18px;padding-top:16px;border-top:2px solid var(--axis)">
+        <div class="big" id="outUtdRev" style="font-size:28px;color:var(--s3)"></div>
+        <div class="sub">omsättning ex moms per år för break-even <em>plus</em> utdelningen</div>
+        <div class="calc-row"><span>Vinst före bolagsskatt som krävs</span><span id="outVinst"></span></div>
+        <div class="calc-row"><span>Omsättning per månad inkl moms</span><span id="outUtdMon"></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout goodbox" style="margin-top:24px">
+    <h3>Så läser ni resultatet – och det här är den goda nyheten</h3>
+    <p>Eftersom ni inte tar ut lön ligger break-even runt <strong>0,96 Mkr omsättning ex moms per år</strong>, inte 2 Mkr. Det är cirka 80 000 kr ex moms i månaden – ungefär 100 000 kr inkl moms, eller drygt 15 ordrar per arbetsdag. Ni utnyttjar då under 20 % av vad pressarna klarar.</p>
+    <p>Sätt det mot ert eget exempel: ett inlägg gav 20 000 kr på en vecka. Fyra sådana i månaden är 80 000 kr inkl moms, alltså 64 000 kr ex moms. <strong>Ni ligger redan runt tre fjärdedelar av break-even – ni behöver ungefär 26 % tillväxt, inte en fördubbling.</strong> Och för att kunna dela ut 200 000 kr nästa år behövs cirka 82 % tillväxt. Det är ambitiöst men inte orimligt med e-post, TikTok, Facebook och två extra festivaler.</p>
+    <p style="margin-bottom:0">Två knep som syns direkt i kalkylen: höj det <strong>genomsnittliga ordervärdet</strong> (tygmärken som merförsäljning) och håll <strong>täckningsbidraget</strong> uppe genom att fixa kepsen, väskan och linnet. Fem procentenheter TB är värt mer än en ny butik – och de fem procentenheterna ligger och väntar i er befintliga prislista.</p>
+  </div>
+
+  <div class="callout">
+    <h3>Om utdelningen nästa år – två saker att känna till</h3>
+    <p>Att ni inte tar ut lön hindrar er <em>inte</em> från att ta lågbeskattad utdelning. Enligt de nya 3:12-reglerna från 2026 finns ett <strong>grundbelopp på fyra inkomstbasbelopp, cirka 322 000 kr</strong>, som inte kräver något löneuttag alls. Utdelning inom gränsbeloppet beskattas med 20 % i kapital.</p>
+    <p><strong>Men:</strong> grundbeloppet är max ett per person och år, och det <strong>fördelas mellan era två bolag efter ägarandel</strong> – ni får alltså inte ett fullt grundbelopp i MXLO <em>och</em> ett i Då är det Shirt. Med två ägare är takskivan för koncernen cirka 645 000 kr per år till 20 % skatt. För att dela ut det behövs ungefär 812 000 kr i vinst före bolagsskatt, vilket enligt kalkylatorn kräver runt 2,4 Mkr i omsättning. Ta det stegvis.</p>
+    <p style="margin-bottom:0">Den andra saken är mindre rolig men värd att veta: <strong>noll lön betyder noll sjukpenninggrundande inkomst, noll föräldrapenning över grundnivån och noll allmän pension för de här åren.</strong> Utdelning är skattemässigt effektivt men bygger inget socialt skyddsnät. När resultatet tillåter är en lön på åtminstone SGI-nivå oftast värd mer än den kostar. Stäm av upplägget med er revisor – detta är riktvärden, inte skatterådgivning.</p>
+  </div>
+</section>
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <div class="sec-head">
+    <h2>2. Planen, kvartal för kvartal</h2>
+    <p>Ordningen är viktigare än innehållet. Varje kvartal har ett tema och en enda ny sak som får släppas fram.</p>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" aria-controls="q3">Q3 · aug–okt 2026</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="q4">Q4 · nov 2026–jan 2027</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="q1">Q1 · feb–apr 2027</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="q2">Q2 · maj–juli 2027</button>
+  </div>
+
+  <div class="panel" id="q3" role="tabpanel">
+    <div class="q-title"><h3>Städa, mät och mjölka det som redan fungerar</h3><span class="q-theme">Ingen ny nisch. Ingen ny maskin.</span></div>
+    <p>Det här kvartalet ska kännas frustrerande återhållsamt. Poängen är att bygga fundamentet – ekonomistyrning, ägda kanaler, lokalen – innan ni lägger på mer vikt. Nästan allt här ger pengar tillbaka inom veckor.</p>
+    <ol class="steps">
+      <li><b>Flytta in och rigga produktionsflödet</b>Enkelriktat: mottagning → blanklager → presstation → packning → utleverans. Mät verklig ledtid från order till paket. Ni kommer att bli förvånade över var tiden går.</li>
+      <li><b>Sätt ekonomistyrningen – detta först av allt</b>Täckningsbidrag per produkt, TB per arbetad timme, och en kassaflödesprognos 12 månader framåt. Ett kalkylark räcker. Utan detta är resten av planen gissningar.</li>
+      <li><b>Fastställ internpriset MXLO → Då är det Shirt</b>Måste sättas på armlängds avstånd och dokumenteras. Det här är en klassisk fallgrop vid närstående bolag och kostar mycket att reda ut i efterhand. Ta hjälp av revisorn en gång, gör rätt från början.</li>
+      <li><b>E-post och SMS igång på Då är det Shirt</b>Ni har troligen redan tusentals kunder i Shopify som ni aldrig kontaktar. Fyra flöden: välkomst, övergiven kundvagn, efter köp, återaktivering. Plus utskick vid varje släpp. <strong>Detta ger mest pengar per nedlagd timme av allt i hela planen</strong> och tar en eftermiddag att sätta upp.</li>
+      <li><b>Starta TikTok-konto och spegla allt innehåll</b>Marginalkostnaden är noll – ni gör redan videorna. TikTok Shop väntas öppna i Sverige under andra halvåret 2026, och att då redan ha ett konto med följare är en reell fördel i just er kategori.</li>
+      <li><b>Lägg på Facebook-annonsering vid sidan av Instagram</b>Publiken för hårdrock, svensk nostalgi och raggarkultur ligger till stor del i åldern 35–60. De finns på Facebook. Samma kreativ, ett kryss i Meta – ni missar en hel köpstark åldersgrupp idag.</li>
+      <li><b>Gör prisöversynen – den ligger och väntar i befintlig prislista</b>Tygväskan är höjd till 130 kr, klart. Kvar: byt kepsleverantör och sätt priset till 350 kr; höj linnet till 249 kr; sätt en lägsta ordersumma så att klistermärken aldrig säljs som ensam order. Och gör om samma övning på inköpssidan – väskan och kepsen visar att era två svagaste marginaler båda beror på inköpspriset, inte på utpriset.</li>
+      <li><b>Höj ordervärdet med tygmärken</b>Märket är er bästa produkt per nedlagd minut. Paketpris i kassan – "5 märken för 129" – buntpriser på tröjor, och gratis frakt över en tröskel som ligger strax över nuvarande snittorder.</li>
+      <li><b>Anställ halvtidspersonen – till produktion, inte till kreativt</b>Hela syftet med anställningen är att frigöra delägartid till innehåll och försäljning. Om den anställde gör något annat än att pressa, packa och skicka har ni köpt fel sak.</li>
+      <li><b>Boka eventåret 2027</b>Sweden Rock, tatueringsmässor, Classic Car Week, Skogsröjet, julmarknader. Många har ansökningsdeadline hösten innan – missar ni den är kanalen borta ett helt år.</li>
+      <li><b>Juridisk genomgång och varumärkesskydd</b>Gå igenom DÄDS sortiment: vilka motiv är faktiskt riskabla när det gäller kända personer, logotyper och registrerade varumärken? Plocka bort de värsta. Registrera "Då är det Shirt" och "Printörfist" hos PRV innan ni marknadsför dem bredare.</li>
+    </ol>
+  </div>
+
+  <div class="panel" id="q4" role="tabpanel" hidden>
+    <div class="q-title"><h3>Julhandel på max – och Printörfist i enklaste form</h3><span class="q-theme">Årets viktigaste intäktsperiod. En ny sak.</span></div>
+    <p>Q4 är där merch tjänar sina pengar. Skydda den perioden från allt utvecklingsarbete. Printörfist lanseras parallellt men medvetet primitivt.</p>
+    <ol class="steps">
+      <li><b>Julkampanj för Då är det Shirt</b>Planera 6–8 släpp med datum satta i förväg, en presentguide, presentkort och en tydlig sista beställningsdag. Mejllistan från Q3 är nu er billigaste kanal.</li>
+      <li><b>Lansera Printörfist – utan plattformen</b>En landningssida, en prislista, ett offertformulär och "ladda upp din logga så gör vi ett förslag". Inget designverktyg ännu. Målet är tio band som lagt en bulkorder före mars, inte en färdig produkt.</li>
+      <li><b>Sälj Printörfist manuellt och uppsökande</b>Lista hundra svenska band i er genre. Mejla alla. Erbjud tjugo av dem en gratis provtröja med deras logga. Åk på spelningar och prata med merchansvariga. Detta är utgående försäljning – memes fungerar inte här.</li>
+      <li><b>Bygg in referralen från första ordern</b>En kod per band, belöning i tygmärken, och en bunt kort med bandets kod fysiskt i varje låda. Kostar nästan ingenting att sätta upp men måste finnas på plats innan de första banden levereras – annars missar ni referralögonblicket vid merchbordet helt.</li>
+      <li><b>Öppna dansband-spåret som licensaffär</b>Kontakta fem till tio dansband eller deras rättighetsinnehavare med ett royaltyupplägg. Ni gör och säljer merchen, de får en andel. Samma nostalgiaffär, noll juridisk risk, och ett referenscase som säljer in Printörfist till andra band.</li>
+      <li><b>Lansera Dalarna-butiken – och dokumentera lanseringen</b>20–25 designer, egen visuell identitet, eget konto på Instagram och TikTok, öppet i god tid före jul. Julhandel plus lokalpatriotism är en stark kombination. Skriv ner varje steg och varje timme medan ni gör det: det här är mallen som ska göra raggarbutiken hälften så dyr att starta.</li>
+      <li><b>Utvärdera DTF-investeringen mot verkliga siffror</b>Titta på vad ni faktiskt betalat för externa transfer de senaste månaderna. Passerar det 15–20 tkr per månad, eller blockerar ledtiden Printörfist-order, då är beslutet moget. Annars vänta.</li>
+    </ol>
+  </div>
+
+  <div class="panel" id="q1" role="tabpanel" hidden>
+    <div class="q-title"><h3>Skala Printörfist – och testa Sporttrikåer på riktigt</h3><span class="q-theme">Nu först byggs verktyg.</span></div>
+    <p>Ni har nu betalande kunder i Printörfist och vet vad de faktiskt frågar efter. Först nu är det försvarbart att lägga utvecklingstid.</p>
+    <ol class="steps">
+      <li><b>Printörfist steg två: bandbutiken</b>Bygg print-on-demand-butiken för de band som redan beställt bulk. Ni vet nu vilka produkter de vill ha och var friktionen sitter. Ta noll i startavgift – tjäna på plaggen. Det är det enda som får små band att prova.</li>
+      <li><b>Sporttrikåer: manuell pilot med 5–8 föreningar</b>Inför fotbollssäsongen, i Dalarna, via era befintliga kontakter. Sätt upp säljaren på förmedlingsarvode eller provision mot täckningsbidrag. Gör allt i kalkylark och Illustrator. <strong>Tidsstämpla varje moment.</strong> Den loggen är kravspecen till plattformen – och beslutsunderlaget för om den ska byggas alls.</li>
+      <li><b>Sikta på trycket, inte plagget</b>De stora aktörerna har varumärkesavtalen och vinner på plaggförsäljningen. Marginalen ligger i sponsortryck, namn och nummer, och i allt runtomkring: supporterprodukter, cupmerch, hoodies till lagen, föräldraprodukter. Konkurrera där de är svaga.</li>
+      <li><b>Dalarna som B2B inför turistsäsongen</b>Besök 15–20 turistbutiker, campingar, hotell och gårdsbutiker i Siljansbygden. Sätt ett återförsäljarpris runt halva rekommenderade utpriset. Det här ger jämn volym utan en krona i marknadsföring.</li>
+      <li><b>Automatisera det som bevisat sig ta tid</b>Automatisk orderutskrift till produktionen och automatisk originalgenerering för namn- och nummertryck. Bygg bara det ni faktiskt mätt att ni gör manuellt – inte det ni tror kommer behövas.</li>
+      <li><b>Rigga eventsäsongen</b>Lager, kortterminal, tält, prisskyltar, ett enkelt kassaflöde och en plan för vad ni tar med. Ett dåligt riggat mässbord kostar er hälften av försäljningen.</li>
+    </ol>
+  </div>
+
+  <div class="panel" id="q2" role="tabpanel" hidden>
+    <div class="q-title"><h3>Event, sommar och ärlig utvärdering</h3><span class="q-theme">Skörd – och beslut om år två.</span></div>
+    <p>Andra högsäsongen. Och den punkt där ni måste våga lägga ner det som inte bar sig.</p>
+    <ol class="steps">
+      <li><b>Festival- och mässäsong</b>Kör det ni bokade i Q3. Mät försäljning per event, inte bara totalt – ni behöver veta vilka som är värda att åka på igen. Samla mejladresser i montern; det är halva värdet av att vara där.</li>
+      <li><b>Classic Car Week i Rättvik</b>Nordens största bilträff, tjugo minuter bort, exakt er raggar- och Dalarnapublik i samma person. Det här bör vara årets enskilt största fysiska tillfälle för er.</li>
+      <li><b>Utvärdera Sporttrikåer – och våga säga nej</b>Gick piloten ihop på TB per timme? Ville föreningarna beställa igen? Om svaret är tveksamt: lägg ner plattformsplanen och behåll bara sponsortrycket som legojobb. Det är ett bra utfall, inte ett misslyckande.</li>
+      <li><b>Classic Car Week som lanseringsfönster för raggarvarumärket</b>Bygg kontot under våren, kör hårt på plats i juli. Ett eget varumärke med egen identitet – men samma monter och samma resa som Dalarna-butiken, så eventkostnaden delas.</li>
+      <li><b>Beslut om varumärke nummer tre</b>Svartsytt får grönt ljus bara om både Dalarna och raggarbutiken är i stabil drift och någon faktiskt har tid att mata ett fjärde konto. Annars skjuts det till år 2. Utgå från det dokumenterade timantalet per lansering, inte från känslan.</li>
+      <li><b>Årsavstämning mot täckningsbidrag</b>Nu, med tolv månaders siffror, fattas besluten om screentryck, fler maskiner, heltidsanställning och om plattformen ska byggas ut. Inte tidigare.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- SWOT -->
+<section id="swot">
+  <div class="sec-head">
+    <h2>3. SWOT-analys</h2>
+    <p>Gemensamt för koncernen, med noteringar där de två bolagen skiljer sig åt.</p>
+  </div>
+  <div class="swot">
+    <div class="card sw-s">
+      <h4 style="color:var(--s3)">Styrkor</h4>
+      <ul>
+        <li><strong>Bevisad innehållsmotor.</strong> 20× avkastning på annonskronan är inte tur – det är produktmarknadspassform i innehållet.</li>
+        <li><strong>Äkta kulturell förankring.</strong> Ni förstår hårdrock, svensk nostalgi och Dalarna inifrån. Det går inte att kopiera med budget.</li>
+        <li><strong>Vertikal integration.</strong> Ni äger både produktion och varumärke och tar därmed två marginaler på samma tröja.</li>
+        <li><strong>Etablerad leverantörskedja</strong>, nyligen breddad med större sortiment.</li>
+        <li><strong>Egen maskinpark</strong> – pressar och skärmaskin ger låg rörlig kostnad och korta ledtider.</li>
+        <li><strong>Bevisad fysisk kanal.</strong> Sweden Rock och mässor gav både försäljning och spridning.</li>
+        <li><strong>Varma ingångar till föreningar</strong> och en möjlig säljare – på en marknad som köper på personligt förtroende är det värt mer än en plattform.</li>
+        <li><strong>Nätverkseffekt inom räckhåll.</strong> Band känner band; referral kan göra Printörfist självspridande på ett sätt som ingen av era andra affärer kan.</li>
+        <li><strong>Geografiskt läge.</strong> Leksand ger äkthet till Dalarna-nischen och närhet till Classic Car Week.</li>
+        <li><strong>Teknisk förmåga</strong> att bygga plattformen själva utan utvecklarkostnad.</li>
+      </ul>
+    </div>
+    <div class="card sw-w">
+      <h4 style="color:var(--s4)">Svagheter</h4>
+      <ul>
+        <li><strong>1,5 heltidstjänster mot åtta satsningar.</strong> Överlägset största svagheten – allt annat är underordnat.</li>
+        <li><strong>Ett ben att stå på i kanalmixen.</strong> En plattform, ett konto, en algoritm.</li>
+        <li><strong>Ingen ägd kundrelation.</strong> Ingen mejllista som ni kontrollerar.</li>
+        <li><strong>Säljfunktionen är obeprövad.</strong> Ni har kontakter och en tänkbar säljare, men ingen har ännu sålt något systematiskt åt er – och två affärsområden hänger på att det fungerar.</li>
+        <li><strong>Nyckelpersonberoende.</strong> Den kreativa förmågan sitter i ett eller två huvuden och är inte dokumenterad.</li>
+        <li><strong>Ökade fasta kostnader före skalad intäkt.</strong> Lokal och anställd höjer break-even innan omsättningen följt med.</li>
+        <li><strong>Oklar rättighetsstatus</strong> på flera motiv i sortimentet.</li>
+        <li><strong>Plattformsutveckling utan färdig kravbild</strong> – hög risk för ett projekt som aldrig blir klart.</li>
+        <li><strong>Kapitalbindning</strong> i blanklager samtidigt som maskininvesteringar övervägs.</li>
+      </ul>
+    </div>
+    <div class="card sw-o">
+      <h4 style="color:var(--s1)">Möjligheter</h4>
+      <ul>
+        <li><strong>TikTok Shop väntas till Sverige under H2 2026.</strong> Att vara etablerad i er kategori när den öppnar är en reell first mover-fördel.</li>
+        <li><strong>Dalarna-nischen har en B2B-kanal</strong> som ingen av de andra har: turistbutiker, campingar, hotell, marknader.</li>
+        <li><strong>Printörfist möter en dåligt betjänad svensk marknad.</strong> De stora POD-aktörerna är amerikanska, dyra i frakt och gör inte tygmärken.</li>
+        <li><strong>Licensierad nostalgi</strong> – dansband, gamla svenska varumärken, tv-program – är högre marginal och en försvarbar position istället för en juridisk risk.</li>
+        <li><strong>Märken och dekaler</strong> är er högsta marginal och är i dag underutnyttjade.</li>
+        <li><strong>Vit etikett-produktion</strong> åt andra små svenska varumärken fyller kapaciteten utan marknadsföringskostnad.</li>
+        <li><strong>Event som eget affärsområde</strong> med 60–70 % marginal och noll returer.</li>
+        <li><strong>En dokumenterad butiksfabrik</strong> gör varje nytt varumärke billigare än det förra – det är den verkliga poängen med att MXLO ligger under.</li>
+      </ul>
+    </div>
+    <div class="card sw-t">
+      <h4 style="color:var(--s8)">Hot</h4>
+      <ul>
+        <li><strong>Algoritmberoende.</strong> En förändring hos Meta kan halvera omsättningen över en helg.</li>
+        <li><strong>Rättighetsanspråk.</strong> Kända personer, logotyper och varumärken – särskilt i dansband-spåret. Kan kosta både pengar och annonskonto.</li>
+        <li><strong>Kontostängning hos Meta</strong>, en konkret risk vid drogrelaterat bildspråk och provocerande motiv.</li>
+        <li><strong>Kopiering.</strong> Ett motiv som går bra kan finnas billigare på Etsy och Temu inom dagar.</li>
+        <li><strong>Etablerade aktörer i Sporttrikåer</strong> – Stadium, Sportringen, Intersport, Kappa, Macron – med varumärkesavtal och säljkårer.</li>
+        <li><strong>Konjunktur.</strong> Merch är diskretionär konsumtion och drabbas tidigt.</li>
+        <li><strong>Utbrändhet.</strong> Vid åtta parallella projekt är detta inte en klyscha utan den mest sannolika orsaken till att planen havererar.</li>
+        <li><strong>Valuta, frakt och tullar</strong> på inköp av blanks pressar marginalen underifrån.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- KANALER -->
+<section id="kanaler">
+  <div class="sec-head">
+    <h2>4. Är Instagram rätt väg?</h2>
+    <p>Kort svar: ja, men det är en dellösning – inte hela strategin.</p>
+  </div>
+  <div class="callout">
+    <p style="margin-bottom:0">Ni har bevisat något som de flesta merch-varumärken aldrig lyckas med: <strong>innehåll som folk vill titta på leder till order</strong>. Att det roliga innehållet slår rena produktinlägg är inte en egenhet hos er publik, det är regeln i kategorin. Fortsätt exakt som ni gör. Problemet är inte att Instagram är fel – problemet är att Instagram är <em>ensamt</em>. Ni äger inte relationen, ni lånar räckvidd, och varje ny krona kräver nytt innehåll.</p>
+  </div>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Kanal</th><th style="width:110px">Prioritet</th><th>Varför – och vad ni gör konkret</th></tr></thead>
+    <tbody>
+      <tr><td><strong>E-post &amp; SMS</strong></td><td><span class="pill p-go">Vecka 1</span></td><td>Den enda kanal ni <em>äger</em>. Kunderna finns redan i Shopify. Kostar nästan ingenting och konverterar långt bättre än kall trafik. Kan realistiskt bli 20–30 % av omsättningen. Det här är den största outnyttjade intäkten ni har.</td></tr>
+      <tr><td><strong>TikTok (organiskt)</strong></td><td><span class="pill p-go">Vecka 1</span></td><td>Ert format – memes, igenkänning, humor – är TikTok-native. Marginalkostnaden är noll eftersom videorna redan finns. Och TikTok Shop väntas till Sverige under H2 2026; ha kontot varmt när det öppnar.</td></tr>
+      <tr><td><strong>Facebook-annonser</strong></td><td><span class="pill p-go">Månad 1</span></td><td>Er publik för hårdrock, nostalgi, raggare och dansband är till stor del 35–60 år. Den gruppen är på Facebook. Samma kreativ, ett kryss i Meta, hela köpstarka åldersgruppen tillkommer.</td></tr>
+      <tr><td><strong>Fysiska event</strong></td><td><span class="pill p-go">Boka nu</span></td><td>Behandla det som ett affärsområde, inte marknadsföring: hög marginal, kontant, noll returer. Samla mejladresser i montern – det dubblar värdet av varje event.</td></tr>
+      <tr><td><strong>Instagram</strong></td><td><span class="pill p-go">Fortsätt</span></td><td>Fungerar. Ändra ingenting i innehållsstrategin. Öka annonsbudgeten stegvis så länge ROAS håller, och sluta öka den dagen den viker.</td></tr>
+      <tr><td><strong>Återförsäljare (Dalarna)</strong></td><td><span class="pill p-wait">Q1 2027</span></td><td>Turistbutiker och campingar. Lägre marginal per plagg men noll marknadsföringskostnad och jämn volym som fyller pressarna.</td></tr>
+      <tr><td><strong>Google Ads / SEO</strong></td><td><span class="pill p-kill">Nej</span></td><td>Ingen söker på era produkter – ni skapar behovet, ni fångar det inte. Fel kanal för impulsdriven merch. Ett undantag: varumärkessök när ni blivit större.</td></tr>
+      <tr><td><strong>Etsy / Redbubble / Amazon</strong></td><td><span class="pill p-kill">Nej</span></td><td>Kannibaliserar varumärket, ni tappar kunddata, och era motiv exponeras för direkt kopiering. Er tillgång är varumärket, inte distributionen.</td></tr>
+      <tr><td><strong>Utgående B2B-sälj</strong></td><td><span class="pill p-go">På plats</span></td><td>Printörfist och Sporttrikåer kan <em>inte</em> marknadsföras med memes – de kräver att någon ringer, mejlar och åker på möten. Med era föreningskontakter och en möjlig säljare är den luckan på väg att täppas till. Håll säljaren på provision mot täckningsbidrag, inte mot omsättning.</td></tr>
+      <tr><td><strong>Referral från band</strong></td><td><span class="pill p-go">Bygg in direkt</span></td><td>Er egen idé och den bästa tillväxtmotorn Printörfist kan ha: musikscenen är ett tätt nätverk och rekommendationen väger tyngre än vilken annons som helst. Belöna i tygmärken istället för rabatt och lägg kortet med koden fysiskt i lådan. Manuell försäljning sår de första banden – referral får det att växa av sig självt.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- PLATTFORM -->
+<section id="plattform">
+  <div class="sec-head">
+    <h2>Printörfist &amp; Sporttrikåer – djupdykning</h2>
+    <p>Ni bad om spånande kring konceptet. Här är den ärliga bedömningen plus konkreta förslag.</p>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <h3>Printörfist</h3>
+      <p style="font-size:14.5px">Det här är den bättre av de två satsningarna, och skälen är strukturella snarare än tekniska: den ligger i samma subkultur som Då är det Shirt, den möter samma människor på samma mässor, och ni har trovärdighet där en generisk tryckeriaktör inte har det. De stora print-on-demand-aktörerna är amerikanska, har dyr frakt till Sverige och gör inte tygmärken, klistermärken eller flyers – vilket är exakt vad små band faktiskt vill ha.</p>
+      <h4 style="margin-top:18px">Två affärsmodeller, olika tidpunkt</h4>
+      <ul style="font-size:14px">
+        <li><strong>Bulkorder (år 1).</strong> Bandet köper 50 tröjor och säljer i merchståndet. Högre intäkt per order, enklare för er, kräver ingen plattform. <em>Här finns pengarna nu.</em></li>
+        <li><strong>Bandbutik med print-on-demand (år 2).</strong> Lägre förtjänst för bandet, men inget lager och ingen frakthantering. <em>Här finns låsningen.</em> Ett band med en fungerande butik hos er byter inte leverantör.</li>
+      </ul>
+      <h4 style="margin-top:18px">Referralmekaniken – er starkaste idé, om den byggs rätt</h4>
+      <p style="font-size:14px">Att band refererar band är rätt insikt. Musikscenen är ett tätt nätverk där alla känner alla, tröskeln att fråga "vem tryckte era tröjor?" är noll, och en rekommendation från ett annat band väger tyngre än vilken annons som helst. Fyra saker avgör om det fungerar i praktiken:</p>
+      <ul style="font-size:14px">
+        <li><strong>Belöna i tygmärken, inte i rabatt.</strong> En bulkorder på 50 tröjor ger er cirka 5 300 kr i täckningsbidrag. Tio procents rabatt äter 950 kr av det – nästan en femtedel. Men 25 tygmärken kostar er 560 kr och upplevs som 2 500 kr av bandet. Samma glädje, <strong>fyra gånger bättre hävstång</strong>, och märken är dessutom det band alltid vill ha mer av.</li>
+        <li><strong>Gör den tvåsidig.</strong> Ett ensidigt upplägg ber bandet sälja åt er utan att ha något att erbjuda kompisbandet. Ge båda något: det nya bandet får något på sin första order, det refererande bandet får sin belöning när ordern är betald. Då blir tipset en tjänst till kompisen istället för en tjänst till er.</li>
+        <li><strong>Lägg koden fysiskt i lådan.</strong> Referralögonblicket sker vid merchbordet, inte på en webbsida – förbandet frågar huvudakten efter soundcheck. Skicka med en bunt kort med bandets egen kod i varje leverans. Det kostar några kronor och är den överlägset mest träffsäkra versionen av er idé.</li>
+        <li><strong>Håll spårningen dum.</strong> En kod per band, <em>PRINTOR-BANDNAMN</em>, som skrivs in i kassan. Bygg inget kontosystem för det här år ett. Koden avgör, inga tvister om vem som tipsade vem.</li>
+      </ul>
+      <p style="font-size:14px"><strong>Räknat som kundanskaffning är detta mycket billigt.</strong> 560 kr för ett nytt band som lägger ordrar för flera tusen i täckningsbidrag per år slår all betald annonsering ni kan köpa. Gör det gärna trappstegsformat – ett tips ger märken, tre tips ger ett merchpaket, fem ger något större. Band är tävlingsinriktade och sociala; det utnyttjar ni gratis.</p>
+      <p style="font-size:14px"><strong>En varning:</strong> referral förstärker det som redan finns. Är leveransen sen eller trycket sämre än väntat sprider sig det precis lika snabbt genom samma nätverk. Nagla fast leveranstid och kvalitet på de första tio banden <em>innan</em> ni trycker på gasen.</p>
+
+      <h4 style="margin-top:18px">Konkreta förslag</h4>
+      <ul style="font-size:14px">
+        <li><strong>Noll i startavgift.</strong> Ta betalt på plaggen. Allt annat stoppar små band redan i dörren.</li>
+        <li><strong>Merchpaket för nya band</strong> – exempelvis 25 tröjor, 50 märken, 100 klistermärken och 200 flyers till fast pris. Ta bort valfriheten; band vet sällan vad de behöver.</li>
+        <li><strong>Turnépaket.</strong> Bandet meddelar sina datum, ni skickar påfyllning till nästa spelplats. Löser ett verkligt problem: att få slut mitt i turnén.</li>
+        <li><strong>Merchavräkning.</strong> Ett enkelt sätt för bandet att se vad som sålts och vad som finns kvar. Det är det band bråkar om internt – lös det och de stannar.</li>
+        <li><strong>Tygmärken och dekaler som ingång.</strong> Låg tröskel, hög marginal, och ett band som beställt märken beställer tröjor nästa gång.</li>
+        <li><strong>Licensspåret.</strong> Gamla dansband och nedlagda band med kvarvarande fans är samma affär sedd från andra hållet – och en väg in i nostalgin utan juridisk risk.</li>
+        <li><strong>Arrangörer och festivaler</strong>, inte bara band. En festival beställer större volymer, en gång per år, med lång framförhållning. Bättre kund än ett band.</li>
+      </ul>
+      <p style="font-size:14px;margin-top:14px;margin-bottom:0"><strong>Kritisk varning:</strong> band är notoriskt dåliga betalare och notoriskt sena med underlag. Kräv förskott eller delbetalning från dag ett, och sätt en fast ledtid som börjar räknas när <em>godkänt</em> original finns. Skriv in det i villkoren innan första ordern, inte efter.</p>
+    </div>
+
+    <div class="card">
+      <h3>Sporttrikåer</h3>
+      <p style="font-size:14.5px">Här måste jag vara rak. Marknaden ägs av Stadium Team Sales, Sportringen, Intersport, Kappa Team Sales och Macron. De har varumärkesavtal med Adidas, Nike, Craft och Puma – och föreningar vill ha de märkena. De har färdiga klubbshoppar, kreditvillkor, lager och säljare som besöker föreningarna. En bättre plattform vinner inte mot det.</p>
+      <h4 style="margin-top:18px">Men de är svaga på tre ställen</h4>
+      <ul style="font-size:14px">
+        <li><strong>Sponsorhanteringen.</strong> Föreningar har fem till åtta sponsorer, i lika många filformat, med olika placering per plagg – och det ändras varje säsong. Det verktyg ni beskriver löser exakt den smärtan. Det är rätt insikt, och den är värd något.</li>
+        <li><strong>Snabbhet och närhet.</strong> Föreningar beställer sent. Alltid. En lokal aktör i Leksand som kan lösa det på en vecka har ett värde som ingen centrallagerlösning matchar.</li>
+        <li><strong>Allt runt omkring matchstället.</strong> Supporterprodukter, hoodies till lagen, cupmerch, träningsoveraller, produkter till föräldrar. Bättre marginal, svagare konkurrens, och de stora prioriterar det inte.</li>
+      </ul>
+      <h4 style="margin-top:18px">Era kontakter ändrar bilden</h4>
+      <p style="font-size:14px">Att ni redan har ingångar till flera föreningar och en möjlig säljare tar bort min tyngsta invändning. Föreningsmarknaden köper på förtroende och personlig relation – en känd person som ringer slår varje plattform. Tre saker att bestämma på förhand:</p>
+      <ul style="font-size:14px">
+        <li><strong>Ersätt säljaren på täckningsbidrag, aldrig på omsättning.</strong> Provision på omsättning gör det rationellt för säljaren att rabattera bort er marginal för att stänga affären. Provision på TB gör att ni drar åt samma håll. Med ansträngd kassa är ren provision dessutom rätt modell – ingen fast kostnad förrän det säljer.</li>
+        <li><strong>Börja med förmedlingsarvode, inte anställning.</strong> Ett fast belopp per förening som faktiskt lägger order är billigare och mindre riskabelt än en tjänst, och det testar om personen verkligen kan sälja innan ni binder er.</li>
+        <li><strong>Utnyttja att ni får säga nej.</strong> Varma kontakter är en begränsad resurs – bränn dem inte på lågmarginalaffärer. Ta de föreningar där ni får göra sponsortrycket, inte bara sälja plagg vidare till självkostnad.</li>
+      </ul>
+      <h4 style="margin-top:18px">Rekommenderad väg</h4>
+      <ul style="font-size:14px">
+        <li><strong>Sälj trycket, inte plagget.</strong> Marginalen på ett matchställ ni köper in och säljer vidare är tunn. Marginalen på sponsortryck, namn och nummer på plagg föreningen redan köpt är hög. Positionera er som tryckeriet, inte som klädleverantören – åtminstone tills volymen ger er inköpsvillkor.</li>
+        <li><strong>Manuell pilot först.</strong> Tre till fem föreningar i Dalarna, inför säsongen 2027, gjord i kalkylark och Illustrator. Tidsstämpla varje moment.</li>
+        <li><strong>Bygg verktyget efteråt.</strong> Mallarna med "4 sponsorer" och "5 sponsorer" är rätt tänkt – men vilka mallar som faktiskt behövs vet ni först efter piloten.</li>
+        <li><strong>Räkna med säsong och kredit.</strong> Fotboll toppar mars–maj, hockey och innebandy augusti–september. Däremellan nära noll. Och föreningar vill ha faktura med lång kredit. Planera kassaflödet därefter.</li>
+      </ul>
+      <p style="font-size:14px;margin-top:14px;margin-bottom:0"><strong>Beslutspunkt i Q2 2027:</strong> bar piloten sig på täckningsbidrag per arbetad timme, och ville föreningarna beställa igen? Om nej – behåll sponsortrycket som legojobb och lägg ner plattformsplanen. Det är ett fullt acceptabelt utfall och sparar er ett halvår.</p>
+    </div>
+  </div>
+
+  <div class="callout warnbox">
+    <h3>Om plattformsutvecklingen</h3>
+    <p>Ni bygger den själva, vilket håller kostnaden nere – men den verkliga kostnaden är inte pengar utan <strong>uppmärksamhet</strong>. Varje vecka som går till plattformen är en vecka som inte går till innehåll, och innehållet är det som faktiskt betalar lönerna idag.</p>
+    <p style="margin-bottom:0">Två skyddsregler: <strong>bygg aldrig en funktion ni inte gjort manuellt minst tio gånger</strong> – då vet ni vad den ska göra. Och <strong>koppla på Shopify för betalning och order istället för att bygga eget</strong>; checkout, moms, frakt, returer och betalmetoder är löst där och är ett halvår att bygga rätt själv. Låt ert verktyg vara designen och underlaget, och låt Shopify vara kassan.</p>
+  </div>
+</section>
+
+<!-- NYA -->
+<section id="nya">
+  <div class="sec-head">
+    <h2>Affärsområden ni inte har på listan</h2>
+    <p>Fyra möjligheter som ligger närmare er befintliga förmåga än några av de planerade nischbutikerna.</p>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>B2B-återförsäljning av Dalarna-sortimentet</h3>
+      <p style="font-size:14px;margin-bottom:0">Turistbutiker, campingar, hotell, gårdsbutiker och museishoppar i Siljansbygden. Lägre marginal per plagg, men noll marknadsföringskostnad, jämn volym och order som går att planera produktion efter. Detta är sannolikt den bästa outnyttjade affären ni har – och den syns inte alls i er nuvarande plan.</p>
+    </div>
+    <div class="card">
+      <h3>Licensierad svensk nostalgi</h3>
+      <p style="font-size:14px;margin-bottom:0">Ni har bevisat att svensk nostalgi säljer. Steget från parodi till licens – gamla svenska varumärken, band, tv-program, lokala institutioner – ger högre marginal, exklusivitet och en position som faktiskt går att försvara. Det är också det som gör Då är det Shirt hållbart den dag ett rättighetsanspråk kommer.</p>
+    </div>
+    <div class="card">
+      <h3>Vit etikett åt andra små varumärken</h3>
+      <p style="font-size:14px;margin-bottom:0">Ni har en bra leverantörskedja och förstår små upplagor. Andra svenska merch-varumärken behöver precis det och hittar det sällan. Fyller kapaciteten mellan era egna släpp, kräver noll marknadsföring och ger direkt kassaflöde. Risk att hålla koll på: att ni glider mot att bli det profilföretag ni sagt att ni inte vill vara – sätt tydliga gränser för vad ni tar in.</p>
+    </div>
+    <div class="card">
+      <h3>Fönsterdekaler i skuren vinyl</h3>
+      <p style="font-size:14px;margin-bottom:0">Skärmaskinen ni redan har gör inga tryckta klistermärken, men den skär folie – och det är precis vad raggar- och bilkulturen köper. Materialkostnaden är runt femton kronor, priset ett par hundra, inga storlekar, inga returer, frakt i ett brev. Bruttomarginalen är omkring 90 %. Enda haken är rensningen av folien, som äter tid: håll motiven feta och enkla, sälj i standardstorlekar istället för på beställning, så landar täckningsbidraget kring 66 % även efter arbetstid.</p>
+    </div>
+  </div>
+</section>
+
+<!-- KPI -->
+<section id="kpi">
+  <div class="sec-head">
+    <h2>Nyckeltal att styra på</h2>
+    <p>Sex tal. Följ upp dem månadsvis. Om ett tal inte leder till ett beslut ska det inte mätas.</p>
+  </div>
+  <div class="kpi-list">
+    <div class="kpi"><div><b>Täckningsbidrag per total arbetad timme</b><small>Alla timmar i bolaget, även era obetalda. Break-even ligger på 194 kr/h; 282 kr/h ger 200 tkr i utdelning.</small></div><div class="tgt">&gt; 350 kr/h</div></div>
+    <div class="kpi"><div><b>Genomsnittligt ordervärde</b><small>Höjs snabbast med tygmärken som merförsäljning i kassan – en t-shirt plus två märken är +79 % täckningsbidrag.</small></div><div class="tgt">+25 % på 12 mån</div></div>
+    <div class="kpi"><div><b>Andel omsättning från ägda kanaler</b><small>E-post och SMS. Måttet på hur beroende ni är av Metas algoritm.</small></div><div class="tgt">&gt; 20 %</div></div>
+    <div class="kpi"><div><b>ROAS på betald annonsering</b><small>Sluta öka budgeten den månad den viker. Ökningen ska följa talet, inte ambitionen.</small></div><div class="tgt">&gt; 5×</div></div>
+    <div class="kpi"><div><b>Andel återkommande kunder</b><small>Avgör om ni bygger ett varumärke eller bara säljer enstaka skämt.</small></div><div class="tgt">&gt; 25 %</div></div>
+    <div class="kpi"><div><b>Andel ordrar över frakttröskeln</b><small>Mät före och efter att ni införde 666 kr. Rör den sig inte på fyra veckor är tröskeln för högt satt – då behövs ett mellansteg, inte en lägre siffra.</small></div><div class="tgt">&gt; 20 %</div></div>
+    <div class="kpi"><div><b>Ledtid order till skickat</b><small>Er största konkurrensfördel mot utländska print-on-demand-aktörer. Skydda den.</small></div><div class="tgt">&lt; 3 arbetsdagar</div></div>
+  </div>
+
+  <div class="callout goodbox" style="margin-top:26px">
+    <h3>Om ni bara gör fem saker det här kvartalet</h3>
+    <ol style="margin-bottom:0">
+      <li>Fixa kepsen och linnet, och förhandla inköpspriset på väskan. Noll nya kunder, direkt effekt på resultatet.</li>
+      <li>Sätt upp e-post och SMS på Då är det Shirt. En eftermiddag. Störst avkastning av allt i planen.</li>
+      <li>Spegla allt Instagram-innehåll till TikTok och Facebook. Noll marginalkostnad, ny publik.</li>
+      <li>Stryk trippy-butiken och DTG-printern. Gör om dansband till licensaffär.</li>
+      <li>Boka festivalplatserna för 2027 innan ansökningarna stänger i höst.</li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  <p>Underlag och externa källor: <a href="https://www.foretagarna.se/driva-eget-foretag/handbocker-och-guider/rakna-ut-312-fran-2026/">Nya 3:12-reglerna från 2026 (Företagarna)</a> · <a href="https://www.revea.se/nyheter/grundbeloppet-enligt-de-nya-3-12-reglerna">Grundbeloppet i nya 3:12 (Revea)</a> · <a href="https://socialtale.co/blog/tiktok-shop-countries-live-2026">TikTok Shop – marknader och nordisk lansering 2026</a> · <a href="https://printerbiz.com/dtg-vs-dtf-for-small-business-in-2026-the-honest-comparison/">DTG vs DTF för småföretag 2026</a> · <a href="https://www.stadiumteamsales.se/">Stadium Team Sales</a> · <a href="https://www.sportringen.se/klubbshop/">Sportringen Klubbshop</a> · <a href="https://kappateamsales.se/">Kappa Team Sales</a> · <a href="https://advokatsidan.se/t-shirts-med-tryck-nar-mode-moter-juridik/">T-shirts med tryck – juridiken</a></p>
+  <p>Kalkyler och marginaler är riktvärden baserade på branschsnitt och de uppgifter ni lämnat. Ersätt dem med era egna siffror innan beslut fattas. Detta är strategiskt underlag, inte juridisk eller finansiell rådgivning – stäm av internprissättning och rättighetsfrågor med revisor respektive jurist.</p>
+</footer>
+
+</div>
+
+<script>
+// ---- Produktkalkyl (era siffror) ----
+var LOAD = 250/60; // kr per minut, fullt belastad produktionstimme
+function prod(n, pris, mtrl, mins, emb, note){
+  var ex = pris/1.25, arb = mins*LOAD, cogs = mtrl+arb+emb, tb = ex-cogs;
+  return {n:n, pris:pris, ex:ex, mtrl:mtrl, arbemb:arb+emb, tb:tb, pct:tb/ex*100, note:note||""};
+}
+var products = [
+  prod("Tygmärke (som tillägg)", 100, 22.5, 0.5, 2),
+  prod("Keps – ny leverantör @350", 350, 95, 2, 8, "framtida"),
+  prod("Fönsterdekal, skuren vinyl @199", 199, 15, 8, 6, "raggarbutiken"),
+  prod("Klistermärke (som tillägg)", 33, 7.2, 0.5, 1),
+  prod("T-shirt", 280, 70, 3, 6),
+  prod("Huvtröja", 600, 210, 3, 9),
+  prod("Linne", 220, 70, 3, 6),
+  prod("Klistermärke (ensam order)", 33, 7.2, 2, 4),
+  prod("Keps – nuvarande @450", 450, 280, 2, 8),
+  prod("Tygväska @130 (nytt pris)", 130, 70, 2, 5),
+  prod("Tygväska @130 med billigare blank", 130, 40, 2, 5, "möjligt")
+];
+products.sort(function(a,b){ return b.pct - a.pct; });
+function hue(p){ return p<25 ? "--s8" : (p<52 ? "--s4" : "--s3"); }
+function kr2(n){ return n.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,' '); }
+document.getElementById('marginBars').innerHTML = products.map(function(p){
+  var w = Math.max(p.pct,0);
+  return '<div class="bar-row" title="'+p.n+': '+p.pct.toFixed(1)+' % täckningsbidrag, '+p.tb.toFixed(0)+' kr per styck">'
+    +'<div class="nm">'+p.n+'</div>'
+    +'<div class="track"><div class="fill" style="width:'+w+'%;background:var('+hue(p.pct)+')"></div></div>'
+    +'<div class="num">'+p.pct.toFixed(0)+' %</div></div>';
+}).join('');
+// ---- Korgkalkyl med fri frakt från 666 kr ----
+var FRAKT = 55; // kr ex moms, er fraktkostnad per paket
+function P(n){ return products.filter(function(x){return x.n.indexOf(n)===0})[0]; }
+var tee=P("T-shirt"), linne=P("Linne"), hood=P("Huvtröja"),
+    marke=P("Tygmärke"), klist=P("Klistermärke (som"), vaska=P("Tygväska @130 (");
+var baskets = [
+  {n:"1 t-shirt – kunden betalar frakten", it:[[280,tee.tb]], emb:4+FRAKT},
+  {n:"2 t-shirts + 2 tygmärken", it:[[280,tee.tb],[280,tee.tb],[100,marke.tb],[100,marke.tb]], emb:10},
+  {n:"2 t-shirts + linne", it:[[280,tee.tb],[280,tee.tb],[220,linne.tb]], emb:12},
+  {n:"2 t-shirts + tygmärke + klistermärke", it:[[280,tee.tb],[280,tee.tb],[100,marke.tb],[33,klist.tb]], emb:9},
+  {n:"2 t-shirts + tygväska", it:[[280,tee.tb],[280,tee.tb],[130,vaska.tb]], emb:11},
+  {n:"Huvtröja + 2 klistermärken", it:[[600,hood.tb],[33,klist.tb],[33,klist.tb]], emb:2}
+].map(function(b){
+  b.pris = b.it.reduce(function(s,x){return s+x[0]},0);
+  b.ex = b.pris/1.25;
+  b.tb = b.it.reduce(function(s,x){return s+x[1]},0) + b.emb - FRAKT;
+  b.pct = b.tb/b.ex*100;
+  return b;
+}).sort(function(a,b){ return b.tb - a.tb; });
+document.getElementById('basketTable').innerHTML = baskets.map(function(b){
+  return '<tr><td><strong>'+b.n+'</strong></td>'
+    +'<td class="num">'+kr2(b.pris)+'</td><td class="num">'+kr2(b.ex)+'</td>'
+    +'<td class="num" style="font-weight:700">'+kr2(b.tb)+' kr</td>'
+    +'<td class="num" style="color:var('+hue(b.pct)+');font-weight:700">'+b.pct.toFixed(0)+' %</td></tr>';
+}).join('');
+
+document.getElementById('marginTable').innerHTML = products.map(function(p){
+  return '<tr><td><strong>'+p.n+'</strong></td>'
+    +'<td class="num">'+kr2(p.pris)+'</td>'
+    +'<td class="num">'+kr2(p.ex)+'</td>'
+    +'<td class="num">'+kr2(p.mtrl)+'</td>'
+    +'<td class="num">'+kr2(p.arbemb)+'</td>'
+    +'<td class="num"><strong>'+kr2(p.tb)+'</strong></td>'
+    +'<td class="num" style="color:var('+hue(p.pct)+');font-weight:700">'+p.pct.toFixed(0)+' %</td></tr>';
+}).join('');
+
+// ---- Tabs ----
+var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+tabs.forEach(function(t){
+  t.addEventListener('click', function(){
+    tabs.forEach(function(o){
+      o.setAttribute('aria-selected', o===t ? 'true':'false');
+      document.getElementById(o.getAttribute('aria-controls')).hidden = (o!==t);
+    });
+  });
+});
+
+// ---- Break-even calculator ----
+var ids = ['Lokal','Anst','Agare','Ovrigt','TB','Pris','Utd'];
+function kr(n){ return Math.round(n).toLocaleString('sv-SE').replace(/ /g,' ') + ' kr'; }
+function calc(){
+  var lokal=+document.getElementById('rLokal').value,
+      anst=+document.getElementById('rAnst').value,
+      agare=+document.getElementById('rAgare').value,
+      ovr=+document.getElementById('rOvrigt').value,
+      tb=+document.getElementById('rTB').value,
+      pris=+document.getElementById('rPris').value,
+      utd=+document.getElementById('rUtd').value;
+  document.getElementById('oLokal').textContent=kr(lokal)+'/mån';
+  document.getElementById('oAnst').textContent=kr(anst)+'/mån';
+  document.getElementById('oAgare').textContent= agare===0 ? '0 kr' : kr(agare)+'/mån';
+  document.getElementById('oOvrigt').textContent=kr(ovr)+'/mån';
+  document.getElementById('oTB').textContent=tb+' %';
+  document.getElementById('oPris').textContent=kr(pris);
+  document.getElementById('oUtd').textContent=kr(utd)+'/år';
+
+  var fix = lokal+anst+agare+ovr;
+  var rev = fix/(tb/100);
+  var orders = rev/pris;
+  var perDay = orders/21;
+  var cap = orders/1800*100; // ~1800 plagg/mån realistiskt tak vid 1,5 FTE
+
+  document.getElementById('outRev').textContent = kr(rev);
+  document.getElementById('outFix').textContent = kr(fix);
+  document.getElementById('outYear').textContent = (rev*12/1000000).toFixed(2).replace('.',',')+' Mkr';
+  document.getElementById('outOrders').textContent = Math.round(orders).toLocaleString('sv-SE').replace(/ /g,' ') + ' st';
+  document.getElementById('outPerDay').textContent = perDay.toFixed(1).replace('.',',') + ' st';
+  document.getElementById('outCap').textContent = Math.round(cap) + ' %';
+  // Utdelningsmål: vinst före bolagsskatt 20,6 %
+  var vinst = utd/(1-0.206);
+  var tbBehov = fix*12 + vinst;
+  var utdRev = tbBehov/(tb/100);
+  document.getElementById('outUtdRev').textContent = (utdRev/1000000).toFixed(2).replace('.',',')+' Mkr';
+  document.getElementById('outVinst').textContent = kr(vinst);
+  document.getElementById('outUtdMon').textContent = kr(utdRev/12*1.25);
+
+  var note = document.getElementById('capNote');
+  if(cap < 60){
+    note.textContent = 'Ni klarar volymen med god marginal i produktionen. Flaskhalsen är efterfrågan – investera i kanaler, inte i maskiner.';
+  } else if(cap < 100){
+    note.textContent = 'Ni närmar er kapacitetstaket. Nu först börjar en DTF-investering eller mer bemanning bli motiverad.';
+  } else {
+    note.textContent = 'Volymen överstiger vad 1,5 heltidstjänster rimligen hinner. Antingen behövs mer folk, högre priser eller automatisering.';
+  }
+}
+ids.forEach(function(i){ document.getElementById('r'+i).addEventListener('input', calc); });
+calc();
+</script>
+</body>
+</html>
