@@ -1,0 +1,7 @@
+<!-- PLATSHÅLLARE: byt ut den här filen mot föreningens logotyp (behåll filnamnet). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80" role="img" aria-label="Logotyp">
+  <rect x="1" y="1" width="238" height="78" rx="12" fill="#ffffff" stroke="#101014" stroke-width="2"/>
+  <rect x="16" y="20" width="40" height="40" rx="8" fill="#1d4ed8"/>
+  <text x="72" y="38" font-family="system-ui, sans-serif" font-size="18" font-weight="700" fill="#101014">LOGOTYP</text>
+  <text x="72" y="58" font-family="system-ui, sans-serif" font-size="12" fill="#55555c">byt ut logotyp.svg</text>
+</svg>

@@ -1,0 +1,6 @@
+<!-- Flikikon (favicon). Byt ut mot föreningens egen symbol om ni vill. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="7" fill="#1d4ed8"/>
+  <path d="M9 11h14l-1.4 11.2a1.6 1.6 0 0 1-1.6 1.4H12a1.6 1.6 0 0 1-1.6-1.4L9 11Z" fill="#ffffff"/>
+  <path d="M12.5 12.5V10a3.5 3.5 0 1 1 7 0v2.5" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+</svg>

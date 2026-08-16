@@ -1,0 +1,34 @@
+"use client";
+
+import Link from "next/link";
+import { site } from "@/config/site";
+import { useVarukorg } from "@/components/varukorg-context";
+
+export function Sidhuvud() {
+  const { antalArtiklar, laddad } = useVarukorg();
+
+  return (
+    <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3">
+        <Link href="/" className="flex items-center gap-3" aria-label="Till startsidan">
+          {/* Byt ut public/logotyp.svg mot föreningens egen logotyp. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={site.logoSrc} alt={site.orgName} className="h-10 w-auto" />
+          <span className="text-base font-semibold sm:text-lg">{site.orgName}</span>
+        </Link>
+
+        <Link
+          href="/varukorg"
+          className="relative rounded-lg border border-line px-3 py-2 text-sm font-semibold hover:bg-surface"
+        >
+          Varukorg
+          {laddad && antalArtiklar > 0 && (
+            <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-blue px-2 py-0.5 text-xs font-bold text-white">
+              {antalArtiklar}
+            </span>
+          )}
+        </Link>
+      </div>
+    </header>
+  );
+}
