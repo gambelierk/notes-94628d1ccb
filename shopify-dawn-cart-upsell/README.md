@@ -6,7 +6,10 @@ fallback products filling the remaining slots.
 
 No app, no subscription, no external JavaScript libraries.
 
-Built and verified against **Dawn 16.0.0** (commit `258f00f`, Aug 2026).
+Built and verified against **Dawn 16.0.0** and **Dawn 15.3.0**. The integration
+points (`drawer__footer`, `CartDrawer.renderContents()`,
+`CartItems.getSectionsToRender()`, `PUB_SUB_EVENTS.cartUpdate`,
+`inline_asset_content`) are identical in both — only line numbers differ.
 
 ---
 
@@ -169,8 +172,8 @@ The collection is chosen in the theme editor — no handle is hard-coded anywher
 
 ## 5. `layout/theme.liquid`
 
-In Dawn 16 the stylesheet block sits around **line 281**. Add the two lines directly
-**after** `{{ 'base.css' | asset_url | stylesheet_tag }}`:
+Add the two lines directly **after** `{{ 'base.css' | asset_url | stylesheet_tag }}`
+(Dawn 16.0.0: line 281 · Dawn 15.3.0: line 258):
 
 ```liquid
 {{ 'base.css' | asset_url | stylesheet_tag }}
@@ -190,8 +193,8 @@ exist by the time this script runs (it degrades gracefully if they don't).
 In Dawn 15/16 the drawer markup lives in **`snippets/cart-drawer.liquid`**
 (`sections/cart-drawer.liquid` only contains `{%- render 'cart-drawer' -%}`).
 
-Find the drawer footer (around **line 490**) and insert the render tag as the **first
-child** of `.drawer__footer`:
+Find the drawer footer (Dawn 16.0.0: line 490 · Dawn 15.3.0: line 457) and insert the
+render tag as the **first child** of `.drawer__footer`:
 
 ```liquid
       </cart-drawer-items>
@@ -213,7 +216,7 @@ selector and the footer would reappear on an empty cart.
 ## 7. Cart page — `sections/main-cart-items.liquid`
 
 Insert the render tag directly **after** the closing `</form>` of the cart form, still
-inside `.page-width` (Dawn 16.0.0: the `</form>` on **line 467**):
+inside `.page-width` (Dawn 16.0.0: `</form>` on line 467 · Dawn 15.3.0: line 450):
 
 ```liquid
       <p
@@ -348,7 +351,8 @@ runs on `DOMContentLoaded`, after every re-render, and on `shopify:section:load`
 
 ## 10. Dawn version compatibility notes
 
-* **Verified on Dawn 16.0.0.** Dawn 15/16 keep the drawer markup in
+* **Verified on Dawn 16.0.0 and 15.3.0** — theme-check reports zero new offences on
+  both, against each version's own baseline. Dawn 15/16 keep the drawer markup in
   `snippets/cart-drawer.liquid` (`sections/cart-drawer.liquid` is a one-line
   wrapper). Some older Dawn releases keep the markup in the section file instead —
   apply §6 to whichever file actually contains `<div class="drawer__footer">`, and
@@ -444,8 +448,26 @@ degrades to your theme's defaults:
 | `.cart-upsell__heading` | 1.4rem, uppercase, letter-spacing, 85% opacity | your normal `h3` styling |
 | `.cart-upsell__button.button` | smaller padding / min-height / font-size | your standard button size |
 | `.cart-upsell__title` / `__price` | 1.4rem / 1.3rem | inherited body size |
-| `.cart-upsell__media` | 7.2rem square (6rem mobile) | change the two `width`/`height` pairs and the `grid-template-columns` first value together |
+| `.cart-upsell__media` | 7.2rem square (6rem mobile) | override `--cart-upsell-image-size` |
 | `.cart-upsell--drawer .cart-upsell__list` | `max-height: 24rem` + internal scroll | an unbounded list (can push the checkout button below the fold) |
+
+### Four knobs before you touch any rule
+
+`cart-upsell.css` exposes these on `.cart-upsell`, so most fitting needs one line in
+your own stylesheet rather than an edit here:
+
+```css
+.cart-upsell {
+  --cart-upsell-image-size: 6.4rem;   /* thumbnail edge length */
+  --cart-upsell-image-fit: contain;   /* `cover` crops to a square, `contain` never crops */
+  --cart-upsell-gap: 1.6rem;          /* space between recommendations */
+  --cart-upsell-divider: rgba(var(--color-foreground), 0.1);
+}
+```
+
+`--cart-upsell-image-fit: contain` is worth knowing about if your product photos are
+framed shots (a whole t-shirt, a full graphic): the default square crop can cut the
+interesting part out, and `contain` letterboxes inside the same box instead.
 
 If you keep your own heading conventions, the cleanest swap is to delete the
 `.cart-upsell__heading` block and add a Dawn class in the snippet instead:
