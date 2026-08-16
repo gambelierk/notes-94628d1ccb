@@ -7,7 +7,7 @@
  */
 export const site = {
   /** Visas i sidhuvud, sidtitel och i mejlen. */
-  orgName: "Föreningens butik",
+  orgName: "Insjöns Intresseförening",
 
   /** Kort rad under logotypen på startsidan. */
   tagline: "Stötta föreningen – hämta ditt köp hos oss.",

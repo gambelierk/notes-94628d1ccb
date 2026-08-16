@@ -38,49 +38,79 @@ async function main() {
 
   const antalProdukter = await prisma.product.count();
   if (antalProdukter > 0) {
-    console.log("• Produkter finns redan – hoppar över exempelprodukterna.");
+    console.log("• Produkter finns redan – hoppar över startsortimentet.");
     return;
   }
 
+  // Startsortiment. PRISER OCH LAGERSALDON ÄR PLATSHÅLLARE – ändra dem i
+  // adminpanelen (eller här innan du seedar). Produktbilderna laddas upp i
+  // adminpanelen; två bilder per tröja (framsida 001, baksida 002).
+  const TSHIRT_PRIS_ORE = 24900;
+  const TYGVASKA_PRIS_ORE = 14900;
+  const STORLEKAR = ["S", "M", "L", "XL", "XXL"];
+  const STARTLAGER = 5;
+
   await prisma.product.create({
     data: {
-      slug: "foreningstroja",
-      name: "Föreningströja",
+      slug: "t-shirt-ahl-about-insjon-svart",
+      name: "T-shirt Åhl About Insjön – svart",
       description:
-        "Mjuk t-shirt i ekologisk bomull med föreningens tryck på bröstet. Hämtas i föreningslokalen.",
-      priceOre: 24900,
+        "Svart t-shirt i bomull. Åhls vapen med korsade yxor, hjulkors och sädesax på framsidan, och trycket ”Åhl About Insjön” med kurbits på ryggen.",
+      priceOre: TSHIRT_PRIS_ORE,
       sortOrder: 1,
       variants: {
-        create: [
-          { size: "S", color: "Svart", stock: 5 },
-          { size: "M", color: "Svart", stock: 8 },
-          { size: "L", color: "Svart", stock: 6 },
-          { size: "S", color: "Blå", stock: 3 },
-          { size: "M", color: "Blå", stock: 4 },
-          { size: "L", color: "Blå", stock: 2 },
-        ],
+        create: STORLEKAR.map((size) => ({ size, color: "Svart", stock: STARTLAGER })),
       },
     },
   });
 
   await prisma.product.create({
     data: {
-      slug: "kaffemugg",
-      name: "Kaffemugg",
+      slug: "t-shirt-ahl-about-insjon-vit",
+      name: "T-shirt Åhl About Insjön – vit",
       description:
-        "Kaffemugg i keramik, 30 cl, med föreningens logotyp. Tål maskindisk och mikro.",
-      priceOre: 9900,
+        "Vit t-shirt i bomull. Åhls vapen med korsade yxor, hjulkors och sädesax på framsidan, och trycket ”Åhl About Insjön” med kurbits på ryggen.",
+      priceOre: TSHIRT_PRIS_ORE,
       sortOrder: 2,
       variants: {
-        create: [
-          { size: "Onesize", color: "Vit", stock: 20 },
-          { size: "Onesize", color: "Blå", stock: 12 },
-        ],
+        create: STORLEKAR.map((size) => ({ size, color: "Vit", stock: STARTLAGER })),
       },
     },
   });
 
-  console.log("✔ Två exempelprodukter skapade. Redigera eller ta bort dem i adminpanelen.");
+  await prisma.product.create({
+    data: {
+      slug: "tygvaska-ahl-about-insjon",
+      name: "Tygväska Åhl About Insjön",
+      description:
+        "Svart tygväska med långa handtag och trycket ”Åhl About Insjön” omgivet av kurbits i blått och guld.",
+      priceOre: TYGVASKA_PRIS_ORE,
+      sortOrder: 3,
+      variants: {
+        create: [{ size: "Onesize", color: "Svart", stock: STARTLAGER * 2 }],
+      },
+    },
+  });
+
+  await prisma.product.create({
+    data: {
+      slug: "tygvaska-ahls-vapen",
+      name: "Tygväska Åhls vapen",
+      description:
+        "Svart tygväska med långa handtag och Åhls vapen i blått och guld – korsade yxor, hjulkors och sädesax.",
+      priceOre: TYGVASKA_PRIS_ORE,
+      sortOrder: 4,
+      variants: {
+        create: [{ size: "Onesize", color: "Svart", stock: STARTLAGER * 2 }],
+      },
+    },
+  });
+
+  console.log(
+    "✔ Fyra produkter skapade (två t-shirts och två tygväskor).\n" +
+      "  Priser och lagersaldon är platshållare – justera dem i adminpanelen.\n" +
+      "  Ladda upp produktbilderna i adminpanelen: framsidan som ..._001 och baksidan som ..._002."
+  );
 }
 
 main()
