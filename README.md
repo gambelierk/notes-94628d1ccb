@@ -221,7 +221,7 @@ kontaktuppgifter ändras samlat i `src/config/site.ts`.
 @theme {
   --color-black: #101014; /* PLACEHOLDER */
   --color-white: #ffffff; /* PLACEHOLDER */
-  --color-blue: #1d4ed8;  /* PLACEHOLDER */
+  --color-blue: #006eb7;  /* PLACEHOLDER */
 }
 ```
 
