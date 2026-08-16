@@ -1,0 +1,172 @@
+/*
+  Cart upsell — compact cross-sell list for the Dawn cart drawer and cart page.
+
+  Uses Dawn's own custom properties (--color-foreground, --color-background,
+  --media-radius, --font-body-scale, ...) so it inherits the merchant's color
+  scheme, corner radius and type scale automatically.
+
+  The host element (.cart-upsell) is intentionally unstyled: when there is
+  nothing to recommend it is rendered empty and therefore invisible.
+*/
+
+.cart-upsell__inner {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 0.1rem solid rgba(var(--color-foreground), 0.15);
+}
+
+.cart-upsell__heading {
+  margin: 0 0 1.2rem;
+  font-size: 1.4rem;
+  line-height: calc(1 + 0.4 / var(--font-body-scale));
+  letter-spacing: 0.05rem;
+  text-transform: uppercase;
+  color: rgba(var(--color-foreground), 0.85);
+}
+
+.cart-upsell__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+  Exact title matches always render above random fallback products, even before
+  cart-upsell.js re-orders the DOM after shuffling.
+*/
+.cart-upsell__item {
+  order: 1;
+  display: grid;
+  grid-template-columns: 7.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 1.2rem;
+}
+
+.cart-upsell__item--exact {
+  order: 0;
+}
+
+.cart-upsell__item[hidden] {
+  display: none;
+}
+
+.cart-upsell__media {
+  display: block;
+  width: 7.2rem;
+  height: 7.2rem;
+  overflow: hidden;
+  border-radius: var(--media-radius, 0);
+  background-color: rgba(var(--color-foreground), 0.04);
+}
+
+.cart-upsell__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cart-upsell__placeholder {
+  fill: rgba(var(--color-foreground), 0.55);
+  background-color: rgba(var(--color-foreground), 0.04);
+}
+
+.cart-upsell__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.cart-upsell__title {
+  font-size: 1.4rem;
+  line-height: calc(1 + 0.3 / var(--font-body-scale));
+  color: rgb(var(--color-foreground));
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.cart-upsell__title:hover,
+.cart-upsell__title:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.3rem;
+}
+
+.cart-upsell__price {
+  font-size: 1.3rem;
+  color: rgba(var(--color-foreground), 0.75);
+}
+
+/*
+  Keeps Dawn's .button look (colors, border, radius, hover animation) but at a
+  size that fits a 72px row.
+*/
+.cart-upsell__button.button {
+  min-width: auto;
+  min-height: 3.6rem;
+  padding: 0.8rem 1.8rem;
+  font-size: 1.3rem;
+  white-space: nowrap;
+}
+
+.cart-upsell__button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.cart-upsell__error {
+  margin: 1rem 0 0;
+  font-size: 1.3rem;
+  color: rgba(var(--color-foreground), 0.75);
+}
+
+.cart-upsell__error[hidden] {
+  display: none;
+}
+
+/*
+  Cart drawer: the drawer footer has limited vertical space, so a long list
+  scrolls inside itself instead of pushing the checkout button off screen.
+*/
+.cart-upsell--drawer .cart-upsell__inner {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  padding-top: 0;
+  padding-bottom: 1.5rem;
+  border-top: 0;
+  border-bottom: 0.1rem solid rgba(var(--color-foreground), 0.15);
+}
+
+.cart-upsell--drawer .cart-upsell__list {
+  max-height: 24rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Cart page: a little more breathing room, and never full-bleed on desktop. */
+.cart-upsell--cart .cart-upsell__inner {
+  max-width: 52rem;
+}
+
+@media screen and (max-width: 749px) {
+  .cart-upsell__item {
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+    column-gap: 1rem;
+  }
+
+  .cart-upsell__media {
+    width: 6rem;
+    height: 6rem;
+  }
+
+  .cart-upsell__button.button {
+    padding: 0.8rem 1.4rem;
+  }
+
+  .cart-upsell--drawer .cart-upsell__list {
+    max-height: 20rem;
+  }
+}

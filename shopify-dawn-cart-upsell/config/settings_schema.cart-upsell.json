@@ -1,0 +1,48 @@
+[
+  {
+    "name": "Cart upsell",
+    "settings": [
+      {
+        "type": "checkbox",
+        "id": "cart_upsell_enabled",
+        "label": "Enable cart upsell",
+        "default": true,
+        "info": "Shows cross-sell recommendations in the cart drawer and on the cart page."
+      },
+      {
+        "type": "collection",
+        "id": "cart_upsell_collection",
+        "label": "Upsell collection",
+        "info": "Recommendations are picked from this collection. Only the first 50 products of the collection are considered."
+      },
+      {
+        "type": "text",
+        "id": "cart_upsell_heading",
+        "label": "Heading",
+        "default": "You might also like"
+      },
+      {
+        "type": "range",
+        "id": "cart_upsell_limit",
+        "label": "Number of recommendations",
+        "min": 1,
+        "max": 6,
+        "step": 1,
+        "default": 3
+      },
+      {
+        "type": "checkbox",
+        "id": "cart_upsell_random_fallback",
+        "label": "Fill remaining slots with random products",
+        "default": true,
+        "info": "When there are fewer exact title matches than the number of recommendations, the remaining slots are filled with random available products from the upsell collection. Turn off to show exact matches only."
+      },
+      {
+        "type": "text",
+        "id": "cart_upsell_button_label",
+        "label": "Add button text",
+        "default": "Add"
+      }
+    ]
+  }
+]

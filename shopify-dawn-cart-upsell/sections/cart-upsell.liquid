@@ -1,0 +1,22 @@
+{% comment %}
+  Render-only section for the cart upsell component.
+
+  This section is never added to a template through the theme editor (it has no
+  presets on purpose). It exists so that cart-upsell.js can ask Shopify for a
+  freshly rendered version of the component through:
+
+    - the Section Rendering API:  /?section_id=cart-upsell
+    - bundled section rendering:  POST /cart/add.js with sections=cart-upsell
+
+  The markup itself lives in snippets/cart-upsell.liquid, which is also
+  rendered inline inside the cart drawer and the cart page.
+{% endcomment %}
+
+{%- render 'cart-upsell', context: 'render' -%}
+
+{% schema %}
+{
+  "name": "Cart upsell",
+  "settings": []
+}
+{% endschema %}

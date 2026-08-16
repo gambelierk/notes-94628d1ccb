@@ -1,0 +1,275 @@
+{% comment %}
+  Renders the cart cross-sell ("upsell") component.
+
+  Shown in both the cart drawer and the /cart page. All of the selection logic
+  lives here so the two placements can never drift apart.
+
+  Selection rules (in order):
+    1. Read every product currently in the cart.
+    2. Read the products of the merchant-selected upsell collection.
+    3. Exclude an upsell product when its PRODUCT ID is already in the cart.
+       (Never by title — two different products may legitimately share a title.)
+    4. Exclude products without an available variant.
+    5. Exact title matches against cart product titles are rendered first.
+    6. Remaining slots are filled with other available products from the
+       collection ("random fallback"), shuffled client side by cart-upsell.js.
+    7. When random fallback is disabled, only exact matches are shown.
+    8. When nothing qualifies, the component renders nothing at all.
+
+  Accepts:
+  - context: {String} 'drawer' or 'cart'. Only used for a context class name.
+
+  Usage:
+  {% render 'cart-upsell', context: 'drawer' %}
+{% endcomment %}
+
+{%- liquid
+  assign upsell_context = context | default: 'cart'
+
+  # ---------------------------------------------------------------------------
+  # Theme editor settings (Online store > Themes > Customize > Cart upsell)
+  # ---------------------------------------------------------------------------
+  assign upsell_enabled = settings.cart_upsell_enabled
+
+  # The collection picker hands us a collection object. Resolving it through
+  # `collections[handle]` keeps this working if the setting ever yields a plain
+  # handle instead, and never hard-codes a collection.
+  assign upsell_collection_setting = settings.cart_upsell_collection
+  assign upsell_collection_handle = upsell_collection_setting.handle | default: upsell_collection_setting
+  assign upsell_collection = collections[upsell_collection_handle]
+
+  assign upsell_heading = settings.cart_upsell_heading | default: 'You might also like'
+  assign upsell_button_label = settings.cart_upsell_button_label | default: 'Add'
+  assign upsell_limit = settings.cart_upsell_limit | default: 3
+  assign upsell_random_fallback = settings.cart_upsell_random_fallback
+
+  # Nothing to do when the feature is off or no collection has been picked.
+  assign upsell_active = false
+  if upsell_enabled and upsell_collection_handle != blank and upsell_collection != blank and upsell_limit > 0
+    assign upsell_active = true
+  endif
+-%}
+
+{%- if upsell_active -%}
+  {%- liquid
+    # -------------------------------------------------------------------------
+    # 1. Product IDs currently in the cart — the EXCLUSION list.
+    #    Stored as a pipe-delimited string so that "|12|" can never match
+    #    inside "|123|". Product IDs are the only thing used for exclusion.
+    # -------------------------------------------------------------------------
+    assign cart_product_ids = '|'
+    for line_item in cart.items
+      assign cart_product_ids = cart_product_ids | append: line_item.product_id | append: '|'
+    endfor
+
+    # -------------------------------------------------------------------------
+    # 2. Product titles currently in the cart — the MATCH list.
+    #    Built separately from the ID list above on purpose: titles decide
+    #    priority/order, IDs decide exclusion. The two are never mixed.
+    #    Titles are normalised (stripped + downcased) before comparison and
+    #    wrapped in a delimiter that will not occur inside a product title.
+    # -------------------------------------------------------------------------
+    assign cart_product_titles = '~|~'
+    for line_item in cart.items
+      assign normalized_cart_title = line_item.product.title | strip | downcase
+      assign cart_product_titles = cart_product_titles | append: normalized_cart_title | append: '~|~'
+    endfor
+
+    # -------------------------------------------------------------------------
+    # 3. First pass — count eligible products, render nothing.
+    #    Counting up front means the render pass below knows exactly how many
+    #    exact-match slots and how many fallback slots to hand out.
+    # -------------------------------------------------------------------------
+    assign exact_match_count = 0
+    assign fallback_candidate_count = 0
+
+    for upsell_product in upsell_collection.products limit: 50
+      # Exclude by product ID: this exact product is already in the cart.
+      assign product_id_token = '|' | append: upsell_product.id | append: '|'
+      if cart_product_ids contains product_id_token
+        continue
+      endif
+
+      # Exclude products with no available variant to add.
+      assign upsell_variant = upsell_product.selected_or_first_available_variant
+      unless upsell_variant != blank and upsell_variant.available
+        continue
+      endunless
+
+      # Compare titles — exact match only ("Björne" != "Björne Patch").
+      assign normalized_upsell_title = upsell_product.title | strip | downcase
+      assign upsell_title_token = '~|~' | append: normalized_upsell_title | append: '~|~'
+
+      if cart_product_titles contains upsell_title_token
+        assign exact_match_count = exact_match_count | plus: 1
+      else
+        assign fallback_candidate_count = fallback_candidate_count | plus: 1
+      endif
+    endfor
+
+    # Exact matches fill the list first, capped at the configured limit.
+    assign exact_slots = exact_match_count
+    if exact_slots > upsell_limit
+      assign exact_slots = upsell_limit
+    endif
+
+    # Leftover slots are filled with random fallback products, when enabled.
+    assign fallback_slots = 0
+    if upsell_random_fallback
+      assign fallback_slots = upsell_limit | minus: exact_slots
+      if fallback_slots > fallback_candidate_count
+        assign fallback_slots = fallback_candidate_count
+      endif
+    endif
+
+    # Render a larger pool of fallback candidates than strictly needed so that
+    # cart-upsell.js can shuffle them and reveal a different subset on each cart
+    # render. Surplus candidates are rendered with the `hidden` attribute, so
+    # the component still looks correct if JavaScript never runs.
+    assign fallback_pool_size = fallback_slots | times: 4
+    if fallback_pool_size > 12
+      assign fallback_pool_size = 12
+    endif
+    if fallback_pool_size > fallback_candidate_count
+      assign fallback_pool_size = fallback_candidate_count
+    endif
+
+    assign total_slots = exact_slots | plus: fallback_slots
+  -%}
+
+  {%- comment -%}
+    The host element is always rendered while the feature is enabled so that
+    cart-upsell.js has a stable target to re-render into after the cart changes.
+    It carries no styling of its own, so an empty host is invisible — that is
+    how "hide the entire component when there is nothing to recommend" works.
+  {%- endcomment -%}
+  <div
+    class="cart-upsell cart-upsell--{{ upsell_context | escape }}"
+    data-cart-upsell
+    data-cart-upsell-context="{{ upsell_context | escape }}"
+  >
+    {%- if total_slots > 0 -%}
+      {%- liquid
+        assign exact_rendered = 0
+        assign fallback_rendered = 0
+      -%}
+      <div class="cart-upsell__inner">
+        <h3 class="cart-upsell__heading">{{ upsell_heading | escape }}</h3>
+
+        <ul
+          class="cart-upsell__list list-unstyled"
+          role="list"
+          data-cart-upsell-list
+          data-fallback-slots="{{ fallback_slots }}"
+        >
+          {%- comment -%}
+            Second pass — render. Exact matches get `--exact` (CSS `order: 0`)
+            so they always sit above fallback products, even before the
+            client-side shuffle runs.
+          {%- endcomment -%}
+          {%- for upsell_product in upsell_collection.products limit: 50 -%}
+            {%- liquid
+              assign render_item = false
+              assign is_exact_match = false
+              assign is_surplus_candidate = false
+
+              # Exclusion is by product ID only.
+              assign product_id_token = '|' | append: upsell_product.id | append: '|'
+              assign already_in_cart = false
+              if cart_product_ids contains product_id_token
+                assign already_in_cart = true
+              endif
+
+              # Must have an available variant.
+              assign upsell_variant = upsell_product.selected_or_first_available_variant
+              assign is_purchasable = false
+              if upsell_variant != blank and upsell_variant.available
+                assign is_purchasable = true
+              endif
+
+              if already_in_cart == false and is_purchasable
+                assign normalized_upsell_title = upsell_product.title | strip | downcase
+                assign upsell_title_token = '~|~' | append: normalized_upsell_title | append: '~|~'
+
+                if cart_product_titles contains upsell_title_token
+                  # Priority slot: exact title match with a product in the cart.
+                  if exact_rendered < exact_slots
+                    assign render_item = true
+                    assign is_exact_match = true
+                    assign exact_rendered = exact_rendered | plus: 1
+                  endif
+                elsif fallback_rendered < fallback_pool_size
+                  # Fallback candidate. Everything past `fallback_slots` is
+                  # rendered hidden and only revealed if the shuffle picks it.
+                  assign render_item = true
+                  if fallback_rendered >= fallback_slots
+                    assign is_surplus_candidate = true
+                  endif
+                  assign fallback_rendered = fallback_rendered | plus: 1
+                endif
+              endif
+            -%}
+
+            {%- if render_item -%}
+              <li
+                class="cart-upsell__item{% if is_exact_match %} cart-upsell__item--exact{% endif %}"
+                data-cart-upsell-item
+                data-product-id="{{ upsell_product.id }}"
+                {% unless is_exact_match %}
+                  data-cart-upsell-fallback="true"
+                {% endunless %}
+                {% if is_surplus_candidate %}
+                  hidden
+                {% endif %}
+              >
+                <a
+                  class="cart-upsell__media"
+                  href="{{ upsell_product.url }}"
+                  tabindex="-1"
+                  aria-hidden="true"
+                >
+                  {%- if upsell_product.featured_image != blank -%}
+                    {{
+                      upsell_product.featured_image
+                      | image_url: width: 216
+                      | image_tag:
+                        loading: 'lazy',
+                        widths: '72, 144, 216',
+                        sizes: '72px',
+                        class: 'cart-upsell__image',
+                        alt: ''
+                    }}
+                  {%- else -%}
+                    {{ 'product-apparel-2' | placeholder_svg_tag: 'cart-upsell__image cart-upsell__placeholder' }}
+                  {%- endif -%}
+                </a>
+
+                <div class="cart-upsell__info">
+                  <a class="cart-upsell__title" href="{{ upsell_product.url }}">
+                    {{- upsell_product.title | escape -}}
+                  </a>
+                  <span class="cart-upsell__price">{{ upsell_variant.price | money }}</span>
+                </div>
+
+                <button
+                  class="button cart-upsell__button"
+                  type="button"
+                  data-cart-upsell-add
+                  data-variant-id="{{ upsell_variant.id }}"
+                  aria-label="{{ upsell_button_label | escape }}: {{ upsell_product.title | escape }}"
+                >
+                  <span class="cart-upsell__button-text">{{ upsell_button_label | escape }}</span>
+                  <div class="loading__spinner hidden">
+                    {{- 'loading-spinner.svg' | inline_asset_content -}}
+                  </div>
+                </button>
+              </li>
+            {%- endif -%}
+          {%- endfor -%}
+        </ul>
+
+        <p class="cart-upsell__error" data-cart-upsell-error role="alert" hidden></p>
+      </div>
+    {%- endif -%}
+  </div>
+{%- endif -%}
