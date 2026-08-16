@@ -31,11 +31,25 @@
         "default": 3
       },
       {
-        "type": "checkbox",
-        "id": "cart_upsell_random_fallback",
-        "label": "Fill remaining slots with random products",
-        "default": true,
-        "info": "When there are fewer exact title matches than the number of recommendations, the remaining slots are filled with random available products from the upsell collection. Turn off to show exact matches only."
+        "type": "select",
+        "id": "cart_upsell_random_mode",
+        "label": "Random products",
+        "options": [
+          {
+            "value": "always",
+            "label": "Fill any remaining slots"
+          },
+          {
+            "value": "no_matches_only",
+            "label": "Only when nothing in the cart matches"
+          },
+          {
+            "value": "never",
+            "label": "Never — exact title matches only"
+          }
+        ],
+        "default": "always",
+        "info": "When nothing in the cart matches a product in the upsell collection, the first two options both show a full list of random available products from that collection."
       },
       {
         "type": "text",

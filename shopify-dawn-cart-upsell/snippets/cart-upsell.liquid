@@ -13,7 +13,10 @@
     5. Exact title matches against cart product titles are rendered first.
     6. Remaining slots are filled with other available products from the
        collection ("random fallback"), shuffled client side by cart-upsell.js.
-    7. When random fallback is disabled, only exact matches are shown.
+       When nothing in the cart matches, every slot is a remaining slot, so a
+       full list of random products is shown.
+    7. "Random products" = never turns rule 6 off completely; "only when nothing
+       matches" keeps a partial match list as-is.
     8. When nothing qualifies, the component renders nothing at all.
 
   Accepts:
@@ -41,7 +44,14 @@
   assign upsell_heading = settings.cart_upsell_heading | default: 'You might also like'
   assign upsell_button_label = settings.cart_upsell_button_label | default: 'Add'
   assign upsell_limit = settings.cart_upsell_limit | default: 3
-  assign upsell_random_fallback = settings.cart_upsell_random_fallback
+
+  # When random products may be used:
+  #   'always'          - fill every slot the exact matches left over, and show a
+  #                       full list of random products when nothing matches.
+  #   'no_matches_only' - random products only when there is no title match at
+  #                       all; a partial match list is left as-is.
+  #   'never'           - exact title matches only.
+  assign upsell_random_mode = settings.cart_upsell_random_mode | default: 'always'
 
   # Nothing to do when the feature is off or no collection has been picked.
   assign upsell_active = false
@@ -113,9 +123,19 @@
       assign exact_slots = upsell_limit
     endif
 
-    # Leftover slots are filled with random fallback products, when enabled.
+    # Leftover slots are filled with random fallback products. With no exact
+    # match at all, every slot is a leftover slot — so a cart that matches
+    # nothing still gets a full list of random products from the collection,
+    # unless the merchant switched random products off entirely.
+    assign random_allowed = false
+    if upsell_random_mode == 'always'
+      assign random_allowed = true
+    elsif upsell_random_mode == 'no_matches_only' and exact_slots == 0
+      assign random_allowed = true
+    endif
+
     assign fallback_slots = 0
-    if upsell_random_fallback
+    if random_allowed
       assign fallback_slots = upsell_limit | minus: exact_slots
       if fallback_slots > fallback_candidate_count
         assign fallback_slots = fallback_candidate_count

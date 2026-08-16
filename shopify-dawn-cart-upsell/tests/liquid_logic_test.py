@@ -35,18 +35,20 @@ def cart(*products):
     return {"items": [{"product_id": p["id"], "product": {"title": p["title"]}} for p in products]}
 
 
-def render(cart_products, collection_products, limit=3, random_fallback=True, enabled=True):
+def render(cart_products, collection_products, limit=3, random_mode="always", enabled=True):
     coll = {"handle": "upsell", "products": collection_products}
+    settings = {
+        "cart_upsell_enabled": enabled,
+        "cart_upsell_collection": coll,
+        "cart_upsell_heading": "You might also like",
+        "cart_upsell_button_label": "Add",
+        "cart_upsell_limit": limit,
+    }
+    if random_mode is not None:
+        settings["cart_upsell_random_mode"] = random_mode
     return template.render(
         context="drawer",
-        settings={
-            "cart_upsell_enabled": enabled,
-            "cart_upsell_collection": coll,
-            "cart_upsell_heading": "You might also like",
-            "cart_upsell_button_label": "Add",
-            "cart_upsell_limit": limit,
-            "cart_upsell_random_fallback": random_fallback,
-        },
+        settings=settings,
         collections={"upsell": coll},
         cart=cart(*cart_products),
     )
@@ -129,21 +131,47 @@ check("remaining 2 slots filled with fallback", sorted(visible(items2)) == [11, 
 
 # --- 4. Partial title must not match --------------------------------------
 patch_suffix = product(20, "Björne Patch")
-html3 = render([bjorne_shirt], [patch_suffix], limit=3, random_fallback=False)
+html3 = render([bjorne_shirt], [patch_suffix], limit=3, random_mode="never")
 check("'Björne Patch' is not an exact match for 'Björne'", parse(html3) == [], parse(html3))
 
-# --- 5. Random fallback disabled ------------------------------------------
-html4 = render([bjorne_shirt], collection, limit=3, random_fallback=False)
-items4 = parse(html4)
-check("random fallback off: only exact matches", [i for i, e, h in items4] == [10], items4)
+# --- 5. No exact match at all --> a full list of random products ----------
+html_nm = render([slips_shirt], collection, limit=3)
+items_nm = parse(html_nm)
+check("no title match: 3 random products shown", len(visible(items_nm)) == 3, items_nm)
+check("no title match: nothing flagged as exact", exacts(items_nm) == [], items_nm)
 
-html5 = render([slips_shirt], collection, limit=3, random_fallback=False)
-check("random fallback off + no matches: component hidden", "cart-upsell__inner" not in html5)
+html_nm2 = render([slips_shirt], collection, limit=3, random_mode="no_matches_only")
+check("no title match + 'only when nothing matches': 3 random products", len(visible(parse(html_nm2))) == 3, parse(html_nm2))
+
+html_nm3 = render([slips_shirt], collection, limit=3, random_mode=None)
+check("no title match + setting missing: defaults to 3 random products", len(visible(parse(html_nm3))) == 3, parse(html_nm3))
+
+html_nm4 = render([slips_shirt], collection, limit=2)
+check("no title match honours the recommendation limit", len(visible(parse(html_nm4))) == 2, parse(html_nm4))
+
+html_nm5 = render([slips_shirt], [bjorne_patch], limit=3)
+check("no title match, only 1 product available: shows that 1", len(visible(parse(html_nm5))) == 1, parse(html_nm5))
+
+# --- 5b. 'Only when nothing matches' keeps a partial match list ------------
+html_pm = render([bjorne_shirt], collection, limit=3, random_mode="no_matches_only")
+items_pm = parse(html_pm)
+check("'only when nothing matches': partial match list is not topped up", visible(items_pm) == [10], items_pm)
+
+html_pm2 = render([bjorne_shirt], collection, limit=3, random_mode="always")
+check("'fill any remaining slots': partial match list is topped up", len(visible(parse(html_pm2))) == 3, parse(html_pm2))
+
+# --- 5c. Random products disabled -----------------------------------------
+html4 = render([bjorne_shirt], collection, limit=3, random_mode="never")
+items4 = parse(html4)
+check("random off: only exact matches", [i for i, e, h in items4] == [10], items4)
+
+html5 = render([slips_shirt], collection, limit=3, random_mode="never")
+check("random off + no matches: component hidden", "cart-upsell__inner" not in html5)
 check("hidden component renders an empty host", 'data-cart-upsell' in html5 and "<li" not in html5)
 
 # --- 6. Availability ------------------------------------------------------
 sold_out_bjorne = product(30, "Björne", available=False)
-html6 = render([bjorne_shirt], [sold_out_bjorne], limit=3, random_fallback=True)
+html6 = render([bjorne_shirt], [sold_out_bjorne], limit=3, random_mode="always")
 check("unavailable exact match is not recommended", parse(html6) == [], parse(html6))
 
 html7 = render([slips_shirt], [kungen_patch, product(31, "Slut", available=False)], limit=3)
@@ -174,7 +202,7 @@ html11 = template.render(
         "cart_upsell_heading": "You might also like",
         "cart_upsell_button_label": "Add",
         "cart_upsell_limit": 3,
-        "cart_upsell_random_fallback": True,
+        "cart_upsell_random_mode": "always",
     },
     collections={},
     cart=cart(bjorne_shirt),
@@ -199,7 +227,7 @@ check("product titles are escaped", "<script>" not in html13 and "&lt;script&gt;
 check("titles with markup still match exactly", len(visible(parse(html13))) == 1, parse(html13))
 
 # --- 11. Case / whitespace normalisation ----------------------------------
-html14 = render([product(60, " björne ")], [product(61, "Björne")], limit=1, random_fallback=False)
+html14 = render([product(60, " björne ")], [product(61, "Björne")], limit=1, random_mode="never")
 check("title match is whitespace/case tolerant", visible(parse(html14)) == [61], parse(html14))
 
 # --- 12. Fixtures for the jsdom test -------------------------------------
@@ -217,7 +245,7 @@ for name, ctx in (("fixture-drawer.html", "drawer"), ("fixture-cart.html", "cart
             "cart_upsell_heading": "You might also like",
             "cart_upsell_button_label": "Add",
             "cart_upsell_limit": 3,
-            "cart_upsell_random_fallback": True,
+            "cart_upsell_random_mode": "always",
         },
         collections={"upsell": coll},
         cart=cart(bjorne_shirt, slips_shirt),

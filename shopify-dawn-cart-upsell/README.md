@@ -44,14 +44,25 @@ Rendered fresh by Liquid on every cart render:
    Liquid renders a surplus pool (up to 4× the free slots, max 12) with the `hidden`
    attribute; `cart-upsell.js` shuffles the pool and reveals exactly as many as there
    are free slots, so the filler products vary between renders.
-6. Random fallback disabled → only exact matches are rendered.
-7. Nothing eligible → the component renders an empty (invisible) host element, so
-   the whole component disappears.
+6. **Nothing in the cart matches → every slot is a free slot, so the full number of
+   recommendations is filled with random products from the collection.** The
+   component is never hidden just because no title matched.
+7. Nothing eligible at all (empty collection, everything already in the cart, or
+   everything sold out) → the component renders an empty (invisible) host element,
+   so it disappears.
 
 **Exclusion is by product ID only. Titles are only ever used for ordering.**
 Two different products may share a title on purpose — a "Björne" t-shirt in the cart
 therefore promotes the "Björne" patch from the upsell collection. Once that patch is
 added, its own product ID is in the cart and it disappears from the recommendations.
+
+The **Random products** setting governs step 5/6:
+
+| Setting | Some titles match | No title matches |
+| --- | --- | --- |
+| `Fill any remaining slots` *(default)* | matches first, random products top the list up to the limit | full list of random products |
+| `Only when nothing in the cart matches` | matches only, list stays short | full list of random products |
+| `Never — exact title matches only` | matches only | component hidden |
 
 Matching is exact after `strip` + `downcase`: `Björne` = `björne `, but
 `Björne` ≠ `Björne Patch`. To make it case-sensitive, remove the two `| downcase`
@@ -121,11 +132,25 @@ the two objects.
       "default": 3
     },
     {
-      "type": "checkbox",
-      "id": "cart_upsell_random_fallback",
-      "label": "Fill remaining slots with random products",
-      "default": true,
-      "info": "When there are fewer exact title matches than the number of recommendations, the remaining slots are filled with random available products from the upsell collection. Turn off to show exact matches only."
+      "type": "select",
+      "id": "cart_upsell_random_mode",
+      "label": "Random products",
+      "options": [
+        {
+          "value": "always",
+          "label": "Fill any remaining slots"
+        },
+        {
+          "value": "no_matches_only",
+          "label": "Only when nothing in the cart matches"
+        },
+        {
+          "value": "never",
+          "label": "Never — exact title matches only"
+        }
+      ],
+      "default": "always",
+      "info": "When nothing in the cart matches a product in the upsell collection, the first two options both show a full list of random available products from that collection."
     },
     {
       "type": "text",
@@ -275,8 +300,15 @@ runs on `DOMContentLoaded`, after every re-render, and on `shopify:section:load`
 **Recommendation logic**
 
 - [ ] Limit = 1 → exactly one recommendation; limit = 6 → up to six.
-- [ ] Random fallback off + no exact matches → the component is invisible.
-- [ ] Random fallback off + 1 exact match, limit 3 → exactly one recommendation.
+- [ ] No exact matches at all (default settings) → the full number of
+      recommendations is shown, all random, component **not** hidden.
+- [ ] No exact matches, limit 2 → exactly two random products.
+- [ ] No exact matches and only one product available in the collection → that one
+      product is shown.
+- [ ] `Only when nothing in the cart matches` + 1 exact match, limit 3 → exactly one
+      recommendation (list is not topped up).
+- [ ] `Never` + no exact matches → the component is invisible.
+- [ ] `Never` + 1 exact match, limit 3 → exactly one recommendation.
 - [ ] No products left in the collection (all in cart) → component invisible, no
       empty box, no stray heading or border.
 - [ ] A sold-out product in the collection is never recommended.
@@ -357,6 +389,9 @@ runs on `DOMContentLoaded`, after every re-render, and on `shopify:section:load`
   (heading, button label) is editable per language in the theme editor's language
   picker. Shopify's `theme check` may emit `TranslationKeyExists`-style hints for the
   literal labels; they are informational.
+* **`cart_upsell_random_mode`** falls back to `always` when the setting is missing, so
+  the component behaves correctly even if the theme is deployed before
+  `settings_schema.json` is updated.
 * **`settings.cart_upsell_collection`** resolves through `collections[handle]`, so it
   keeps working whether the collection setting yields a collection object (current
   behaviour) or a handle string.
