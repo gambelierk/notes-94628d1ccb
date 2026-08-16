@@ -32,7 +32,7 @@ via Resend. Appen kan driftsättas på **Render** eller **Netlify** utan kodänd
 | Sida | Adress | Innehåll |
 | --- | --- | --- |
 | Hem | `/` | Logotyp och produktrutnät (bild, namn, pris) |
-| Produkt | `/produkt/<slug>` | Stor bild, rubrik, beskrivning, Storlek, Färg, Antal, "Lägg i varukorg" |
+| Produkt | `/produkt/<slug>` | Bildgalleri (flera bilder), rubrik, beskrivning, Storlek, Färg, Antal, "Lägg i varukorg" |
 | Varukorg | `/varukorg` | Rader med storlek/färg/antal, ändra antal, ta bort, delsumma, "Till kassan" |
 | Kassa | `/kassa` | Ordersammanfattning, Namn/E-post/Telefon (obligatoriska) + Adress (valfri), Swish-QR, "Jag har betalat" |
 | Bekräftelse | `/kassa/bekraftelse` | Ordernummer, beställda varor och upphämtningsinfo |
@@ -43,7 +43,7 @@ via Resend. Appen kan driftsättas på **Render** eller **Netlify** utan kodänd
 | --- | --- | --- |
 | Inloggning | `/logga-in` | E-post och lösenord (ett adminkonto) |
 | Beställningar | `/admin` | Alla ordrar med ordernummer, kunduppgifter, artiklar, status, statusknappar, CSV-export |
-| Produkter | `/admin/produkter` | Lägg till, redigera och ta bort produkter, pris, storlekar/färger, lagersaldo per variant, bild |
+| Produkter | `/admin/produkter` | Lägg till, redigera och ta bort produkter, pris, storlekar/färger, lagersaldo per variant, flera bilder |
 
 **Orderlogik**
 
@@ -241,6 +241,37 @@ två sätt i adminpanelen:
 2. **Ladda upp bild** – filen omvandlas till text (base64) och sparas direkt i databasen.
    Enklast när man vill komma igång, max 1,4 MB per bild.
 
+### Flera bilder per produkt
+
+En produkt kan ha upp till **8 bilder** – till exempel en fram- och en baksida på en
+tröja. Bilderna lagras i tabellen `ProductImage`, i den ordning de ligger i
+adminpanelen:
+
+- **Första bilden är huvudbild.** Den visas i produktrutnätet på startsidan, i
+  varukorgen och i orderbekräftelserna.
+- **Produktsidan visar ett galleri:** stor bild överst och klickbara miniatyrer under.
+  Har produkten bara en bild visas inga miniatyrer.
+- **Ordningen ändras** med pilknapparna i adminpanelen, eller med knappen
+  *Sortera om efter filnamn*.
+
+**Filnamn med löpnummer.** Väljer du flera filer på en gång sorteras de automatiskt
+efter siffran sist i filnamnet, så att de hamnar rätt oavsett i vilken ordning
+filväljaren råkar lämna dem:
+
+```
+tshirt_svart_001.jpg   → huvudbild (framsida)
+tshirt_svart_002.jpg   → bild 2 (baksida)
+tshirt_svart_010.jpg   → bild 3
+```
+
+Sorteringen är numerisk, inte alfabetisk – därför hamnar `_010` efter `_002` och inte
+mellan `_001` och `_002`. Bilder utan siffra läggs först. Innehåller samma uppladdning
+filnamn med olika stam (t.ex. både `tshirt_svart_001` och `tygvaska_001`) grupperas de
+var för sig och adminpanelen varnar om att bilderna verkar tillhöra olika produkter –
+alla hamnar ändå på den produkt du redigerar, så ta bort dem som inte hör hit.
+
+Logiken ligger i [`src/lib/bildnamn.ts`](src/lib/bildnamn.ts) om mönstret behöver ändras.
+
 ---
 
 ## Driftsättning: Render vs Netlify
@@ -302,7 +333,7 @@ public/
 src/
   config/site.ts         # Föreningens namn, adress, öppettider, Swish-nummer, bildsökvägar
   app/
-    (butik)/             # Publika sidor: hem, produkt, varukorg, kassa, bekräftelse
+    (butik)/             # Publika sidor: hem, produkt (bildgalleri), varukorg, kassa, bekräftelse
     admin/               # Adminpanel: beställningar och produkter
     logga-in/            # Inloggning
     api/admin/export/    # CSV-export av beställningar
@@ -313,6 +344,7 @@ src/
     auth.ts              # Inloggning och sessionscookie
     email.ts             # Mejltexter och utskick via Resend
     orders.ts            # Ordernummer, statusflöde och lagerregler
+    bildnamn.ts          # Sorterar bildfiler på löpnumret i filnamnet
     format.ts            # Pris- och datumformat (sv-SE)
 ```
 

@@ -15,7 +15,10 @@ export default async function RedigeraProdukt({
 
   const produkt = await prisma.product.findUnique({
     where: { id },
-    include: { variants: { orderBy: [{ size: "asc" }, { color: "asc" }] } },
+    include: {
+      variants: { orderBy: [{ size: "asc" }, { color: "asc" }] },
+      images: { orderBy: { sortOrder: "asc" } },
+    },
   });
 
   if (!produkt) notFound();
@@ -35,7 +38,10 @@ export default async function RedigeraProdukt({
           namn: produkt.name,
           beskrivning: produkt.description,
           prisKronor: oreTillKronorText(produkt.priceOre),
-          bild: produkt.image,
+          bilder: produkt.images.map((bild) => ({
+            url: bild.url,
+            filnamn: bild.filename,
+          })),
           aktiv: produkt.active,
           sortering: produkt.sortOrder,
           storlekar: [...new Set(produkt.variants.map((variant) => variant.size))],

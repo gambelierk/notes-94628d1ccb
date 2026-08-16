@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { site } from "@/config/site";
-import { Produktbild } from "@/components/produktbild";
+import { Produktgalleri } from "@/components/produktgalleri";
 import { LaggIVarukorg } from "@/components/lagg-i-varukorg";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +16,15 @@ export default async function Produktsida({
 
   const produkt = await prisma.product.findFirst({
     where: { slug, active: true },
-    include: { variants: { orderBy: [{ size: "asc" }, { color: "asc" }] } },
+    include: {
+      variants: { orderBy: [{ size: "asc" }, { color: "asc" }] },
+      images: { orderBy: { sortOrder: "asc" } },
+    },
   });
 
   if (!produkt) notFound();
+
+  const huvudbild = produkt.images[0]?.url ?? null;
 
   return (
     <div>
@@ -28,13 +33,13 @@ export default async function Produktsida({
       </Link>
 
       <div className="mt-4 grid gap-8 md:grid-cols-2">
-        <div className="overflow-hidden rounded-xl border border-line bg-surface">
-          <Produktbild
-            src={produkt.image}
-            alt={produkt.name}
-            className="aspect-square h-full w-full"
-          />
-        </div>
+        <Produktgalleri
+          bilder={produkt.images.map((bild) => ({
+            url: bild.url,
+            filename: bild.filename,
+          }))}
+          produktnamn={produkt.name}
+        />
 
         <div>
           <h1 className="text-2xl font-bold sm:text-3xl">{produkt.name}</h1>
@@ -47,7 +52,7 @@ export default async function Produktsida({
                 slug: produkt.slug,
                 name: produkt.name,
                 priceOre: produkt.priceOre,
-                image: produkt.image,
+                image: huvudbild,
               }}
               varianter={produkt.variants.map((variant) => ({
                 id: variant.id,

@@ -26,16 +26,31 @@ model Product {
   description String
   /// Pris i öre, t.ex. 24900 = 249,00 kr
   priceOre    Int
-  /// Bild: antingen en URL (https://...) eller en data-URL (base64) som sparas i databasen.
-  image       String?
   active      Boolean   @default(true)
   sortOrder   Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   variants    Variant[]
+  images      ProductImage[]
   orderItems  OrderItem[]
 
   @@index([active, sortOrder])
+}
+
+/// En produktbild. En produkt kan ha flera bilder; den med lägst sortOrder är huvudbilden
+/// och visas i produktrutnätet, i varukorgen och i mejlen.
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// Antingen en URL (https://...) eller en data-URL (base64) som sparas i databasen.
+  url       String
+  /// Ursprungligt filnamn, t.ex. "tshirt_svart_001.jpg". Används för sortering och i admin.
+  filename  String?
+  sortOrder Int     @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId, sortOrder])
 }
 
 /// En kombination av storlek och färg med eget lagersaldo.

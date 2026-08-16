@@ -10,7 +10,11 @@ export default async function Hem() {
   const produkter = await prisma.product.findMany({
     where: { active: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-    include: { variants: true },
+    include: {
+      variants: true,
+      // Bara huvudbilden behövs i rutnätet.
+      images: { orderBy: { sortOrder: "asc" }, take: 1 },
+    },
   });
 
   return (
@@ -44,7 +48,7 @@ export default async function Hem() {
                 >
                   <div className="relative aspect-square w-full overflow-hidden bg-surface">
                     <Produktbild
-                      src={produkt.image}
+                      src={produkt.images[0]?.url ?? null}
                       alt={produkt.name}
                       className="h-full w-full transition-transform group-hover:scale-[1.03]"
                     />

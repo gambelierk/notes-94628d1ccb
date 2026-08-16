@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 export default async function Produktlista() {
   const produkter = await prisma.product.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-    include: { variants: { orderBy: [{ size: "asc" }, { color: "asc" }] } },
+    include: {
+      variants: { orderBy: [{ size: "asc" }, { color: "asc" }] },
+      images: { orderBy: { sortOrder: "asc" } },
+    },
   });
 
   return (
@@ -32,11 +35,18 @@ export default async function Produktlista() {
             );
             return (
               <li key={produkt.id} className="kort flex flex-wrap gap-4 p-4">
-                <Produktbild
-                  src={produkt.image}
-                  alt={produkt.name}
-                  className="h-24 w-24 shrink-0 rounded-lg"
-                />
+                <div className="relative shrink-0">
+                  <Produktbild
+                    src={produkt.images[0]?.url ?? null}
+                    alt={produkt.name}
+                    className="h-24 w-24 rounded-lg"
+                  />
+                  {produkt.images.length > 1 && (
+                    <span className="absolute bottom-1 right-1 rounded-md bg-black/80 px-1.5 py-0.5 text-xs font-semibold text-white">
+                      {produkt.images.length} bilder
+                    </span>
+                  )}
+                </div>
 
                 <div className="min-w-52 flex-1">
                   <div className="flex flex-wrap items-center gap-2">

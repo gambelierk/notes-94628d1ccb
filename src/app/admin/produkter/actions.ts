@@ -8,8 +8,60 @@ import { kronorTextTillOre } from "@/lib/format";
 
 export type Produktsvar = { fel: string } | undefined;
 
-/** Max storlek på inklistrad/uppladdad bild som sparas som data-URL i databasen. */
+/** Max storlek på en enskild bild som sparas som data-URL i databasen. */
 const MAX_BILDSTORLEK = 2_000_000; // ~2 MB som text
+/** Max antal bilder per produkt. */
+const MAX_ANTAL_BILDER = 8;
+
+type Bildinmatning = { url: string; filename: string | null };
+
+/**
+ * Läser bildlistan från formuläret. Bilderna kommer som JSON i fältet "bilder"
+ * och sparas i den ordning administratören har lagt dem – första bilden blir
+ * huvudbild.
+ */
+function lasBilder(formData: FormData): { ok: true; bilder: Bildinmatning[] } | { ok: false; fel: string } {
+  const rawData = String(formData.get("bilder") ?? "").trim();
+  if (!rawData) return { ok: true, bilder: [] };
+
+  let parsad: unknown;
+  try {
+    parsad = JSON.parse(rawData);
+  } catch {
+    return { ok: false, fel: "Kunde inte läsa bildlistan. Ladda om sidan och försök igen." };
+  }
+  if (!Array.isArray(parsad)) {
+    return { ok: false, fel: "Kunde inte läsa bildlistan. Ladda om sidan och försök igen." };
+  }
+  if (parsad.length > MAX_ANTAL_BILDER) {
+    return { ok: false, fel: `Max ${MAX_ANTAL_BILDER} bilder per produkt.` };
+  }
+
+  const bilder: Bildinmatning[] = [];
+  for (const post of parsad) {
+    const url = String((post as { url?: unknown })?.url ?? "").trim();
+    if (!url) continue;
+    if (url.length > MAX_BILDSTORLEK) {
+      return {
+        ok: false,
+        fel: "En av bilderna är för stor. Välj en mindre bild eller ange en bild-URL.",
+      };
+    }
+    if (!/^(https?:\/\/|data:image\/)/i.test(url)) {
+      return {
+        ok: false,
+        fel: "Bilder måste vara en https-adress eller en uppladdad bildfil.",
+      };
+    }
+    const filnamn = (post as { filnamn?: unknown })?.filnamn;
+    bilder.push({
+      url,
+      filename: typeof filnamn === "string" && filnamn.trim() ? filnamn.trim().slice(0, 200) : null,
+    });
+  }
+
+  return { ok: true, bilder };
+}
 
 function tillSlug(text: string): string {
   return text
@@ -48,7 +100,6 @@ function lasFormular(formData: FormData) {
   const name = String(formData.get("namn") ?? "").trim();
   const description = String(formData.get("beskrivning") ?? "").trim();
   const prisText = String(formData.get("pris") ?? "").trim();
-  const bild = String(formData.get("bild") ?? "").trim();
   const active = formData.get("aktiv") === "on";
   const sortOrder = Math.floor(Number(formData.get("sortering") ?? 0)) || 0;
   const storlekar = delaLista(String(formData.get("storlekar") ?? ""));
@@ -67,9 +118,8 @@ function lasFormular(formData: FormData) {
   if (farger.length === 0) {
     return { ok: false, fel: 'Ange minst en färg (skriv t.ex. "Enfärgad" om produkten bara finns i en färg).' } as const;
   }
-  if (bild.length > MAX_BILDSTORLEK) {
-    return { ok: false, fel: "Bilden är för stor. Välj en mindre bild eller ange en bild-URL." } as const;
-  }
+  const bildresultat = lasBilder(formData);
+  if (!bildresultat.ok) return { ok: false, fel: bildresultat.fel } as const;
 
   return {
     ok: true,
@@ -77,10 +127,10 @@ function lasFormular(formData: FormData) {
       name,
       description,
       priceOre,
-      image: bild || null,
       active,
       sortOrder,
     },
+    bilder: bildresultat.bilder,
     varianter: lasVarianter(formData, storlekar, farger),
   } as const;
 }
@@ -110,6 +160,13 @@ export async function skapaProdukt(
       ...resultat.data,
       slug,
       variants: { create: resultat.varianter },
+      images: {
+        create: resultat.bilder.map((bild, position) => ({
+          url: bild.url,
+          filename: bild.filename,
+          sortOrder: position,
+        })),
+      },
     },
   });
 
@@ -140,6 +197,19 @@ export async function uppdateraProdukt(
       where: { id: produktId },
       data: { ...resultat.data, slug },
     });
+
+    // Bilderna sätts om i den ordning formuläret skickade dem.
+    await tx.productImage.deleteMany({ where: { productId: produktId } });
+    if (resultat.bilder.length > 0) {
+      await tx.productImage.createMany({
+        data: resultat.bilder.map((bild, position) => ({
+          productId: produktId,
+          url: bild.url,
+          filename: bild.filename,
+          sortOrder: position,
+        })),
+      });
+    }
 
     const nyaNycklar = new Set(
       resultat.varianter.map((variant) => `${variant.size}|${variant.color}`)

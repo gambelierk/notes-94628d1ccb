@@ -14,7 +14,7 @@ export default function NyProdukt() {
           namn: "",
           beskrivning: "",
           prisKronor: "",
-          bild: null,
+          bilder: [],
           aktiv: true,
           sortering: 0,
           storlekar: ["Onesize"],
