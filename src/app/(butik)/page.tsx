@@ -20,11 +20,16 @@ export default async function Hem() {
   return (
     <div>
       <section className="mb-8 text-center">
-        {/* Logotypplatshållare – byt ut public/logotyp.svg. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={site.logoSrc} alt={site.orgName} className="mx-auto h-20 w-auto sm:h-24" />
-        <h1 className="mt-4 text-2xl font-bold sm:text-3xl">{site.orgName}</h1>
-        <p className="mx-auto mt-2 max-w-xl text-muted">{site.tagline}</p>
+        <img
+          src={site.logoSrc}
+          alt=""
+          aria-hidden="true"
+          className="mx-auto h-auto w-full max-w-sm sm:max-w-md"
+        />
+        {/* Namnet finns i logotypen – rubriken behålls för skärmläsare och sökmotorer. */}
+        <h1 className="sr-only">{site.orgName}</h1>
+        <p className="mx-auto mt-4 max-w-xl text-muted">{site.tagline}</p>
         <p className="mx-auto mt-2 max-w-xl text-sm text-muted">
           Betala med Swish i kassan och hämta ditt köp hos {site.pickup.place}.
         </p>

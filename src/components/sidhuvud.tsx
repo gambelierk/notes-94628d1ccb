@@ -10,11 +10,15 @@ export function Sidhuvud() {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3">
-        <Link href="/" className="flex items-center gap-3" aria-label="Till startsidan">
-          {/* Byt ut public/logotyp.svg mot föreningens egen logotyp. */}
+        <Link href="/" className="flex min-w-0 items-center" aria-label="Till startsidan">
+          {/* Logotypen innehåller föreningens namn, därför står namnet inte som text bredvid.
+              Byt ut public/logotyp.svg mot en annan logotyp vid behov. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={site.logoSrc} alt={site.orgName} className="h-10 w-auto" />
-          <span className="text-base font-semibold sm:text-lg">{site.orgName}</span>
+          <img
+            src={site.logoSrc}
+            alt={site.orgName}
+            className="h-9 w-auto max-w-[62vw] object-contain sm:h-11 sm:max-w-none"
+          />
         </Link>
 
         <Link
