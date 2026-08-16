@@ -87,7 +87,8 @@ filters in `snippets/cart-upsell.liquid`.
 6. Add the snippet to the cart page (§7).
 7. Open the theme editor → **Theme settings → Cart upsell**, pick the upsell
    collection, set the heading/limit/button text, save.
-8. Walk the testing checklist (§9).
+8. If your theme is already customized, read §11 before adjusting any styling.
+9. Walk the testing checklist (§9).
 
 ---
 
@@ -395,3 +396,94 @@ runs on `DOMContentLoaded`, after every re-render, and on `shopify:section:load`
 * **`settings.cart_upsell_collection`** resolves through `collections[handle]`, so it
   keeps working whether the collection setting yields a collection object (current
   behaviour) or a handle string.
+
+---
+
+## 11. Fitting an already-customized Dawn theme
+
+### Nothing is overwritten
+
+This is an add-on, not a theme. You upload **4 new files** and make **4 small edits**:
+
+| Action | File |
+| --- | --- |
+| new | `snippets/cart-upsell.liquid` |
+| new | `sections/cart-upsell.liquid` |
+| new | `assets/cart-upsell.css` |
+| new | `assets/cart-upsell.js` |
+| +2 lines | `layout/theme.liquid` (§5) |
+| +1 line | `snippets/cart-drawer.liquid` (§6) |
+| +1 line | `sections/main-cart-items.liquid` (§7) |
+| +1 settings group | `config/settings_schema.json` (§4) |
+
+Every other file in your theme is untouched — `base.css`, your custom stylesheet,
+your sections, your templates and your `settings_data.json` are never replaced. None
+of the four filenames exist in stock Dawn, so there is nothing to collide with;
+still worth a quick check that your own theme has no file by those names.
+
+### What it already inherits from your customizations
+
+* **Color scheme** — the component sets no colors of its own. It reads
+  `--color-foreground` / `--color-background` from the nearest color-scheme wrapper,
+  which is your drawer's `settings.cart_color_scheme` in the drawer and the cart
+  section's own scheme on `/cart`. Change the scheme and the component follows.
+* **Fonts** — the title and price inherit `--font-body-family`; the heading is an
+  `<h3>`, so it picks up `--font-heading-family`, weight and style from your theme.
+* **Add button** — it uses Dawn's own `.button` class, so your button colors, border
+  width, `--buttons-radius`, shadow and hover animation all apply unchanged.
+* **Image corners** — `--media-radius`, the same variable your product cards use.
+
+### The five deliberate overrides, and how to drop them
+
+Everything in `cart-upsell.css` is scoped under `.cart-upsell*`, so it cannot leak
+into your existing styles. If a rule fights your design, delete it — the component
+degrades to your theme's defaults:
+
+| Block | What it forces | Delete it to get |
+| --- | --- | --- |
+| `.cart-upsell__heading` | 1.4rem, uppercase, letter-spacing, 85% opacity | your normal `h3` styling |
+| `.cart-upsell__button.button` | smaller padding / min-height / font-size | your standard button size |
+| `.cart-upsell__title` / `__price` | 1.4rem / 1.3rem | inherited body size |
+| `.cart-upsell__media` | 7.2rem square (6rem mobile) | change the two `width`/`height` pairs and the `grid-template-columns` first value together |
+| `.cart-upsell--drawer .cart-upsell__list` | `max-height: 24rem` + internal scroll | an unbounded list (can push the checkout button below the fold) |
+
+If you keep your own heading conventions, the cleanest swap is to delete the
+`.cart-upsell__heading` block and add a Dawn class in the snippet instead:
+`<h3 class="cart-upsell__heading h5">`.
+
+### Load order, so your CSS can win
+
+Put the stylesheet tag from §5 **after `base.css` but before your own custom
+stylesheet**:
+
+```liquid
+{{ 'base.css' | asset_url | stylesheet_tag }}
+{{ 'cart-upsell.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'cart-upsell.js' | asset_url }}" defer="defer"></script>
+{{ 'your-custom.css' | asset_url | stylesheet_tag }}
+```
+
+Then a `.cart-upsell__button` rule in your own file overrides mine without touching
+this package — which keeps updates painless. If your customizations live *inside*
+`base.css` rather than in a separate asset, my file loads afterwards and wins on the
+handful of properties it sets; either move those rules into a later stylesheet or
+edit `cart-upsell.css` directly.
+
+### If your theme has drifted from stock Dawn
+
+The line numbers in §6 and §7 are Dawn 16.0.0. Search for the anchors instead:
+
+* drawer: `<div class="drawer__footer">` — insert the render tag as its first child;
+* cart page: the `</form>` that closes `id="cart"` in `sections/main-cart-items.liquid`;
+* if you moved the cart page markup into a custom section, the render tag can go
+  anywhere inside it — the JS finds the host by `[data-cart-upsell]`, not by position.
+
+If you replaced Dawn's cart drawer with a third-party one, the JS detects the missing
+`renderContents()` / `getSectionsToRender()` and routes the update through the
+Section Rendering API fallback instead (§8), so the add still works without a reload.
+
+### Checking the fit
+
+Preview the theme, open the drawer, and compare the Add button against the checkout
+button below it. If they look like they belong to different themes, it is almost
+always the `.cart-upsell__button.button` block — remove it first and re-check.
