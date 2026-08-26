@@ -1,0 +1,12 @@
+# Netlify-konfiguration. Ingen kod behöver ändras – bara den här filen och
+# miljövariablerna i Netlify (se README).
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Kör Next.js App Router med server-funktioner på Netlify.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

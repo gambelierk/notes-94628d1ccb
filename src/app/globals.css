@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   FÄRGPALETT – byt ut hex-koderna nedan mot föreningens exakta färger.
+   Variablerna blir automatiskt CSS-variabler (--color-black, --color-white,
+   --color-blue) och Tailwind-klasser (bg-black, text-blue, border-blue ...).
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-black: #101014; /* PLACEHOLDER */
+  --color-white: #ffffff; /* PLACEHOLDER */
+  --color-blue: #006eb7; /* Föreningens blå */
+
+  /* Nyanser som räknas fram automatiskt ur färgerna ovan. */
+  --color-blue-dark: color-mix(in srgb, var(--color-blue) 82%, black);
+  --color-blue-soft: color-mix(in srgb, var(--color-blue) 10%, white);
+  --color-line: color-mix(in srgb, var(--color-black) 12%, white);
+  --color-muted: color-mix(in srgb, var(--color-black) 55%, white);
+  --color-surface: color-mix(in srgb, var(--color-black) 3%, white);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-white);
+  color: var(--color-black);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Gemensamma komponentklasser (mobil först). */
+@layer components {
+  .knapp {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-base
+      font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .knapp-primar {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-blue px-5 py-3
+      text-base font-semibold text-white transition-colors hover:bg-blue-dark
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .knapp-sekundar {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line
+      bg-white px-5 py-3 text-base font-semibold text-black transition-colors
+      hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .knapp-svart {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-black px-5 py-3
+      text-base font-semibold text-white transition-colors hover:opacity-90
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .knapp-liten {
+    @apply inline-flex items-center justify-center rounded-md border border-line bg-white
+      px-3 py-2 text-sm font-medium text-black transition-colors hover:bg-surface
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .falt {
+    @apply w-full rounded-lg border border-line bg-white px-4 py-3 text-base text-black
+      outline-none placeholder:text-muted focus:border-blue focus:ring-2 focus:ring-blue/30;
+  }
+  .etikett {
+    @apply mb-1 block text-sm font-semibold text-black;
+  }
+  .kort {
+    @apply rounded-xl border border-line bg-white;
+  }
+}

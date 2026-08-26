@@ -1,0 +1,32 @@
+# Render Blueprint. Skapar webbtjänsten och en Postgres-databas.
+# Miljövariablerna utan värde fylls i under "Environment" i Renders webbgränssnitt.
+services:
+  - type: web
+    name: foreningsbutik
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build && npx prisma migrate deploy
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: foreningsbutik-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: ORDER_NOTIFICATION_EMAIL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: foreningsbutik-db
+    plan: basic-256mb
