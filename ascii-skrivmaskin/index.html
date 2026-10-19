@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEM Skrivmaskin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Cutive+Mono&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Anonymous+Pro:wght@400;700&display=swap">
+<style>
+/* Layout: kontrollpanel till vänster som ett tekniskt datablad, arket ligger på ett bord till höger. */
+:root {
+  --table: #e4e7e5;
+  --panel: #f5f6f4;
+  --ink: #1c2023;
+  --muted: #5b6468;
+  --line: #ccd2cf;
+  --field: #ffffff;
+  --accent: #a8322d;
+  --accent-soft: rgba(168, 50, 45, .10);
+  --f-type: "Courier Prime", "Courier New", monospace;
+  --f-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --table: #121517; --panel: #1b1f22; --ink: #e3e7e5; --muted: #98a1a5;
+    --line: #31383b; --field: #101315; --accent: #e06a60; --accent-soft: rgba(224, 106, 96, .14);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --table: #121517; --panel: #1b1f22; --ink: #e3e7e5; --muted: #98a1a5;
+  --line: #31383b; --field: #101315; --accent: #e06a60; --accent-soft: rgba(224, 106, 96, .14);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--table); color: var(--ink);
+  font: 14px/1.45 var(--f-ui);
+  display: grid; grid-template-columns: 340px minmax(0, 1fr);
+}
+aside {
+  background: var(--panel); border-right: 1px solid var(--line);
+  height: 100%; overflow-y: auto;
+  padding-block: 20px 40px;
+  padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: 18px;
+}
+.brand { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 18px; }
+.brand h1 { font: 700 22px/1 var(--f-type); margin: 0; letter-spacing: .02em; }
+.brand span { font: 11px var(--f-mono); color: var(--muted); }
+section { border-top: 1px solid var(--line); padding-block: 14px 16px; display: grid; gap: 12px; }
+section h2 {
+  margin: 0; font: 500 11px var(--f-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted);
+  display: flex; justify-content: space-between;
+}
+.field { display: grid; gap: 4px; }
+.field label { display: flex; justify-content: space-between; gap: 8px; font-weight: 500; }
+.field output { font: 12px var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.hint { margin: 0; font-size: 12px; color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+input[type=text], input[type=number], select {
+  font: 13px var(--f-mono); color: var(--ink); background: var(--field);
+  border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; width: 100%;
+}
+input:focus-visible, select:focus-visible, button:focus-visible, .stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.check { display: flex; gap: 8px; align-items: center; font-weight: 500; cursor: pointer; }
+.check input { accent-color: var(--accent); margin: 0; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > * { min-width: 0; }
+button {
+  font: 500 13px var(--f-ui); color: var(--ink); background: var(--field);
+  border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; cursor: pointer;
+}
+button:hover { border-color: var(--ink); }
+button.primary { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+button.primary:hover { background: var(--accent); border-color: var(--accent); }
+.colors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.color-field { display: grid; grid-template-columns: 34px 1fr; gap: 6px; align-items: center; }
+.color-field label { grid-column: 1 / -1; font-weight: 500; }
+input[type=color] { width: 34px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 3px; background: none; cursor: pointer; }
+.ramp-input { font: 20px var(--f-type) !important; letter-spacing: .3em; }
+.ramp-strip { display: flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.ramp-strip div { flex: 1; text-align: center; padding: 4px 0 2px; font: 18px var(--f-type); }
+.ramp-strip small { display: block; font: 10px var(--f-mono); opacity: .75; }
+.group-note { font: 12px var(--f-mono); color: var(--accent); margin: 0; }
+
+main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%; min-width: 0; }
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between;
+  padding-block: 10px; padding-left: 20px; padding-right: max(20px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.stats { font: 12px var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.editbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding-block: 8px; padding-left: 20px; padding-right: max(20px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--accent-soft);
+}
+.editbar .sel-info { font: 12px var(--f-mono); min-width: 190px; }
+.editbar input[type=text] { width: 180px; }
+.stage { overflow: auto; padding: 28px; position: relative; }
+.stage:focus-visible { outline-offset: -3px; }
+.stage.drag { outline: 2px dashed var(--accent); outline-offset: -10px; }
+.sheet { position: relative; margin: 0 auto; box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 8px 30px rgba(0,0,0,.12); }
+.sheet canvas { position: absolute; inset: 0; display: block; }
+#overlay { cursor: text; }
+.drop-hint { text-align: center; font: 12px var(--f-mono); color: var(--muted); margin-top: 14px; }
+.toast {
+  position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: var(--panel);
+  padding: 8px 14px; border-radius: 3px; font: 13px var(--f-ui); opacity: 0; transform: translateY(6px);
+  transition: opacity .2s, transform .2s; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+@media (max-width: 860px) {
+  body { grid-template-columns: 1fr; height: auto; }
+  html, body { height: auto; }
+  aside { height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  main { height: auto; }
+  .stage { padding: 16px; max-height: 80vh; }
+}
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand"><h1>HEM Skrivmaskin</h1><span>ASCII · v1</span></div>
+
+  <section>
+    <h2>Bild</h2>
+    <div class="row">
+      <button class="primary" id="pick">Ladda bild…</button>
+      <input type="file" id="file" accept="image/*" hidden>
+      <span class="hint" id="imgName">Exempelbild</span>
+    </div>
+    <div id="sec-bild"></div>
+  </section>
+
+  <section>
+    <h2>Tecken</h2>
+    <div class="field">
+      <label for="f-ramp">Teckenskala <output>ljusast → mörkast</output></label>
+      <input type="text" id="f-ramp" class="ramp-input" spellcheck="false" autocomplete="off">
+      <div class="ramp-strip" id="rampStrip"></div>
+      <div class="row">
+        <button id="sortInk">Sortera efter svärta</button>
+        <button id="reverseRamp">Vänd ordning</button>
+      </div>
+      <p class="hint">Lägg till fler tecken när du vill. Ett mellanslag först ger tomt papper i de ljusaste partierna.</p>
+    </div>
+    <div id="sec-tecken"></div>
+  </section>
+
+  <section>
+    <h2>Färg</h2>
+    <div class="colors">
+      <div class="color-field"><label for="f-bg">Bakgrund</label><input type="color" id="f-bg" data-k="bg"><input type="text" data-hex="bg" id="h-bg" aria-label="Bakgrund hex"></div>
+      <div class="color-field"><label for="f-fg">Typo</label><input type="color" id="f-fg" data-k="fg"><input type="text" data-hex="fg" id="h-fg" aria-label="Typo hex"></div>
+    </div>
+    <div class="row"><button id="swapColors">Byt plats på färgerna</button></div>
+  </section>
+
+  <section>
+    <h2>Skrivmaskin</h2>
+    <div class="field">
+      <label for="f-seed">Slumpfrö</label>
+      <div class="row" style="flex-wrap:nowrap">
+        <input type="number" id="f-seed" data-k="seed" min="1" max="999999">
+        <button id="newSeed">Slumpa</button>
+      </div>
+      <p class="hint">Samma frö ger exakt samma variationer, så du kan gå tillbaka till en version du gillar.</p>
+    </div>
+    <div id="sec-maskin"></div>
+  </section>
+
+  <section>
+    <h2>Mekaniska egenheter</h2>
+    <div id="sec-extra"></div>
+  </section>
+
+  <section>
+    <h2>Export</h2>
+    <div id="sec-export"></div>
+    <p class="hint" id="exportInfo"></p>
+    <div class="row">
+      <button class="primary" id="exportPng">Exportera PNG</button>
+      <button id="copyText">Kopiera som text</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="row"><button id="resetAll">Återställ alla inställningar</button></div>
+  </section>
+</aside>
+
+<main>
+  <div class="toolbar">
+    <div class="stats" id="stats"></div>
+    <div class="row">
+      <label for="f-zoom" class="hint">Zoom</label>
+      <select id="f-zoom" style="width:auto">
+        <option value="fit">Anpassa</option>
+        <option value="0.5">50 %</option>
+        <option value="1">100 %</option>
+        <option value="2">200 %</option>
+        <option value="4">400 %</option>
+      </select>
+    </div>
+  </div>
+  <div class="editbar">
+    <span class="sel-info" id="selInfo">Klicka eller dra över en rad för att markera.</span>
+    <input type="text" id="typeText" placeholder="Egen text" spellcheck="false" autocomplete="off" aria-label="Egen text">
+    <button id="typeIn">Skriv in</button>
+    <button id="fillSel">Fyll markering</button>
+    <button id="clearSel">Återställ markering</button>
+    <button id="clearAll">Rensa egna tecken</button>
+    <label class="check"><input type="checkbox" id="showEdits"> <span>Visa egna tecken</span></label>
+  </div>
+  <div class="stage" id="stage" tabindex="0" aria-label="Arket. Markera tecken och skriv med tangentbordet.">
+    <div class="sheet" id="sheet">
+      <canvas id="canvas"></canvas>
+      <canvas id="overlay"></canvas>
+    </div>
+    <p class="drop-hint">Släpp en bild här för att ladda den · Skriv direkt med tangentbordet när något är markerat · Enter = ny rad · Backsteg ångrar</p>
+  </div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Inställningar ---------- */
+const DEF = {
+  ramp: 'HEM', cols: 80, font: 'Courier Prime', size: 14, tracking: 0, leading: 1.15, margin: 4,
+  brightness: 0, contrast: 0, invert: false, blank: false, blankAt: 92,
+  bg: '#f7f6f2', fg: '#161616',
+  seed: 1, kern: 25, base: 20, lineVar: 15, drift: 10,
+  slug: 20, press: 25, ribbon: 15, rot: 10, dbl: 2,
+  scale: 4, transparent: false, zoom: 'fit', showEdits: true
+};
+const KEY = 'hem-skrivmaskin-v1';
+let S = { ...DEF };
+let OV = new Map(); // egna tecken: "rad,kolumn" -> tecken
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+  if (saved) { S = { ...DEF, ...saved.S }; OV = new Map(saved.OV || []); }
+} catch (e) {}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify({ S, OV: [...OV] })); } catch (e) {}
+}
+
+const FONTS = ['Courier Prime', 'Cutive Mono', 'IBM Plex Mono', 'Anonymous Pro', 'Courier New'];
+
+const UI = {
+  bild: [
+    { k: 'brightness', t: 'range', l: 'Ljusstyrka', min: -100, max: 100 },
+    { k: 'contrast', t: 'range', l: 'Kontrast', min: -100, max: 100 },
+    { k: 'invert', t: 'check', l: 'Invertera bilden' },
+  ],
+  tecken: [
+    { k: 'cols', t: 'range', l: 'Tecken per rad', min: 10, max: 400, h: 'Antalet rader räknas fram ur bildens proportioner.' },
+    { k: 'blank', t: 'check', l: 'Lämna ljusaste ytor tomma' },
+    { k: 'blankAt', t: 'range', l: 'Gräns för tomt papper', min: 50, max: 100, u: ' %' },
+    { k: 'font', t: 'select', l: 'Typsnitt', opts: FONTS },
+    { k: 'size', t: 'range', l: 'Teckenstorlek', min: 6, max: 48, u: ' px' },
+    { k: 'tracking', t: 'range', l: 'Teckenavstånd', min: -30, max: 100, u: ' %', h: 'Grundavstånd i procent av teckenhöjden.' },
+    { k: 'leading', t: 'range', l: 'Radavstånd', min: 0.7, max: 2.5, step: 0.05, fmt: v => v.toFixed(2) + '×' },
+    { k: 'margin', t: 'range', l: 'Marginal', min: 0, max: 20, u: ' tecken' },
+  ],
+  maskin: [
+    { k: 'kern', t: 'range', l: 'Kerning, slump', min: 0, max: 100, h: 'Hur mycket varje tecken hamnar vid sidan av sin plats.' },
+    { k: 'base', t: 'range', l: 'Höjd, slump', min: 0, max: 100, h: 'Hur mycket varje tecken hoppar upp eller ner mot de andra.' },
+    { k: 'lineVar', t: 'range', l: 'Radmatning, slump', min: 0, max: 100, h: 'Ojämnt radavstånd när valsen vrids fram.' },
+    { k: 'drift', t: 'range', l: 'Vagnretur, slump', min: 0, max: 100, h: 'Varje rad börjar en aning olika långt in.' },
+  ],
+  extra: [
+    { k: 'slug', t: 'range', l: 'Snedställda typer', min: 0, max: 100, h: 'Varje bokstav har sitt eget fasta fel, som en sliten typarm: alla E sitter t.ex. lite högt.' },
+    { k: 'press', t: 'range', l: 'Anslagsstyrka', min: 0, max: 100, h: 'Varierande svärta beroende på hur hårt tangenten slogs.' },
+    { k: 'ribbon', t: 'range', l: 'Slitet färgband', min: 0, max: 100, h: 'Mjuka partier där färgbandet gett mindre bläck.' },
+    { k: 'rot', t: 'range', l: 'Rotation', min: 0, max: 100, h: 'Tecknen lutar en aning.' },
+    { k: 'dbl', t: 'range', l: 'Dubbelanslag', min: 0, max: 20, u: ' %', h: 'Andel tecken som fått ett extra, förskjutet slag.' },
+  ],
+  export: [
+    { k: 'scale', t: 'select', l: 'Upplösning', opts: [2, 3, 4, 6, 8, 12], fmtOpt: v => v + '× skärmstorlek' },
+    { k: 'transparent', t: 'check', l: 'Transparent bakgrund' },
+  ],
+};
+
+const $ = id => document.getElementById(id);
+function fieldHTML(f) {
+  const id = 'f-' + f.k;
+  const hint = f.h ? `<p class="hint">${f.h}</p>` : '';
+  if (f.t === 'range') return `<div class="field"><label for="${id}">${f.l}<output id="o-${f.k}"></output></label><input type="range" id="${id}" data-k="${f.k}" min="${f.min}" max="${f.max}" step="${f.step || 1}">${hint}</div>`;
+  if (f.t === 'check') return `<label class="check"><input type="checkbox" id="${id}" data-k="${f.k}"> <span>${f.l}</span></label>`;
+  if (f.t === 'select') return `<div class="field"><label for="${id}">${f.l}</label><select id="${id}" data-k="${f.k}">${f.opts.map(o => `<option value="${o}">${f.fmtOpt ? f.fmtOpt(o) : o}</option>`).join('')}</select>${hint}</div>`;
+}
+const FIELDS = {};
+for (const [sec, list] of Object.entries(UI)) {
+  $('sec-' + sec).outerHTML = `<div style="display:grid;gap:12px">${list.map(fieldHTML).join('')}</div>`;
+  list.forEach(f => FIELDS[f.k] = f);
+}
+
+function syncUI() {
+  document.querySelectorAll('[data-k]').forEach(el => {
+    const k = el.dataset.k;
+    if (el.type === 'checkbox') el.checked = !!S[k]; else el.value = S[k];
+  });
+  for (const f of Object.values(FIELDS)) {
+    const o = $('o-' + f.k);
+    if (o) o.textContent = f.fmt ? f.fmt(S[f.k]) : S[f.k] + (f.u || '');
+  }
+  $('h-bg').value = S.bg; $('h-fg').value = S.fg;
+  $('f-ramp').value = S.ramp;
+  $('f-zoom').value = String(S.zoom);
+  $('showEdits').checked = S.showEdits;
+  $('f-blankAt').disabled = !S.blank;
+  rampStrip();
+}
+
+document.querySelectorAll('[data-k]').forEach(el => {
+  el.addEventListener('input', () => {
+    const k = el.dataset.k;
+    let v;
+    if (el.type === 'checkbox') v = el.checked;
+    else if (el.type === 'range' || el.type === 'number') v = parseFloat(el.value);
+    else if (k === 'scale') v = parseFloat(el.value);
+    else v = el.value;
+    if (k === 'seed') v = Math.max(1, Math.round(v || 1));
+    S[k] = v;
+    syncUI(); save();
+    if (k === 'font') ensureFont().then(schedule);
+    if (k === 'cols' || k === 'margin' || k === 'size' || k === 'tracking' || k === 'leading') clampSel();
+    schedule();
+  });
+});
+document.querySelectorAll('[data-hex]').forEach(el => {
+  el.addEventListener('change', () => {
+    let v = el.value.trim(); if (!v.startsWith('#')) v = '#' + v;
+    if (/^#[0-9a-f]{6}$/i.test(v)) { S[el.dataset.hex] = v.toLowerCase(); save(); schedule(); }
+    syncUI();
+  });
+});
+$('f-ramp').addEventListener('input', e => {
+  S.ramp = e.target.value.replace(/[\r\n\t]/g, '');
+  rampStrip(); save(); schedule();
+});
+$('f-zoom').addEventListener('change', e => { S.zoom = e.target.value === 'fit' ? 'fit' : parseFloat(e.target.value); save(); schedule(); });
+$('showEdits').addEventListener('change', e => { S.showEdits = e.target.checked; save(); drawOverlay(); });
+$('swapColors').addEventListener('click', () => { [S.bg, S.fg] = [S.fg, S.bg]; syncUI(); save(); schedule(); });
+$('newSeed').addEventListener('click', () => { S.seed = 1 + Math.floor(Math.random() * 999998); syncUI(); save(); schedule(); });
+$('resetAll').addEventListener('click', () => { S = { ...DEF }; syncUI(); save(); ensureFont().then(schedule); toast('Inställningarna är återställda. Egna tecken ligger kvar.'); });
+
+function rampChars() { const a = [...S.ramp]; return a.length ? a : [' ']; }
+function rampStrip() {
+  const ch = rampChars(), n = ch.length;
+  $('rampStrip').innerHTML = ch.map((c, i) => {
+    const hi = Math.round(100 - i * 100 / n), lo = Math.round(100 - (i + 1) * 100 / n);
+    const g = Math.round(255 - (i + .5) / n * 230);
+    const fg = g > 128 ? '#111' : '#eee';
+    return `<div style="background:rgb(${g},${g},${g});color:${fg};font-family:'${S.font}',monospace">${c === ' ' ? '␣' : esc(c)}<small>${hi}–${lo}</small></div>`;
+  }).join('');
+}
+function esc(s) { return s.replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m])); }
+
+$('sortInk').addEventListener('click', async () => {
+  await ensureFont();
+  const c = document.createElement('canvas'); c.width = c.height = 96;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  const ink = ch => {
+    x.clearRect(0, 0, 96, 96); x.font = `64px "${S.font}", monospace`;
+    x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(ch, 48, 48);
+    const d = x.getImageData(0, 0, 96, 96).data; let s = 0;
+    for (let i = 3; i < d.length; i += 4) s += d[i];
+    return s;
+  };
+  S.ramp = rampChars().map(ch => [ch, ink(ch)]).sort((a, b) => a[1] - b[1]).map(a => a[0]).join('');
+  syncUI(); save(); schedule(); toast('Sorterat från ljusast till mörkast i ' + S.font + '.');
+});
+$('reverseRamp').addEventListener('click', () => { S.ramp = rampChars().reverse().join(''); syncUI(); save(); schedule(); });
+
+/* ---------- Bild ---------- */
+let IMG = null; // { el, w, h }
+let lumCache = { key: '', data: null };
+
+function sampleImage() {
+  const c = document.createElement('canvas'); c.width = 900; c.height = 640;
+  const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, 900, 640);
+  const g = x.createRadialGradient(400, 270, 10, 450, 320, 330);
+  g.addColorStop(0, '#000'); g.addColorStop(0.6, '#5a5a5a'); g.addColorStop(1, '#fff');
+  x.fillStyle = g; x.beginPath(); x.arc(450, 320, 300, 0, Math.PI * 2); x.fill();
+  x.fillStyle = '#fff'; x.font = 'bold 230px Georgia, serif';
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('HEM', 450, 335);
+  return c;
+}
+function setImage(el, w, h, name) {
+  // Lägg bilden på vitt (transparenta bilder) och begränsa storleken en gång.
+  const k = Math.min(1, 2400 / Math.max(w, h));
+  const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+  x.imageSmoothingQuality = 'high'; x.drawImage(el, 0, 0, c.width, c.height);
+  IMG = { el: c, w: c.width, h: c.height };
+  lumCache.key = '';
+  $('imgName').textContent = name;
+  schedule();
+}
+function loadFile(file) {
+  if (!file || !file.type.startsWith('image/')) { toast('Välj en bildfil, till exempel PNG eller JPG.'); return; }
+  const url = URL.createObjectURL(file);
+  const im = new Image();
+  im.onload = () => { setImage(im, im.naturalWidth, im.naturalHeight, file.name); URL.revokeObjectURL(url); };
+  im.onerror = () => toast('Bilden gick inte att läsa. Prova att spara om den som PNG eller JPG.');
+  im.src = url;
+}
+$('pick').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => loadFile(e.target.files[0]));
+const stage = $('stage');
+stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('drag'); });
+stage.addEventListener('dragleave', () => stage.classList.remove('drag'));
+stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('drag'); loadFile(e.dataTransfer.files[0]); });
+
+function getLum(cols, rows) {
+  const key = cols + 'x' + rows;
+  if (lumCache.key === key) return lumCache.data;
+  // Halvera stegvis för en jämn nedskalning.
+  let cur = IMG.el, cw = IMG.w, ch = IMG.h;
+  while (cw / 2 >= cols && ch / 2 >= rows) {
+    const n = document.createElement('canvas');
+    n.width = Math.round(cw / 2); n.height = Math.round(ch / 2);
+    const nx = n.getContext('2d'); nx.imageSmoothingQuality = 'high'; nx.drawImage(cur, 0, 0, n.width, n.height);
+    cur = n; cw = n.width; ch = n.height;
+  }
+  const c = document.createElement('canvas'); c.width = cols; c.height = rows;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, cols, rows);
+  const d = x.getImageData(0, 0, cols, rows).data;
+  const out = new Float32Array(cols * rows);
+  for (let i = 0; i < out.length; i++) out[i] = (0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2]) / 255;
+  lumCache = { key, data: out };
+  return out;
+}
+
+/* ---------- Layout och rutnät ---------- */
+const measureCtx = document.createElement('canvas').getContext('2d');
+const fontStr = (size) => `${size}px "${S.font}", "Courier New", monospace`;
+function ensureFont() {
+  if (S.font === 'Courier New') return Promise.resolve();
+  return document.fonts.load(fontStr(S.size), 'HEM').catch(() => {});
+}
+function layout() {
+  measureCtx.font = fontStr(S.size);
+  const adv = measureCtx.measureText('M').width;
+  const cellW = Math.max(1, adv + S.tracking / 100 * S.size);
+  const lineH = S.size * S.leading;
+  const cols = S.cols;
+  const rows = Math.max(1, Math.round(cols * (IMG.h / IMG.w) * (cellW / lineH)));
+  const mx = S.margin * cellW, my = S.margin * cellW;
+  return { cellW, lineH, cols, rows, mx, my, W: cols * cellW + 2 * mx, H: rows * lineH + 2 * my };
+}
+function buildGrid(L) {
+  const lum = getLum(L.cols, L.rows);
+  const chars = rampChars(), n = chars.length;
+  const b = S.brightness / 100, k = S.contrast / 100;
+  const f = k >= 0 ? 1 / (1 - k * 0.95) : 1 + k;
+  const grid = [];
+  for (let r = 0; r < L.rows; r++) {
+    const row = [];
+    for (let c = 0; c < L.cols; c++) {
+      let l = lum[r * L.cols + c];
+      if (S.invert) l = 1 - l;
+      l = Math.min(1, Math.max(0, (l - 0.5) * f + 0.5 + b * 0.5));
+      row.push(S.blank && l * 100 >= S.blankAt ? ' ' : chars[Math.min(n - 1, Math.floor((1 - l) * n))]);
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+const charAt = (G, r, c) => { const o = OV.get(r + ',' + c); return o !== undefined ? o : G[r][c]; };
+
+/* ---------- Slump (deterministisk per frö, rad och kolumn) ---------- */
+function rnd(a, b = 0, c = 0) {
+  let h = Math.imul(S.seed ^ 0x9e3779b9, 0x85ebca6b);
+  for (const v of [a, b, c]) {
+    h = Math.imul(h ^ (v | 0), 0xcc9e2d51); h = (h << 15) | (h >>> 17);
+    h = Math.imul(h, 0x1b873593); h ^= h >>> 13;
+  }
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+const sr = (a, b, c) => rnd(a, b, c) * 2 - 1;
+// Mjukare fördelning: de flesta avvikelser små, några större.
+const soft = (a, b, c) => (sr(a, b, c) + sr(a + 100, b, c)) / 2;
+function vnoise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y), u0 = x - xi, v0 = y - yi;
+  const u = u0 * u0 * (3 - 2 * u0), v = v0 * v0 * (3 - 2 * v0);
+  const a = rnd(90, xi, yi), b = rnd(90, xi + 1, yi), c = rnd(90, xi, yi + 1), d = rnd(90, xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+/* ---------- Rendering ---------- */
+function draw(ctx, L, G, scale, transparent) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  if (!transparent) { ctx.fillStyle = S.bg; ctx.fillRect(0, 0, L.W, L.H); }
+  ctx.font = fontStr(S.size);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = S.fg;
+  const em = S.size, deg = Math.PI / 180;
+  const slugCache = new Map();
+  for (let r = 0; r < L.rows; r++) {
+    const lineDy = soft(2, r) * S.lineVar / 100 * 0.3 * L.lineH;
+    const lineDx = soft(3, r) * S.drift / 100 * 0.6 * L.cellW;
+    const baseY = L.my + r * L.lineH + L.lineH / 2 + em * 0.3 + lineDy;
+    for (let c = 0; c < L.cols; c++) {
+      const ch = charAt(G, r, c);
+      if (ch === ' ' || ch === '') continue;
+      const code = ch.codePointAt(0);
+      let sl = slugCache.get(code);
+      if (!sl) {
+        const a = S.slug / 100;
+        sl = { x: sr(4, code) * a * 0.1 * em, y: sr(5, code) * a * 0.09 * em, r: sr(6, code) * a * 2.5 * deg };
+        slugCache.set(code, sl);
+      }
+      const x = L.mx + c * L.cellW + L.cellW / 2 + lineDx + sl.x + soft(7, r, c) * S.kern / 100 * 0.22 * em;
+      const y = baseY + sl.y + soft(8, r, c) * S.base / 100 * 0.14 * em;
+      const rot = sl.r + soft(9, r, c) * S.rot / 100 * 4 * deg;
+      let alpha = 1 - rnd(10, r, c) * S.press / 100 * 0.6;
+      if (S.ribbon) alpha *= 1 - S.ribbon / 100 * 0.75 * Math.pow(vnoise(c / 11, r / 4), 1.6);
+      const cos = Math.cos(rot) * scale, sin = Math.sin(rot) * scale;
+      ctx.globalAlpha = alpha;
+      ctx.setTransform(cos, sin, -sin, cos, x * scale, y * scale);
+      ctx.fillText(ch, 0, 0);
+      if (S.dbl && rnd(11, r, c) < S.dbl / 100) {
+        ctx.globalAlpha = alpha * 0.5;
+        ctx.fillText(ch, sr(12, r, c) * 0.07 * em, sr(13, r, c) * 0.05 * em);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+const canvas = $('canvas'), overlay = $('overlay'), sheet = $('sheet');
+const ctx = canvas.getContext('2d'), octx = overlay.getContext('2d');
+let L = null, G = null, Z = 1, raf = 0;
+function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
+function zoomFor(L) {
+  if (S.zoom !== 'fit') return S.zoom;
+  const avail = stage.clientWidth - (window.innerWidth <= 860 ? 32 : 56);
+  return Math.max(0.05, Math.min(4, avail / L.W));
+}
+function render() {
+  if (!IMG) return;
+  L = layout(); G = buildGrid(L); Z = zoomFor(L);
+  const dpr = window.devicePixelRatio || 1;
+  let s = dpr * Math.max(1, Z);
+  s = Math.min(s, 10000 / L.W, 10000 / L.H);
+  canvas.width = overlay.width = Math.max(1, Math.round(L.W * s));
+  canvas.height = overlay.height = Math.max(1, Math.round(L.H * s));
+  sheet.style.width = L.W * Z + 'px'; sheet.style.height = L.H * Z + 'px';
+  canvas.style.width = overlay.style.width = '100%';
+  canvas.style.height = overlay.style.height = '100%';
+  draw(ctx, L, G, s, false);
+  drawOverlay();
+  const total = L.cols * L.rows;
+  $('stats').textContent = `${L.cols} × ${L.rows} tecken = ${total.toLocaleString('sv-SE')} anslag · ${OV.size} egna`;
+  exportInfo();
+}
+new ResizeObserver(() => { if (S.zoom === 'fit') schedule(); }).observe(stage);
+
+/* ---------- Markering och egen text ---------- */
+let sel = null; // { r, a, b, cur }
+let dragging = false;
+const lo = () => Math.min(sel.a, sel.b), hi = () => Math.max(sel.a, sel.b);
+function clampSel() { sel = null; updateSelUI(); }
+
+function drawOverlay() {
+  if (!L) return;
+  const s = overlay.width / L.W;
+  octx.setTransform(1, 0, 0, 1, 0, 0);
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  octx.setTransform(s, 0, 0, s, 0, 0);
+  const px = 1 / Z; // en skärmpixel i arkets enheter
+  if (S.showEdits) {
+    octx.fillStyle = 'rgba(214, 64, 47, .85)';
+    for (const k of OV.keys()) {
+      const [r, c] = k.split(',').map(Number);
+      if (r >= L.rows || c >= L.cols) continue;
+      octx.fillRect(L.mx + c * L.cellW + L.cellW * .15, L.my + (r + 1) * L.lineH - 2 * px, L.cellW * .7, 2 * px);
+    }
+  }
+  if (sel) {
+    const x = L.mx + lo() * L.cellW, y = L.my + sel.r * L.lineH, w = (hi() - lo() + 1) * L.cellW;
+    octx.fillStyle = 'rgba(214, 64, 47, .16)'; octx.fillRect(x, y, w, L.lineH);
+    octx.strokeStyle = 'rgba(214, 64, 47, .9)'; octx.lineWidth = px; octx.strokeRect(x, y, w, L.lineH);
+    if (sel.cur < L.cols) {
+      octx.fillStyle = 'rgba(214, 64, 47, 1)';
+      octx.fillRect(L.mx + sel.cur * L.cellW - px, y - 2 * px, 2 * px, L.lineH + 4 * px);
+    }
+  }
+}
+function updateSelUI() {
+  const info = $('selInfo');
+  if (!sel || !L) { info.textContent = 'Klicka eller dra över en rad för att markera.'; drawOverlay(); return; }
+  const n = hi() - lo() + 1;
+  info.textContent = `Rad ${sel.r + 1}, kolumn ${lo() + 1}${n > 1 ? '–' + (hi() + 1) : ''} (${n} tecken)`;
+  drawOverlay();
+}
+function cellAt(e, clampToGrid) {
+  const rect = overlay.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width * L.W, y = (e.clientY - rect.top) / rect.height * L.H;
+  let c = Math.floor((x - L.mx) / L.cellW), r = Math.floor((y - L.my) / L.lineH);
+  if (!clampToGrid && (c < 0 || r < 0 || c >= L.cols || r >= L.rows)) return null;
+  return { r: Math.max(0, Math.min(L.rows - 1, r)), c: Math.max(0, Math.min(L.cols - 1, c)) };
+}
+overlay.addEventListener('pointerdown', e => {
+  if (!L) return;
+  const p = cellAt(e, false);
+  if (!p) { sel = null; updateSelUI(); return; }
+  if (e.shiftKey && sel && sel.r === p.r) sel.b = p.c;
+  else sel = { r: p.r, a: p.c, b: p.c };
+  sel.cur = lo();
+  dragging = true;
+  overlay.setPointerCapture(e.pointerId);
+  stage.focus({ preventScroll: true });
+  updateSelUI();
+});
+overlay.addEventListener('pointermove', e => {
+  if (!dragging || !sel) return;
+  const p = cellAt(e, true);
+  if (p.c !== sel.b) { sel.b = p.c; sel.cur = lo(); updateSelUI(); }
+});
+overlay.addEventListener('pointerup', () => { dragging = false; });
+
+function commit() { save(); schedule(); }
+function writeAt(r, c, ch) {
+  if (c < 0 || c >= L.cols) return;
+  if (ch === G[r][c]) OV.delete(r + ',' + c); else OV.set(r + ',' + c, ch);
+}
+function typeChar(ch) {
+  if (sel.cur >= L.cols) return;
+  writeAt(sel.r, sel.cur, ch);
+  sel.cur++;
+  if (sel.cur - 1 > hi()) { if (sel.a > sel.b) sel.a = sel.cur - 1; else sel.b = sel.cur - 1; }
+}
+stage.addEventListener('keydown', e => {
+  if (!sel || !L || e.target !== stage) return;
+  if (e.ctrlKey || e.metaKey) return;
+  const k = e.key;
+  if (k.length === 1 || [...k].length === 1) { e.preventDefault(); typeChar(k); updateSelUI(); commit(); return; }
+  if (k === 'Backspace') {
+    e.preventDefault();
+    if (sel.cur > 0) { sel.cur--; OV.delete(sel.r + ',' + sel.cur); }
+    if (sel.cur < lo()) { sel.a = sel.b = sel.cur; }
+    updateSelUI(); commit(); return;
+  }
+  if (k === 'Delete') { e.preventDefault(); for (let c = lo(); c <= hi(); c++) OV.delete(sel.r + ',' + c); commit(); return; }
+  if (k === 'Escape') { sel = null; updateSelUI(); return; }
+  if (k === 'Enter') { e.preventDefault(); const c = lo(); sel = { r: Math.min(L.rows - 1, sel.r + 1), a: c, b: c, cur: c }; updateSelUI(); return; }
+  if (k === 'ArrowLeft' || k === 'ArrowRight') {
+    e.preventDefault();
+    const d = k === 'ArrowLeft' ? -1 : 1;
+    if (e.shiftKey) { sel.b = Math.max(0, Math.min(L.cols - 1, sel.b + d)); sel.cur = lo(); }
+    else { const c = Math.max(0, Math.min(L.cols - 1, (d < 0 ? lo() : hi()) + d)); sel = { r: sel.r, a: c, b: c, cur: c }; }
+    updateSelUI(); return;
+  }
+  if (k === 'ArrowUp' || k === 'ArrowDown') {
+    e.preventDefault();
+    sel.r = Math.max(0, Math.min(L.rows - 1, sel.r + (k === 'ArrowUp' ? -1 : 1)));
+    sel.cur = lo(); updateSelUI(); return;
+  }
+});
+function needSel() { if (!sel) { toast('Markera först ett eller flera tecken på arket.'); return false; } return true; }
+$('typeIn').addEventListener('click', () => {
+  if (!needSel()) return;
+  const t = [...$('typeText').value];
+  sel.cur = lo();
+  t.forEach(typeChar);
+  updateSelUI(); commit();
+});
+$('fillSel').addEventListener('click', () => {
+  if (!needSel()) return;
+  const t = [...$('typeText').value];
+  if (!t.length) { toast('Skriv först de tecken som ska fylla markeringen.'); return; }
+  for (let c = lo(), i = 0; c <= hi(); c++, i++) writeAt(sel.r, c, t[i % t.length]);
+  commit();
+});
+$('typeText').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('typeIn').click(); } });
+$('clearSel').addEventListener('click', () => {
+  if (!needSel()) return;
+  for (let c = lo(); c <= hi(); c++) OV.delete(sel.r + ',' + c);
+  commit();
+});
+let clearArmed = 0;
+$('clearAll').addEventListener('click', e => {
+  if (!OV.size) { toast('Det finns inga egna tecken att rensa.'); return; }
+  if (Date.now() - clearArmed > 3000) { clearArmed = Date.now(); e.target.textContent = 'Klicka igen för att rensa'; setTimeout(() => e.target.textContent = 'Rensa egna tecken', 3000); return; }
+  OV.clear(); clearArmed = 0; e.target.textContent = 'Rensa egna tecken'; commit(); toast('Alla egna tecken är borttagna.');
+});
+
+/* ---------- Export ---------- */
+const MAX_SIDE = 16000, MAX_AREA = 180e6;
+function exportScale() {
+  let s = S.scale;
+  s = Math.min(s, MAX_SIDE / L.W, MAX_SIDE / L.H, Math.sqrt(MAX_AREA / (L.W * L.H)));
+  return s;
+}
+function exportInfo() {
+  if (!L) return;
+  const s = exportScale(), w = Math.round(L.W * s), h = Math.round(L.H * s);
+  const cm = v => (v / 300 * 2.54).toFixed(1).replace('.', ',');
+  $('exportInfo').textContent = `${w.toLocaleString('sv-SE')} × ${h.toLocaleString('sv-SE')} px, räcker till ${cm(w)} × ${cm(h)} cm i 300 dpi.` + (s < S.scale ? ' Sänkt till webbläsarens maxstorlek.' : '');
+}
+$('exportPng').addEventListener('click', async () => {
+  if (!L) return;
+  await ensureFont();
+  const s = exportScale();
+  const c = document.createElement('canvas');
+  c.width = Math.round(L.W * s); c.height = Math.round(L.H * s);
+  draw(c.getContext('2d'), L, G, s, S.transparent);
+  c.toBlob(blob => {
+    if (!blob) { toast('Exporten misslyckades. Prova en lägre upplösning.'); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `hem-skrivmaskin-${c.width}x${c.height}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    toast(`PNG sparad, ${c.width} × ${c.height} px.`);
+  }, 'image/png');
+});
+$('copyText').addEventListener('click', async () => {
+  if (!L) return;
+  const text = G.map((row, r) => row.map((_, c) => charAt(G, r, c)).join('')).join('\n');
+  try { await navigator.clipboard.writeText(text); toast('Texten är kopierad.'); }
+  catch (e) {
+    const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); toast('Texten är kopierad.'); } catch (_) { toast('Kopieringen nekades av webbläsaren.'); }
+    t.remove();
+  }
+});
+
+let toastT = 0;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ---------- Start ---------- */
+syncUI();
+const sample = sampleImage();
+setImage(sample, sample.width, sample.height, 'Exempelbild, ladda gärna en egen');
+ensureFont().then(() => { rampStrip(); schedule(); });
+document.fonts.ready.then(schedule);
+})();
+</script>
+</body>
+</html>
