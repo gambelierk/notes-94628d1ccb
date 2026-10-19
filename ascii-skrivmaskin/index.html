@@ -151,6 +151,14 @@ main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%
       <p class="hint">Lägg till fler tecken när du vill. Ett mellanslag först ger tomt papper i de ljusaste partierna.</p>
     </div>
     <div id="sec-tecken"></div>
+    <div class="field">
+      <div class="row">
+        <button id="pickFont">Ladda eget typsnitt…</button>
+        <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" multiple hidden>
+        <button id="removeFont" hidden>Ta bort typsnittet</button>
+      </div>
+      <p class="hint">TTF, OTF, WOFF eller WOFF2. Typsnittet sparas i den här webbläsaren och finns kvar nästa gång. Du kan också släppa filen på arket.</p>
+    </div>
   </section>
 
   <section>
@@ -317,7 +325,81 @@ function syncUI() {
   $('f-zoom').value = String(S.zoom);
   $('showEdits').checked = S.showEdits;
   $('f-blankAt').disabled = !S.blank;
+  $('removeFont').hidden = !CUSTOM.some(c => c.family === S.font);
   rampStrip();
+}
+
+/* ---------- Egna typsnitt ---------- */
+const CUSTOM = []; // { family, label, face }
+function refreshFontOptions() {
+  const opts = FONTS.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+  const own = CUSTOM.length ? `<optgroup label="Egna typsnitt">${CUSTOM.map(c => `<option value="${esc(c.family)}">${esc(c.label)}</option>`).join('')}</optgroup>` : '';
+  $('f-font').innerHTML = opts + own;
+  $('f-font').value = S.font;
+}
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('hem-skrivmaskin', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('fonts');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function dbAll() {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const out = [], rq = db.transaction('fonts').objectStore('fonts').openCursor();
+    rq.onsuccess = () => { const c = rq.result; if (c) { out.push(c.value); c.continue(); } else res(out); };
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function dbPut(k, v) { try { (await idb()).transaction('fonts', 'readwrite').objectStore('fonts').put(v, k); } catch (e) {} }
+async function dbDel(k) { try { (await idb()).transaction('fonts', 'readwrite').objectStore('fonts').delete(k); } catch (e) {} }
+
+async function addFont(label, buf) {
+  const family = 'Eget ' + label.replace(/["'\\]/g, '');
+  const face = new FontFace(family, buf);
+  await face.load();
+  const old = CUSTOM.findIndex(c => c.family === family);
+  if (old >= 0) { document.fonts.delete(CUSTOM[old].face); CUSTOM.splice(old, 1); }
+  document.fonts.add(face);
+  CUSTOM.push({ family, label, face });
+  return family;
+}
+const isFontFile = f => /\.(ttf|otf|woff2?)$/i.test(f.name);
+async function loadFonts(files) {
+  let last = null;
+  for (const f of files) {
+    if (!isFontFile(f)) continue;
+    const label = f.name.replace(/\.[^.]+$/, '');
+    try {
+      const buf = await f.arrayBuffer();
+      last = await addFont(label, buf.slice(0));
+      dbPut(last, { label, buf });
+    } catch (e) { toast(`${f.name} gick inte att läsa. Använd en TTF-, OTF-, WOFF- eller WOFF2-fil.`); }
+  }
+  if (!last) return;
+  S.font = last; lumCache.key = '';
+  refreshFontOptions(); syncUI(); save(); clampSel(); schedule();
+  toast(`Typsnittet ${CUSTOM.find(c => c.family === last).label} används nu.`);
+}
+$('pickFont').addEventListener('click', () => $('fontFile').click());
+$('fontFile').addEventListener('change', e => { loadFonts([...e.target.files]); e.target.value = ''; });
+$('removeFont').addEventListener('click', () => {
+  const i = CUSTOM.findIndex(c => c.family === S.font);
+  if (i < 0) return;
+  const c = CUSTOM.splice(i, 1)[0];
+  document.fonts.delete(c.face); dbDel(c.family);
+  S.font = DEF.font;
+  refreshFontOptions(); syncUI(); save(); clampSel(); ensureFont().then(schedule);
+  toast(`${c.label} är borttaget.`);
+});
+async function restoreFonts() {
+  try {
+    for (const v of await dbAll()) { try { await addFont(v.label, v.buf.slice(0)); } catch (e) {} }
+  } catch (e) {}
+  if (S.font.startsWith('Eget ') && !CUSTOM.some(c => c.family === S.font)) S.font = DEF.font;
+  refreshFontOptions(); syncUI(); schedule();
 }
 
 document.querySelectorAll('[data-k]').forEach(el => {
@@ -420,7 +502,11 @@ $('file').addEventListener('change', e => loadFile(e.target.files[0]));
 const stage = $('stage');
 stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('drag'); });
 stage.addEventListener('dragleave', () => stage.classList.remove('drag'));
-stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('drag'); loadFile(e.dataTransfer.files[0]); });
+stage.addEventListener('drop', e => {
+  e.preventDefault(); stage.classList.remove('drag');
+  const files = [...e.dataTransfer.files];
+  if (files.some(isFontFile)) loadFonts(files); else loadFile(files[0]);
+});
 
 function getLum(cols, rows) {
   const key = cols + 'x' + rows;
@@ -750,7 +836,9 @@ function toast(msg) {
 }
 
 /* ---------- Start ---------- */
+refreshFontOptions();
 syncUI();
+restoreFonts();
 const sample = sampleImage();
 setImage(sample, sample.width, sample.height, 'Exempelbild, ladda gärna en egen');
 ensureFont().then(() => { rampStrip(); schedule(); });
