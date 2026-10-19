@@ -808,16 +808,28 @@ $('exportPng').addEventListener('click', async () => {
   const c = document.createElement('canvas');
   c.width = Math.round(L.W * s); c.height = Math.round(L.H * s);
   draw(c.getContext('2d'), L, G, s, S.transparent);
-  c.toBlob(blob => {
+  c.toBlob(async blob => {
     if (!blob) { toast('Exporten misslyckades. Prova en lägre upplösning.'); return; }
+    const filename = `hem-skrivmaskin-${c.width}x${c.height}.png`;
+    if (DL) {
+      // Publicerad på claude.ai: filen sparas via visarens bekräftelsedialog.
+      try { await DL.save({ filename, data: blob }); toast(`PNG sparad, ${c.width} × ${c.height} px.`); }
+      catch (e) {
+        if (e && e.code === 'declined') return;
+        toast(e && e.code === 'too_large' ? 'Filen blev för stor. Välj en lägre upplösning.' : 'Det gick inte att spara filen här.');
+      }
+      return;
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `hem-skrivmaskin-${c.width}x${c.height}.png`;
+    a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     toast(`PNG sparad, ${c.width} × ${c.height} px.`);
   }, 'image/png');
 });
+let DL = null;
+if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { DL = d; }).catch(() => {});
 $('copyText').addEventListener('click', async () => {
   if (!L) return;
   const text = G.map((row, r) => row.map((_, c) => charAt(G, r, c)).join('')).join('\n');
