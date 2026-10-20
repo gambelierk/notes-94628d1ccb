@@ -200,6 +200,14 @@ main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%
   </section>
 
   <section>
+    <h2>GIF-animation</h2>
+    <p class="hint">Tecknen skrivs in ett i taget, från bildens mörkaste partier till de ljusaste.</p>
+    <div id="sec-gif"></div>
+    <p class="hint" id="gifInfo"></p>
+    <div class="row"><button class="primary" id="exportGif">Exportera GIF</button></div>
+  </section>
+
+  <section>
     <div class="row"><button id="resetAll">Återställ alla inställningar</button></div>
   </section>
 </aside>
@@ -248,7 +256,8 @@ const DEF = {
   bg: '#f7f6f2', fg: '#161616',
   seed: 1, kern: 25, base: 20, lineVar: 15, drift: 10,
   slug: 20, press: 25, ribbon: 15, rot: 10, dbl: 2,
-  scale: 4, transparent: false, zoom: 'fit', showEdits: true
+  scale: 4, transparent: false, zoom: 'fit', showEdits: true,
+  gifLen: 5, gifFps: 20, gifHold: 1.5, gifSpread: 30, gifScale: 1
 };
 const KEY = 'hem-skrivmaskin-v1';
 let S = { ...DEF };
@@ -295,6 +304,13 @@ const UI = {
   export: [
     { k: 'scale', t: 'select', l: 'Upplösning', opts: [2, 3, 4, 6, 8, 12], fmtOpt: v => v + '× skärmstorlek' },
     { k: 'transparent', t: 'check', l: 'Transparent bakgrund' },
+  ],
+  gif: [
+    { k: 'gifLen', t: 'range', l: 'Längd', min: 1, max: 20, step: 0.5, u: ' s' },
+    { k: 'gifFps', t: 'select', l: 'Bildfrekvens', opts: [10, 20, 25], fmtOpt: v => v + ' bilder per sekund' },
+    { k: 'gifHold', t: 'range', l: 'Paus på slutbilden', min: 0, max: 5, step: 0.5, u: ' s' },
+    { k: 'gifSpread', t: 'range', l: 'Spridning', min: 0, max: 100, h: '0 betyder strikt från mörkt till ljust. Högre värden blandar ordningen mer, som när man skriver lite här och där.' },
+    { k: 'gifScale', t: 'select', l: 'Storlek', opts: [1, 1.5, 2, 3], fmtOpt: v => v + '× skärmstorlek' },
   ],
 };
 
@@ -409,7 +425,7 @@ document.querySelectorAll('[data-k]').forEach(el => {
     let v;
     if (el.type === 'checkbox') v = el.checked;
     else if (el.type === 'range' || el.type === 'number') v = parseFloat(el.value);
-    else if (k === 'scale') v = parseFloat(el.value);
+    else if (FIELDS[k] && FIELDS[k].t === 'select' && k !== 'font') v = parseFloat(el.value);
     else v = el.value;
     if (k === 'seed') v = Math.max(1, Math.round(v || 1));
     S[k] = v;
@@ -560,17 +576,19 @@ function buildGrid(L) {
   const chars = rampChars(), n = chars.length;
   const b = S.brightness / 100, k = S.contrast / 100;
   const f = k >= 0 ? 1 / (1 - k * 0.95) : 1 + k;
-  const grid = [];
+  const grid = [], tone = new Float32Array(L.cols * L.rows);
   for (let r = 0; r < L.rows; r++) {
     const row = [];
     for (let c = 0; c < L.cols; c++) {
       let l = lum[r * L.cols + c];
       if (S.invert) l = 1 - l;
       l = Math.min(1, Math.max(0, (l - 0.5) * f + 0.5 + b * 0.5));
+      tone[r * L.cols + c] = l;
       row.push(S.blank && l * 100 >= S.blankAt ? ' ' : chars[Math.min(n - 1, Math.floor((1 - l) * n))]);
     }
     grid.push(row);
   }
+  grid.tone = tone;
   return grid;
 }
 const charAt = (G, r, c) => { const o = OV.get(r + ',' + c); return o !== undefined ? o : G[r][c]; };
@@ -596,14 +614,9 @@ function vnoise(x, y) {
 }
 
 /* ---------- Rendering ---------- */
-function draw(ctx, L, G, scale, transparent) {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
-  if (!transparent) { ctx.fillStyle = S.bg; ctx.fillRect(0, 0, L.W, L.H); }
-  ctx.font = fontStr(S.size);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = S.fg;
+// Alla anslag med sina slumpade positioner, i radordning.
+function cellOps(L, G) {
+  const ops = [];
   const em = S.size, deg = Math.PI / 180;
   const slugCache = new Map();
   for (let r = 0; r < L.rows; r++) {
@@ -620,21 +633,39 @@ function draw(ctx, L, G, scale, transparent) {
         sl = { x: sr(4, code) * a * 0.1 * em, y: sr(5, code) * a * 0.09 * em, r: sr(6, code) * a * 2.5 * deg };
         slugCache.set(code, sl);
       }
-      const x = L.mx + c * L.cellW + L.cellW / 2 + lineDx + sl.x + soft(7, r, c) * S.kern / 100 * 0.22 * em;
-      const y = baseY + sl.y + soft(8, r, c) * S.base / 100 * 0.14 * em;
-      const rot = sl.r + soft(9, r, c) * S.rot / 100 * 4 * deg;
       let alpha = 1 - rnd(10, r, c) * S.press / 100 * 0.6;
       if (S.ribbon) alpha *= 1 - S.ribbon / 100 * 0.75 * Math.pow(vnoise(c / 11, r / 4), 1.6);
-      const cos = Math.cos(rot) * scale, sin = Math.sin(rot) * scale;
-      ctx.globalAlpha = alpha;
-      ctx.setTransform(cos, sin, -sin, cos, x * scale, y * scale);
-      ctx.fillText(ch, 0, 0);
-      if (S.dbl && rnd(11, r, c) < S.dbl / 100) {
-        ctx.globalAlpha = alpha * 0.5;
-        ctx.fillText(ch, sr(12, r, c) * 0.07 * em, sr(13, r, c) * 0.05 * em);
-      }
+      ops.push({
+        r, c, ch, alpha,
+        x: L.mx + c * L.cellW + L.cellW / 2 + lineDx + sl.x + soft(7, r, c) * S.kern / 100 * 0.22 * em,
+        y: baseY + sl.y + soft(8, r, c) * S.base / 100 * 0.14 * em,
+        rot: sl.r + soft(9, r, c) * S.rot / 100 * 4 * deg,
+        dbl: S.dbl && rnd(11, r, c) < S.dbl / 100 ? [sr(12, r, c) * 0.07 * em, sr(13, r, c) * 0.05 * em] : null,
+      });
     }
   }
+  return ops;
+}
+function prepCtx(ctx, L, scale, transparent) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  if (!transparent) { ctx.fillStyle = S.bg; ctx.fillRect(0, 0, L.W, L.H); }
+  ctx.font = fontStr(S.size);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = S.fg;
+}
+function paintOp(ctx, o, scale) {
+  const cos = Math.cos(o.rot) * scale, sin = Math.sin(o.rot) * scale;
+  ctx.globalAlpha = o.alpha;
+  ctx.setTransform(cos, sin, -sin, cos, o.x * scale, o.y * scale);
+  ctx.fillText(o.ch, 0, 0);
+  if (o.dbl) { ctx.globalAlpha = o.alpha * 0.5; ctx.fillText(o.ch, o.dbl[0], o.dbl[1]); }
+}
+function draw(ctx, L, G, scale, transparent) {
+  prepCtx(ctx, L, scale, transparent);
+  for (const o of cellOps(L, G)) paintOp(ctx, o, scale);
   ctx.globalAlpha = 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
@@ -808,6 +839,8 @@ function exportInfo() {
   if (!L) return;
   const s = exportScale(), w = Math.round(L.W * s), h = Math.round(L.H * s);
   const cm = v => (v / 300 * 2.54).toFixed(1).replace('.', ',');
+  const g = gifPlan();
+  $('gifInfo').textContent = `${g.w.toLocaleString('sv-SE')} × ${g.h.toLocaleString('sv-SE')} px, ${g.frames} bilder.`;
   $('exportInfo').textContent = `${w.toLocaleString('sv-SE')} × ${h.toLocaleString('sv-SE')} px, räcker till ${cm(w)} × ${cm(h)} cm i 300 dpi.` + (s < S.scale ? ' Sänkt till webbläsarens maxstorlek.' : '');
 }
 $('exportPng').addEventListener('click', async () => {
@@ -817,25 +850,151 @@ $('exportPng').addEventListener('click', async () => {
   const c = document.createElement('canvas');
   c.width = Math.round(L.W * s); c.height = Math.round(L.H * s);
   draw(c.getContext('2d'), L, G, s, S.transparent);
-  c.toBlob(async blob => {
+  c.toBlob(blob => {
     if (!blob) { toast('Exporten misslyckades. Prova en lägre upplösning.'); return; }
-    const filename = `hem-skrivmaskin-${c.width}x${c.height}.png`;
-    if (DL) {
-      // Publicerad på claude.ai: filen sparas via visarens bekräftelsedialog.
-      try { await DL.save({ filename, data: blob }); toast(`PNG sparad, ${c.width} × ${c.height} px.`); }
-      catch (e) {
-        if (e && e.code === 'declined') return;
-        toast(e && e.code === 'too_large' ? 'Filen blev för stor. Välj en lägre upplösning.' : 'Det gick inte att spara filen här.');
-      }
-      return;
-    }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    toast(`PNG sparad, ${c.width} × ${c.height} px.`);
+    saveBlob(blob, `hem-skrivmaskin-${c.width}x${c.height}.png`, `PNG sparad, ${c.width} × ${c.height} px.`);
   }, 'image/png');
+});
+async function saveBlob(blob, filename, okMsg) {
+  if (DL) {
+    // Publicerad på claude.ai: filen sparas via visarens bekräftelsedialog.
+    try { await DL.save({ filename, data: blob }); toast(okMsg); }
+    catch (e) {
+      if (e && e.code === 'declined') return;
+      toast(e && e.code === 'too_large' ? 'Filen blev för stor. Välj en lägre upplösning.' : 'Det gick inte att spara filen här.');
+    }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast(okMsg);
+}
+
+/* ---------- GIF ---------- */
+// Arket består bara av typo-färg ovanpå bakgrund, så alla pixlar ligger på linjen
+// mellan de två färgerna. Paletten är 255 steg längs den linjen + ett genomskinligt
+// index för pixlar som inte ändrats sedan förra bilden.
+function GifWriter(w, h, bgHex, fgHex) {
+  const hex = v => [1, 3, 5].map(i => parseInt(v.slice(i, i + 2), 16));
+  const B = hex(bgHex), F = hex(fgHex), D = [F[0] - B[0], F[1] - B[1], F[2] - B[2]];
+  const dd = D[0] * D[0] + D[1] * D[1] + D[2] * D[2];
+  const TRANSP = 255;
+  const parts = [];
+  const head = [];
+  const str = t => { for (const ch of t) head.push(ch.charCodeAt(0)); };
+  const u16 = v => head.push(v & 255, (v >> 8) & 255);
+  str('GIF89a'); u16(w); u16(h); head.push(0xF7, 0, 0);
+  for (let i = 0; i < 256; i++) {
+    const t = Math.min(1, i / 254);
+    head.push(...B.map((b, k) => Math.round(b + D[k] * t)));
+  }
+  head.push(0x21, 0xFF, 0x0B); str('NETSCAPE2.0'); head.push(3, 1, 0, 0, 0);
+  parts.push(new Uint8Array(head));
+
+  this.frame = (px, prev, delayCs) => {
+    const n = w * h, idx = new Uint8Array(n);
+    const inv = dd ? 254 / dd : 0;
+    for (let i = 0, j = 0; i < n; i++, j += 4) {
+      let t = ((px[j] - B[0]) * D[0] + (px[j + 1] - B[1]) * D[1] + (px[j + 2] - B[2]) * D[2]) * inv;
+      idx[i] = t <= 0 ? 0 : t >= 254 ? 254 : Math.round(t);
+    }
+    let out = idx;
+    if (prev) { out = new Uint8Array(n); for (let i = 0; i < n; i++) out[i] = idx[i] === prev[i] ? TRANSP : idx[i]; }
+    const d = Math.max(2, Math.round(delayCs));
+    parts.push(new Uint8Array([0x21, 0xF9, 4, (1 << 2) | (prev ? 1 : 0), d & 255, (d >> 8) & 255, TRANSP, 0,
+      0x2C, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0]));
+    parts.push(lzw(out));
+    return idx;
+  };
+  this.finish = () => { parts.push(new Uint8Array([0x3B])); return new Blob(parts, { type: 'image/gif' }); };
+}
+// Klassisk GIF-LZW (8 bitars koder in, max 12 bitar ut) med hashtabell.
+function lzw(pixels) {
+  const INIT = 9, CLEAR = 256, EOI = 257, HSIZE = 5003, MAXMAX = 4096;
+  const htab = new Int32Array(HSIZE).fill(-1), codetab = new Int32Array(HSIZE);
+  let buf = new Uint8Array(Math.max(1024, pixels.length >> 1)), n = 0;
+  const put = b => { if (n === buf.length) { const nb = new Uint8Array(buf.length * 2); nb.set(buf); buf = nb; } buf[n++] = b; };
+  let nBits = INIT, maxcode = (1 << nBits) - 1, freeEnt = CLEAR + 2, clearFlg = false, acc = 0, accBits = 0;
+  const output = code => {
+    acc |= code << accBits; accBits += nBits;
+    while (accBits >= 8) { put(acc & 255); acc >>>= 8; accBits -= 8; }
+    if (freeEnt > maxcode || clearFlg) {
+      if (clearFlg) { nBits = INIT; maxcode = (1 << nBits) - 1; clearFlg = false; }
+      else { nBits++; maxcode = nBits === 12 ? MAXMAX : (1 << nBits) - 1; }
+    }
+  };
+  output(CLEAR);
+  let ent = pixels[0];
+  outer: for (let p = 1; p < pixels.length; p++) {
+    const c = pixels[p];
+    const fcode = (c << 12) + ent;
+    let i = (c << 4) ^ ent;
+    if (htab[i] === fcode) { ent = codetab[i]; continue; }
+    if (htab[i] >= 0) {
+      const disp = i === 0 ? 1 : HSIZE - i;
+      do {
+        i -= disp; if (i < 0) i += HSIZE;
+        if (htab[i] === fcode) { ent = codetab[i]; continue outer; }
+      } while (htab[i] >= 0);
+    }
+    output(ent);
+    ent = c;
+    if (freeEnt < MAXMAX) { codetab[i] = freeEnt++; htab[i] = fcode; }
+    else { htab.fill(-1); freeEnt = CLEAR + 2; clearFlg = true; output(CLEAR); }
+  }
+  output(ent); output(EOI);
+  if (accBits > 0) put(acc & 255);
+  // Minsta kodstorlek, data i block om högst 255 byte, avslutande nollblock.
+  const blocks = Math.ceil(n / 255);
+  const res = new Uint8Array(1 + n + blocks + 1);
+  let o = 0; res[o++] = 8;
+  for (let k = 0; k < n; k += 255) { const len = Math.min(255, n - k); res[o++] = len; res.set(buf.subarray(k, k + len), o); o += len; }
+  res[o++] = 0;
+  return res;
+}
+function gifPlan() {
+  const s = S.gifScale;
+  return { w: Math.round(L.W * s), h: Math.round(L.H * s), frames: Math.max(1, Math.round(S.gifLen * S.gifFps)) };
+}
+let gifBusy = false;
+$('exportGif').addEventListener('click', async () => {
+  if (!L || gifBusy) return;
+  gifBusy = true;
+  const btn = $('exportGif');
+  try {
+    await ensureFont();
+    const { w, h, frames } = gifPlan(), s = S.gifScale;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    const ops = cellOps(L, G);
+    // Mörkast först; spridningen blandar in lite slump i ordningen.
+    const spread = S.gifSpread / 100 * 0.6;
+    const key = ops.map(o => G.tone[o.r * L.cols + o.c] + (rnd(20, o.r, o.c) - 0.5) * spread);
+    const order = ops.map((_, i) => i).sort((a, b) => key[a] - key[b]);
+    const delay = 100 / S.gifFps;
+    const enc = new GifWriter(w, h, S.bg, S.fg);
+    prepCtx(x, L, s, false);
+    let prev = null, done = 0;
+    const addFrame = d => { prev = enc.frame(x.getImageData(0, 0, w, h).data, prev, d); };
+    addFrame(delay); // tomt papper
+    for (let f = 1; f <= frames; f++) {
+      const upto = Math.round(order.length * f / frames);
+      for (; done < upto; done++) paintOp(x, ops[order[done]], s);
+      addFrame(f === frames ? delay + S.gifHold * 100 : delay);
+      btn.textContent = `Skapar GIF … ${Math.round(f / frames * 100)} %`;
+      await new Promise(r => setTimeout(r, 0));
+    }
+    const blob = enc.finish();
+    const mb = (blob.size / 1048576).toFixed(1).replace('.', ',');
+    await saveBlob(blob, `hem-skrivmaskin-${w}x${h}.gif`, `GIF sparad, ${w} × ${h} px, ${mb} MB.`);
+  } catch (e) {
+    toast('GIF-exporten misslyckades. Prova en mindre storlek.');
+  } finally {
+    gifBusy = false; btn.textContent = 'Exportera GIF';
+  }
 });
 let DL = null;
 if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { DL = d; }).catch(() => {});
