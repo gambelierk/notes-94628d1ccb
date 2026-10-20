@@ -99,6 +99,14 @@ main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%
   padding-block: 8px; padding-left: 20px; padding-right: max(20px, env(safe-area-inset-right, 0px));
   border-bottom: 1px solid var(--line); background: var(--accent-soft);
 }
+.tools { display: inline-flex; }
+.tools button { border-radius: 0; margin-left: -1px; }
+.tools button:first-child { border-radius: 3px 0 0 3px; margin-left: 0; }
+.tools button:last-child { border-radius: 0 3px 3px 0; }
+.tools button[aria-checked="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); position: relative; }
+.brush-size { display: flex; gap: 6px; align-items: center; font-weight: 500; }
+.brush-size input { width: 110px; }
+.brush-size output { font: 12px var(--f-mono); min-width: 2ch; }
 .editbar .sel-info { font: 12px var(--f-mono); min-width: 190px; }
 .editbar input[type=text] { width: 180px; }
 .stage { overflow: auto; padding: 28px; position: relative; }
@@ -227,12 +235,19 @@ main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%
     </div>
   </div>
   <div class="editbar">
-    <span class="sel-info" id="selInfo">Klicka eller dra över en rad för att markera.</span>
-    <input type="text" id="typeText" placeholder="Egen text" spellcheck="false" autocomplete="off" aria-label="Egen text">
+    <div class="tools" role="radiogroup" aria-label="Verktyg">
+      <button data-tool="type" role="radio">Skriv</button>
+      <button data-tool="area" role="radio">Yta</button>
+      <button data-tool="brush" role="radio">Pensel</button>
+    </div>
+    <span class="sel-info" id="selInfo"></span>
+    <input type="text" id="typeText" placeholder="Tecken eller text" spellcheck="false" autocomplete="off" aria-label="Tecken eller text">
+    <label class="brush-size" id="brushWrap">Storlek <input type="range" id="brushSize" data-k="brushSize" min="1" max="30"> <output id="o-brushSize"></output></label>
     <button id="typeIn">Skriv in</button>
     <button id="fillSel">Fyll markering</button>
     <button id="clearSel">Återställ markering</button>
     <button id="clearAll">Rensa egna tecken</button>
+    <label class="check"><input type="checkbox" id="onlyInk" data-k="onlyInk"> <span>Bara där det finns tecken</span></label>
     <label class="check"><input type="checkbox" id="showEdits"> <span>Visa egna tecken</span></label>
   </div>
   <div class="stage" id="stage" tabindex="0" aria-label="Arket. Markera tecken och skriv med tangentbordet.">
@@ -240,7 +255,7 @@ main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%
       <canvas id="canvas"></canvas>
       <canvas id="overlay"></canvas>
     </div>
-    <p class="drop-hint">Släpp eller klistra in en bild för att ladda den · Skriv direkt med tangentbordet när något är markerat · Enter = ny rad · Backsteg ångrar</p>
+    <p class="drop-hint">Släpp eller klistra in en bild för att ladda den · Skriv: markera på en rad och skriv · Yta: dra en rektangel och tryck ett tecken · Pensel: måla fritt, Alt suddar</p>
   </div>
 </main>
 <div class="toast" id="toast" role="status"></div>
@@ -257,7 +272,8 @@ const DEF = {
   seed: 1, kern: 25, base: 20, lineVar: 15, drift: 10,
   slug: 20, press: 25, ribbon: 15, rot: 10, dbl: 2,
   scale: 4, transparent: false, zoom: 'fit', showEdits: true,
-  gifLen: 5, gifFps: 20, gifHold: 1.5, gifSpread: 30, gifScale: 1
+  gifLen: 5, gifFps: 20, gifHold: 1.5, gifSpread: 30, gifScale: 1,
+  tool: 'type', brushSize: 3, onlyInk: true
 };
 const KEY = 'hem-skrivmaskin-v1';
 let S = { ...DEF };
@@ -341,6 +357,8 @@ function syncUI() {
   $('f-ramp').value = S.ramp;
   $('f-zoom').value = String(S.zoom);
   $('showEdits').checked = S.showEdits;
+  $('o-brushSize').textContent = S.brushSize;
+  updateTools();
   $('f-blankAt').disabled = !S.blank;
   $('removeFont').hidden = !CUSTOM.some(c => c.family === S.font);
   rampStrip();
@@ -699,10 +717,31 @@ function render() {
 new ResizeObserver(() => { if (S.zoom === 'fit') schedule(); }).observe(stage);
 
 /* ---------- Markering och egen text ---------- */
-let sel = null; // { r, a, b, cur }
+let sel = null; // Skriv: { r, a, b, cur }
+let area = null; // Yta: { r0, c0, r1, c1 }, ankare och motsatt hörn
+let brushPos = null, lastBrush = null;
 let dragging = false;
 const lo = () => Math.min(sel.a, sel.b), hi = () => Math.max(sel.a, sel.b);
-function clampSel() { sel = null; updateSelUI(); }
+const areaBox = () => ({
+  r0: Math.min(area.r0, area.r1), r1: Math.max(area.r0, area.r1),
+  c0: Math.min(area.c0, area.c1), c1: Math.max(area.c0, area.c1),
+});
+function forArea(fn) { const b = areaBox(); for (let r = b.r0; r <= b.r1; r++) for (let c = b.c0; c <= b.c1; c++) fn(r, c, b); }
+const inkAt = (r, c) => !S.onlyInk || G[r][c] !== ' ';
+function clampSel() { sel = null; area = null; updateSelUI(); }
+
+function updateTools() {
+  document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.tool === S.tool)));
+  $('brushWrap').hidden = S.tool !== 'brush';
+  ['typeIn', 'fillSel', 'clearSel'].forEach(id => $(id).hidden = S.tool === 'brush');
+  overlay.style.touchAction = S.tool === 'type' ? '' : 'none';
+  overlay.style.cursor = S.tool === 'type' ? 'text' : S.tool === 'area' ? 'crosshair' : 'none';
+}
+document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
+  S.tool = b.dataset.tool; sel = null; area = null; brushPos = null;
+  save(); updateTools(); updateSelUI(); stage.focus({ preventScroll: true });
+}));
+$('typeText').addEventListener('input', () => { if (S.tool === 'brush') updateSelUI(); });
 
 function drawOverlay() {
   if (!L) return;
@@ -719,6 +758,18 @@ function drawOverlay() {
       octx.fillRect(L.mx + c * L.cellW + L.cellW * .15, L.my + (r + 1) * L.lineH - 2 * px, L.cellW * .7, 2 * px);
     }
   }
+  if (area) {
+    const b = areaBox();
+    const x = L.mx + b.c0 * L.cellW, y = L.my + b.r0 * L.lineH;
+    const w = (b.c1 - b.c0 + 1) * L.cellW, h = (b.r1 - b.r0 + 1) * L.lineH;
+    octx.fillStyle = 'rgba(214, 64, 47, .16)'; octx.fillRect(x, y, w, h);
+    octx.strokeStyle = 'rgba(214, 64, 47, .9)'; octx.lineWidth = px; octx.strokeRect(x, y, w, h);
+  }
+  if (S.tool === 'brush' && brushPos) {
+    octx.beginPath(); octx.arc(brushPos.x, brushPos.y, S.brushSize * L.lineH / 2, 0, Math.PI * 2);
+    octx.lineWidth = 3 * px; octx.strokeStyle = 'rgba(255, 255, 255, .8)'; octx.stroke();
+    octx.lineWidth = 1.5 * px; octx.strokeStyle = 'rgba(214, 64, 47, 1)'; octx.stroke();
+  }
   if (sel) {
     const x = L.mx + lo() * L.cellW, y = L.my + sel.r * L.lineH, w = (hi() - lo() + 1) * L.cellW;
     octx.fillStyle = 'rgba(214, 64, 47, .16)'; octx.fillRect(x, y, w, L.lineH);
@@ -731,6 +782,19 @@ function drawOverlay() {
 }
 function updateSelUI() {
   const info = $('selInfo');
+  if (S.tool === 'brush') {
+    const ch = [...$('typeText').value][0];
+    info.textContent = ch ? `Måla med «${ch}». Håll Alt för att sudda.` : 'Skriv tecknet penseln ska måla med i fältet.';
+    drawOverlay(); return;
+  }
+  if (S.tool === 'area') {
+    if (!area || !L) info.textContent = 'Dra en rektangel över arket.';
+    else {
+      const b = areaBox(), n = (b.r1 - b.r0 + 1) * (b.c1 - b.c0 + 1);
+      info.textContent = `Rad ${b.r0 + 1}–${b.r1 + 1}, kolumn ${b.c0 + 1}–${b.c1 + 1} (${n} rutor). Tryck ett tecken för att fylla.`;
+    }
+    drawOverlay(); return;
+  }
   if (!sel || !L) { info.textContent = 'Klicka eller dra över en rad för att markera.'; drawOverlay(); return; }
   const n = hi() - lo() + 1;
   info.textContent = `Rad ${sel.r + 1}, kolumn ${lo() + 1}${n > 1 ? '–' + (hi() + 1) : ''} (${n} tecken)`;
@@ -743,24 +807,71 @@ function cellAt(e, clampToGrid) {
   if (!clampToGrid && (c < 0 || r < 0 || c >= L.cols || r >= L.rows)) return null;
   return { r: Math.max(0, Math.min(L.rows - 1, r)), c: Math.max(0, Math.min(L.cols - 1, c)) };
 }
+function sheetPoint(e) {
+  const rect = overlay.getBoundingClientRect();
+  return { x: (e.clientX - rect.left) / rect.width * L.W, y: (e.clientY - rect.top) / rect.height * L.H };
+}
+function brushAt(x, y, erase) {
+  const ch = [...$('typeText').value][0];
+  if (!erase && !ch) return;
+  const rad = S.brushSize * L.lineH / 2;
+  const cr = Math.floor((y - L.my) / L.lineH), cc = Math.floor((x - L.mx) / L.cellW);
+  const r0 = Math.max(0, Math.floor((y - rad - L.my) / L.lineH)), r1 = Math.min(L.rows - 1, Math.floor((y + rad - L.my) / L.lineH));
+  const c0 = Math.max(0, Math.floor((x - rad - L.mx) / L.cellW)), c1 = Math.min(L.cols - 1, Math.floor((x + rad - L.mx) / L.cellW));
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const dx = L.mx + (c + .5) * L.cellW - x, dy = L.my + (r + .5) * L.lineH - y;
+    if (dx * dx + dy * dy > rad * rad && !(r === cr && c === cc)) continue;
+    if (erase) OV.delete(r + ',' + c);
+    else if (inkAt(r, c)) writeAt(r, c, ch);
+  }
+}
 overlay.addEventListener('pointerdown', e => {
   if (!L) return;
+  overlay.setPointerCapture(e.pointerId);
+  stage.focus({ preventScroll: true });
+  if (S.tool === 'brush') {
+    if (!e.altKey && ![...$('typeText').value][0]) { toast('Skriv först vilket tecken penseln ska måla med.'); $('typeText').focus(); return; }
+    dragging = true;
+    const p = sheetPoint(e);
+    brushAt(p.x, p.y, e.altKey); lastBrush = p; brushPos = p;
+    schedule(); return;
+  }
   const p = cellAt(e, false);
+  if (S.tool === 'area') {
+    area = p ? { r0: p.r, c0: p.c, r1: p.r, c1: p.c } : null;
+    dragging = !!p; updateSelUI(); return;
+  }
   if (!p) { sel = null; updateSelUI(); return; }
   if (e.shiftKey && sel && sel.r === p.r) sel.b = p.c;
   else sel = { r: p.r, a: p.c, b: p.c };
   sel.cur = lo();
   dragging = true;
-  overlay.setPointerCapture(e.pointerId);
-  stage.focus({ preventScroll: true });
   updateSelUI();
 });
 overlay.addEventListener('pointermove', e => {
-  if (!dragging || !sel) return;
+  if (!L) return;
+  if (S.tool === 'brush') {
+    const p = sheetPoint(e);
+    brushPos = p;
+    if (dragging) {
+      // Fyll i mellan två händelser så att snabba drag inte lämnar luckor.
+      const dist = Math.hypot(p.x - lastBrush.x, p.y - lastBrush.y), steps = Math.max(1, Math.ceil(dist / (L.cellW / 2)));
+      for (let i = 1; i <= steps; i++) brushAt(lastBrush.x + (p.x - lastBrush.x) * i / steps, lastBrush.y + (p.y - lastBrush.y) * i / steps, e.altKey);
+      lastBrush = p;
+      schedule();
+    } else drawOverlay();
+    return;
+  }
+  if (!dragging) return;
   const p = cellAt(e, true);
-  if (p.c !== sel.b) { sel.b = p.c; sel.cur = lo(); updateSelUI(); }
+  if (S.tool === 'area' && area) {
+    if (p.r !== area.r1 || p.c !== area.c1) { area.r1 = p.r; area.c1 = p.c; updateSelUI(); }
+    return;
+  }
+  if (sel && p.c !== sel.b) { sel.b = p.c; sel.cur = lo(); updateSelUI(); }
 });
-overlay.addEventListener('pointerup', () => { dragging = false; });
+overlay.addEventListener('pointerup', () => { if (dragging && S.tool === 'brush') save(); dragging = false; });
+overlay.addEventListener('pointerleave', () => { if (S.tool === 'brush' && !dragging) { brushPos = null; drawOverlay(); } });
 
 function commit() { save(); schedule(); }
 function writeAt(r, c, ch) {
@@ -774,9 +885,16 @@ function typeChar(ch) {
   if (sel.cur - 1 > hi()) { if (sel.a > sel.b) sel.a = sel.cur - 1; else sel.b = sel.cur - 1; }
 }
 stage.addEventListener('keydown', e => {
-  if (!sel || !L || e.target !== stage) return;
-  if (e.ctrlKey || e.metaKey) return;
+  if (!L || e.target !== stage || e.ctrlKey || e.metaKey) return;
   const k = e.key;
+  if (S.tool === 'area') {
+    if (!area) return;
+    if ([...k].length === 1) { e.preventDefault(); forArea((r, c) => { if (inkAt(r, c)) writeAt(r, c, k); }); commit(); return; }
+    if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); forArea((r, c) => OV.delete(r + ',' + c)); commit(); return; }
+    if (k === 'Escape') { area = null; updateSelUI(); }
+    return;
+  }
+  if (!sel) return;
   if (k.length === 1 || [...k].length === 1) { e.preventDefault(); typeChar(k); updateSelUI(); commit(); return; }
   if (k === 'Backspace') {
     e.preventDefault();
@@ -800,10 +918,11 @@ stage.addEventListener('keydown', e => {
     sel.cur = lo(); updateSelUI(); return;
   }
 });
-function needSel() { if (!sel) { toast('Markera först ett eller flera tecken på arket.'); return false; } return true; }
+function needSel() { if (S.tool === 'area' ? !area : !sel) { toast('Markera först ett eller flera tecken på arket.'); return false; } return true; }
 $('typeIn').addEventListener('click', () => {
   if (!needSel()) return;
   const t = [...$('typeText').value];
+  if (area) { let i = 0; forArea((r, c) => { if (i < t.length) writeAt(r, c, t[i++]); }); commit(); return; }
   sel.cur = lo();
   t.forEach(typeChar);
   updateSelUI(); commit();
@@ -812,13 +931,15 @@ $('fillSel').addEventListener('click', () => {
   if (!needSel()) return;
   const t = [...$('typeText').value];
   if (!t.length) { toast('Skriv först de tecken som ska fylla markeringen.'); return; }
-  for (let c = lo(), i = 0; c <= hi(); c++, i++) writeAt(sel.r, c, t[i % t.length]);
+  if (area) forArea((r, c, b) => { if (inkAt(r, c)) writeAt(r, c, t[(c - b.c0) % t.length]); });
+  else for (let c = lo(); c <= hi(); c++) { if (inkAt(sel.r, c)) writeAt(sel.r, c, t[(c - lo()) % t.length]); }
   commit();
 });
 $('typeText').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('typeIn').click(); } });
 $('clearSel').addEventListener('click', () => {
   if (!needSel()) return;
-  for (let c = lo(); c <= hi(); c++) OV.delete(sel.r + ',' + c);
+  if (area) forArea((r, c) => OV.delete(r + ',' + c));
+  else for (let c = lo(); c <= hi(); c++) OV.delete(sel.r + ',' + c);
   commit();
 });
 let clearArmed = 0;
