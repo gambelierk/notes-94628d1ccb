@@ -199,6 +199,12 @@ main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%
     <div id="sec-extra"></div>
   </section>
 
+  <section data-only="block">
+    <h2>Ojämnheter</h2>
+    <div id="sec-ojamn"></div>
+    <div class="row"><span class="hint" id="seedInfo"></span><button id="newSeed2">Slumpa om</button></div>
+  </section>
+
   <section>
     <h2>Export</h2>
     <div id="sec-export"></div>
@@ -276,7 +282,8 @@ const DEF = {
   scale: 4, transparent: false, zoom: 'fit', showEdits: true,
   gifLen: 5, gifFps: 20, gifHold: 1.5, gifSpread: 30, gifScale: 1,
   tool: 'type', brushSize: 3, onlyInk: true,
-  render: 'text', blockSet: 'vbar', dither: 'fs', cellW: 6, cellH: 12
+  render: 'text', blockSet: 'vbar', dither: 'fs', cellW: 6, cellH: 12,
+  bWidth: 0, bEdge: 0, bSmear: 0, bGlitch: 0, bNoise: 0
 };
 const KEY = 'hem-skrivmaskin-v1';
 let S = { ...DEF };
@@ -324,6 +331,13 @@ const UI = {
     { k: 'dither', t: 'select', l: 'Rastrering', only: 'block', opts: ['none', 'fs', 'bayer'], fmtOpt: v => ({ none: 'Ingen', fs: 'Floyd–Steinberg (brus)', bayer: 'Bayer (mönster)' })[v], h: 'Rastreringen sprider gråtonerna mellan tomt och fyllt, som i ett tryckraster.' },
     { k: 'cellW', t: 'range', l: 'Cellbredd', only: 'block', min: 1, max: 40, u: ' px' },
     { k: 'cellH', t: 'range', l: 'Cellhöjd', only: 'block', min: 1, max: 60, u: ' px', h: 'Höga, smala celler ger vertikala ränder.' },
+  ],
+  ojamn: [
+    { k: 'bWidth', t: 'range', l: 'Stapelbredd', min: 0, max: 100, h: 'Varje kolumn får en egen, lite fel bredd och position.' },
+    { k: 'bEdge', t: 'range', l: 'Ojämna kanter', min: 0, max: 100, h: 'Blocken sticker upp eller slutar för tidigt.' },
+    { k: 'bSmear', t: 'range', l: 'Utsmetning', min: 0, max: 100, h: 'Block dras ut nedåt i vertikala strimmor.' },
+    { k: 'bGlitch', t: 'range', l: 'Förskjutning', min: 0, max: 100, h: 'Rader glider i sidled, som en störd bildsignal.' },
+    { k: 'bNoise', t: 'range', l: 'Brus', min: 0, max: 100, h: 'Enstaka block försvinner eller dyker upp där de inte hör hemma.' },
   ],
   tecken: [
     { k: 'cols', t: 'range', l: 'Tecken per rad', min: 10, max: 400, h: 'Antalet rader räknas fram ur bildens proportioner.' },
@@ -392,6 +406,7 @@ function syncUI() {
   $('f-zoom').value = String(S.zoom);
   $('showEdits').checked = S.showEdits;
   $('o-brushSize').textContent = S.brushSize;
+  $('seedInfo').textContent = 'Slumpfrö ' + S.seed;
   document.querySelectorAll('[data-only]').forEach(el => el.hidden = el.dataset.only !== S.render);
   $('o-cols').textContent = S.cols + (S.render === 'block' && BLOCK_SETS[S.blockSet].quad ? ' (' + S.cols * 2 + ' punkter)' : '');
   updateTools();
@@ -503,6 +518,7 @@ $('f-ramp').addEventListener('input', e => {
 $('f-zoom').addEventListener('change', e => { S.zoom = e.target.value === 'fit' ? 'fit' : parseFloat(e.target.value); save(); schedule(); });
 $('showEdits').addEventListener('change', e => { S.showEdits = e.target.checked; save(); drawOverlay(); });
 $('swapColors').addEventListener('click', () => { [S.bg, S.fg] = [S.fg, S.bg]; syncUI(); save(); schedule(); });
+$('newSeed2').addEventListener('click', () => $('newSeed').click());
 $('newSeed').addEventListener('click', () => { S.seed = 1 + Math.floor(Math.random() * 999998); syncUI(); save(); schedule(); });
 $('resetAll').addEventListener('click', () => { S = { ...DEF }; syncUI(); save(); ensureFont().then(schedule); toast('Inställningarna är återställda. Egna tecken ligger kvar.'); });
 
@@ -685,8 +701,34 @@ function buildBlockGrid(L) {
     }
     grid.push(row);
   }
+  roughen(grid, chars[chars.length - 1]);
   grid.tone = tone;
   return grid;
+}
+// Ojämnheter som ändrar vilka block som står var. Alla styrs av slumpfröet.
+function roughen(grid, full) {
+  const rows = grid.length, cols = grid[0].length;
+  if (S.bGlitch) {
+    const a = S.bGlitch / 100;
+    let shift = 0;
+    for (let r = 0; r < rows; r++) {
+      // En förskjutning håller ofta i sig några rader, som ett band.
+      if (!(shift && rnd(42, r) < 0.6)) shift = rnd(40, r) < a * 0.3 ? Math.round(sr(41, r) * (1 + a * 12)) : 0;
+      if (shift) { const row = grid[r]; grid[r] = row.map((_, c) => row[((c - shift) % cols + cols) % cols]); }
+    }
+  }
+  if (S.bSmear) {
+    const a = S.bSmear / 100;
+    for (let c = 0; c < cols; c++) {
+      const p = a * 0.75 * (0.3 + 0.7 * rnd(44, c));
+      for (let r = 1; r < rows; r++) if (rnd(43, r, c) < p) grid[r][c] = grid[r - 1][c];
+    }
+  }
+  if (S.bNoise) {
+    const p = S.bNoise / 100 * 0.12;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++)
+      if (rnd(45, r, c) < p) grid[r][c] = grid[r][c] === ' ' ? full : ' ';
+  }
 }
 function buildGrid(L) {
   if (S.render === 'block') return buildBlockGrid(L);
@@ -739,7 +781,11 @@ function cellOps(L, G) {
     for (let r = 0; r < L.rows; r++) for (let c = 0; c < L.cols; c++) {
       const ch = charAt(G, r, c);
       if (ch === ' ' || ch === '') continue;
-      ops.push({ r, c, ch, block: true, alpha: 1, x: L.mx + c * L.cellW, y: L.my + r * L.lineH, w: L.cellW, h: L.lineH });
+      // Kolumnvis bredd och läge, cellvis ojämna över- och underkanter.
+      const aw = S.bWidth / 100, ae = S.bEdge / 100;
+      const wf = 1 + sr(30, c) * aw * 0.6, dx = sr(31, c) * aw * 0.35 * L.cellW;
+      const e0 = sr(32, r, c) * ae * 0.5 * L.lineH, e1 = sr(33, r, c) * ae * 0.5 * L.lineH;
+      ops.push({ r, c, ch, block: true, alpha: 1, x: L.mx + c * L.cellW + dx, y: L.my + r * L.lineH - e0, w: L.cellW * wf, h: L.lineH + e0 + e1 });
     }
     return ops;
   }
