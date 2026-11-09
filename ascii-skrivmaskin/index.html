@@ -173,6 +173,11 @@ main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%
   </section>
 
   <section>
+    <h2>Storlek efter ton</h2>
+    <div id="sec-storlek"></div>
+  </section>
+
+  <section>
     <h2>Färg</h2>
     <div class="colors">
       <div class="color-field"><label for="f-bg">Bakgrund</label><input type="color" id="f-bg" data-k="bg"><input type="text" data-hex="bg" id="h-bg" aria-label="Bakgrund hex"></div>
@@ -283,7 +288,8 @@ const DEF = {
   gifLen: 5, gifFps: 20, gifHold: 1.5, gifSpread: 30, gifScale: 1,
   tool: 'type', brushSize: 3, onlyInk: true,
   render: 'text', blockSet: 'vbar', dither: 'fs', cellW: 6, cellH: 12,
-  bWidth: 0, bEdge: 0, bSmear: 0, bGlitch: 0, bNoise: 0
+  bWidth: 0, bEdge: 0, bSmear: 0, bGlitch: 0, bNoise: 0,
+  sizeMode: 'off', sizeMin: 50, sizeMax: 160
 };
 const KEY = 'hem-skrivmaskin-v1';
 let S = { ...DEF };
@@ -331,6 +337,11 @@ const UI = {
     { k: 'dither', t: 'select', l: 'Rastrering', only: 'block', opts: ['none', 'fs', 'bayer'], fmtOpt: v => ({ none: 'Ingen', fs: 'Floyd–Steinberg (brus)', bayer: 'Bayer (mönster)' })[v], h: 'Rastreringen sprider gråtonerna mellan tomt och fyllt, som i ett tryckraster.' },
     { k: 'cellW', t: 'range', l: 'Cellbredd', only: 'block', min: 1, max: 40, u: ' px' },
     { k: 'cellH', t: 'range', l: 'Cellhöjd', only: 'block', min: 1, max: 60, u: ' px', h: 'Höga, smala celler ger vertikala ränder.' },
+  ],
+  storlek: [
+    { k: 'sizeMode', t: 'select', l: 'Största tecknen', opts: ['off', 'dark', 'light', 'both'], fmtOpt: v => ({ off: 'Av, alla lika stora', dark: 'I svart, minst i vitt', light: 'I vitt, minst i svart', both: 'I svart och vitt, minst i grått' })[v] },
+    { k: 'sizeMax', t: 'range', l: 'Största storlek', min: 10, max: 300, u: ' %' },
+    { k: 'sizeMin', t: 'range', l: 'Minsta storlek', min: 10, max: 300, u: ' %', h: 'Procent av normal storlek. Stora tecken växer ut över grannarna, så minska antalet tecken per rad om det blir för tätt.' },
   ],
   ojamn: [
     { k: 'bWidth', t: 'range', l: 'Stapelbredd', min: 0, max: 100, h: 'Varje kolumn får en egen, lite fel bredd och position.' },
@@ -406,6 +417,7 @@ function syncUI() {
   $('f-zoom').value = String(S.zoom);
   $('showEdits').checked = S.showEdits;
   $('o-brushSize').textContent = S.brushSize;
+  $('f-sizeMin').disabled = $('f-sizeMax').disabled = S.sizeMode === 'off';
   $('seedInfo').textContent = 'Slumpfrö ' + S.seed;
   document.querySelectorAll('[data-only]').forEach(el => el.hidden = el.dataset.only !== S.render);
   $('o-cols').textContent = S.cols + (S.render === 'block' && BLOCK_SETS[S.blockSet].quad ? ' (' + S.cols * 2 + ' punkter)' : '');
@@ -774,6 +786,13 @@ function vnoise(x, y) {
 }
 
 /* ---------- Rendering ---------- */
+// Skalfaktor för ett tecken utifrån ljusheten i dess ruta (tone: 0 svart, 1 vitt).
+function sizeFor(tone) {
+  if (S.sizeMode === 'off') return 1;
+  const d = 1 - tone;
+  const t = S.sizeMode === 'dark' ? d : S.sizeMode === 'light' ? tone : Math.abs(2 * d - 1);
+  return (S.sizeMin + (S.sizeMax - S.sizeMin) * t) / 100;
+}
 // Alla anslag med sina slumpade positioner, i radordning.
 function cellOps(L, G) {
   const ops = [];
@@ -785,7 +804,10 @@ function cellOps(L, G) {
       const aw = S.bWidth / 100, ae = S.bEdge / 100;
       const wf = 1 + sr(30, c) * aw * 0.6, dx = sr(31, c) * aw * 0.35 * L.cellW;
       const e0 = sr(32, r, c) * ae * 0.5 * L.lineH, e1 = sr(33, r, c) * ae * 0.5 * L.lineH;
-      ops.push({ r, c, ch, block: true, alpha: 1, x: L.mx + c * L.cellW + dx, y: L.my + r * L.lineH - e0, w: L.cellW * wf, h: L.lineH + e0 + e1 });
+      let w = L.cellW * wf, h = L.lineH + e0 + e1, x = L.mx + c * L.cellW + dx, y = L.my + r * L.lineH - e0;
+      const k = sizeFor(G.tone[r * L.cols + c]);
+      if (k !== 1) { x += w * (1 - k) / 2; y += h * (1 - k) / 2; w *= k; h *= k; }
+      ops.push({ r, c, ch, block: true, alpha: 1, x, y, w, h });
     }
     return ops;
   }
@@ -808,7 +830,7 @@ function cellOps(L, G) {
       let alpha = 1 - rnd(10, r, c) * S.press / 100 * 0.6;
       if (S.ribbon) alpha *= 1 - S.ribbon / 100 * 0.75 * Math.pow(vnoise(c / 11, r / 4), 1.6);
       ops.push({
-        r, c, ch, alpha,
+        r, c, ch, alpha, k: sizeFor(G.tone[r * L.cols + c]),
         x: L.mx + c * L.cellW + L.cellW / 2 + lineDx + sl.x + soft(7, r, c) * S.kern / 100 * 0.22 * em,
         y: baseY + sl.y + soft(8, r, c) * S.base / 100 * 0.14 * em,
         rot: sl.r + soft(9, r, c) * S.rot / 100 * 4 * deg,
@@ -851,8 +873,16 @@ function paintOp(ctx, o, scale) {
   const cos = Math.cos(o.rot) * scale, sin = Math.sin(o.rot) * scale;
   ctx.globalAlpha = o.alpha;
   ctx.setTransform(cos, sin, -sin, cos, o.x * scale, o.y * scale);
-  ctx.fillText(o.ch, 0, 0);
-  if (o.dbl) { ctx.globalAlpha = o.alpha * 0.5; ctx.fillText(o.ch, o.dbl[0], o.dbl[1]); }
+  if (o.k === 1) {
+    ctx.fillText(o.ch, 0, 0);
+    if (o.dbl) { ctx.globalAlpha = o.alpha * 0.5; ctx.fillText(o.ch, o.dbl[0], o.dbl[1]); }
+    return;
+  }
+  // Skala runt tecknets mitt (ungefär en tredjedel em ovanför baslinjen).
+  const m = S.size * 0.33;
+  ctx.translate(0, -m); ctx.scale(o.k, o.k);
+  ctx.fillText(o.ch, 0, m);
+  if (o.dbl) { ctx.globalAlpha = o.alpha * 0.5; ctx.fillText(o.ch, o.dbl[0], m + o.dbl[1]); }
 }
 function draw(ctx, L, G, scale, transparent) {
   prepCtx(ctx, L, scale, transparent);
