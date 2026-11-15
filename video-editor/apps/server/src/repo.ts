@@ -60,7 +60,7 @@ interface TemplateRow {
 interface MediaRow {
   id: string;
   workspace_id: string;
-  kind: 'video' | 'image';
+  kind: 'video' | 'image' | 'audio';
   name: string;
   mime: string;
   size: number;

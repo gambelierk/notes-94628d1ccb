@@ -86,7 +86,7 @@ export interface CompositionDTO extends CompositionSummaryDTO {
 
 export interface MediaDTO {
   id: string;
-  kind: 'video' | 'image';
+  kind: 'video' | 'image' | 'audio';
   name: string;
   mime: string;
   size: number;

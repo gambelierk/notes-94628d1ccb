@@ -1,10 +1,14 @@
 import type { AudioBufferSink } from 'mediabunny';
+import { envelopeAt } from './audio-mix';
 
 export interface PreviewAudioClip {
   start: number;
   duration: number;
   sourceStart: number;
+  /** Clip × track gain. */
   volume: number;
+  fadeIn?: number;
+  fadeOut?: number;
   sink: AudioBufferSink;
 }
 
@@ -65,10 +69,27 @@ export class PreviewAudio {
     this.nodes.clear();
   }
 
+  /** Automate a clip's volume and fades on the AudioContext clock (same envelope as the export). */
+  private scheduleEnvelope(param: AudioParam, clip: PreviewAudioClip, from: number) {
+    const toCtx = (tl: number) => this.anchorCtx + (tl - this.anchorTimeline);
+    const local = Math.max(0, from - clip.start);
+    const at = Math.max(toCtx(clip.start), this.anchorCtx);
+    param.cancelScheduledValues(0);
+    param.setValueAtTime(envelopeAt(clip, local), at);
+    const fi = Math.min(clip.fadeIn ?? 0, clip.duration);
+    const fo = Math.min(clip.fadeOut ?? 0, clip.duration - fi);
+    if (fi > 0 && local < fi) param.linearRampToValueAtTime(clip.volume, toCtx(clip.start + fi));
+    if (fo > 0) {
+      const foStart = clip.start + clip.duration - fo;
+      if (local < clip.duration - fo) param.setValueAtTime(clip.volume, toCtx(foStart));
+      param.linearRampToValueAtTime(0, toCtx(clip.start + clip.duration));
+    }
+  }
+
   private async runClip(clip: PreviewAudioClip, from: number, gen: number) {
     const gain = this.ctx.createGain();
-    gain.gain.value = clip.volume;
     gain.connect(this.master);
+    this.scheduleEnvelope(gain.gain, clip, from);
     const tlFrom = Math.max(from, clip.start);
     const srcFrom = clip.sourceStart + (tlFrom - clip.start);
     const srcEnd = clip.sourceStart + clip.duration;

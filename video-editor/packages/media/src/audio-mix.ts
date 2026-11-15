@@ -6,8 +6,24 @@ export interface AudioClipSpec {
   duration: number;
   /** Source position (seconds). */
   sourceStart: number;
+  /** Clip × track gain. */
   volume: number;
+  /** Linear fades (seconds). */
+  fadeIn?: number;
+  fadeOut?: number;
   sink: AudioSampleSink;
+}
+
+/** Gain at `t` seconds into a clip: volume × fade envelope. */
+export function envelopeAt(spec: Pick<AudioClipSpec, 'duration' | 'volume' | 'fadeIn' | 'fadeOut'>, t: number): number {
+  const d = spec.duration;
+  if (t < 0 || t > d) return 0;
+  let f = 1;
+  const fi = Math.min(spec.fadeIn ?? 0, d);
+  const fo = Math.min(spec.fadeOut ?? 0, d - fi);
+  if (fi > 0 && t < fi) f = Math.min(f, t / fi);
+  if (fo > 0 && t > d - fo) f = Math.min(f, (d - t) / fo);
+  return spec.volume * f;
 }
 
 /**
@@ -93,8 +109,10 @@ class ClipAudioStream {
     }
   }
 
-  /** Mix `count` output frames starting at clip-relative frame `offset` into dst. */
-  async mixInto(dstL: Float32Array, dstR: Float32Array, dstOffset: number, offset: number, count: number, gain: number) {
+  /** Mix `count` output frames starting at clip-relative frame `offset` into dst, applying the clip envelope. */
+  async mixInto(dstL: Float32Array, dstR: Float32Array, dstOffset: number, offset: number, count: number) {
+    const spec = this.spec;
+    const flat = !spec.fadeIn && !spec.fadeOut;
     if (count <= 0) return;
     const lastOut = offset + count - 1;
     // srcRate is unknown before the first packet; fillTo handles that.
@@ -109,6 +127,7 @@ class ClipAudioStream {
       if (i0 < 0 || i0 >= bufLen) continue;
       const frac = p - i0;
       const i1 = i0 + 1 < bufLen ? i0 + 1 : i0;
+      const gain = flat ? spec.volume : envelopeAt(spec, (offset + i) / this.outRate);
       dstL[dstOffset + i] = dstL[dstOffset + i]! + (bufL[i0]! + (bufL[i1]! - bufL[i0]!) * frac) * gain;
       dstR[dstOffset + i] = dstR[dstOffset + i]! + (bufR[i0]! + (bufR[i1]! - bufR[i0]!) * frac) * gain;
     }
@@ -151,7 +170,7 @@ export class AudioMixer {
         s = new ClipAudioStream(clip, rate);
         this.streams.set(clip, s);
       }
-      await s.mixInto(L, R, a - startFrame, a - cs, b - a, clip.volume);
+      await s.mixInto(L, R, a - startFrame, a - cs, b - a);
     }
     // Soft clip to avoid harsh distortion when sources sum above 0 dBFS.
     for (let i = 0; i < count; i++) {

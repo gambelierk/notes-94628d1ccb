@@ -9,7 +9,7 @@ import {
   type InputAudioTrack,
   type InputVideoTrack,
 } from 'mediabunny';
-import type { VideoAsset } from '@ve/core';
+import type { AudioAsset, VideoAsset } from '@ve/core';
 
 export class UnsupportedMediaError extends Error {}
 
@@ -120,4 +120,56 @@ export async function probeVideo(
     size: size ?? (typeof src === 'string' ? 0 : src.size),
   };
   return { asset, source };
+}
+
+/** Read the metadata of a sound file (MP3, WAV, M4A/AAC, Ogg, FLAC …). */
+export async function probeAudio(src: Blob | string, id: string, name: string, size?: number): Promise<{ asset: AudioAsset; source: MediaSource }> {
+  const source = await MediaSource.open(src);
+  const a = source.audio;
+  if (!a) throw new UnsupportedMediaError('Filen innehåller inget ljud som kan spelas upp');
+  const asset: AudioAsset = {
+    kind: 'audio',
+    id,
+    name,
+    durationUs: Math.round(source.durationSec * 1_000_000),
+    sampleRate: a.sampleRate,
+    channels: a.numberOfChannels,
+    size: size ?? (typeof src === 'string' ? 0 : src.size),
+  };
+  return { asset, source };
+}
+
+export interface Peaks {
+  /** Peak amplitude (0–1) per bucket. */
+  data: Float32Array;
+  bucketsPerSecond: number;
+}
+
+/**
+ * Waveform overview: the largest absolute sample per bucket. Decodes the
+ * whole track once (in the background); callers should cache the result.
+ */
+export async function computePeaks(source: MediaSource, bucketsPerSecond = 40): Promise<Peaks | null> {
+  const sink = source.audioSamples();
+  if (!sink) return null;
+  const n = Math.max(1, Math.ceil(source.durationSec * bucketsPerSecond));
+  const data = new Float32Array(n);
+  let buf = new Float32Array(0);
+  for await (const sample of sink.samples()) {
+    const frames = sample.numberOfFrames;
+    if (buf.length < frames) buf = new Float32Array(frames);
+    const channels = Math.min(2, sample.numberOfChannels);
+    const rate = sample.sampleRate;
+    for (let ch = 0; ch < channels; ch++) {
+      sample.copyTo(buf, { planeIndex: ch, format: 'f32-planar' });
+      for (let i = 0; i < frames; i++) {
+        const b = Math.floor((sample.timestamp + i / rate) * bucketsPerSecond);
+        if (b < 0 || b >= n) continue;
+        const v = Math.abs(buf[i]!);
+        if (v > data[b]!) data[b] = v;
+      }
+    }
+    sample.close();
+  }
+  return { data, bucketsPerSecond };
 }

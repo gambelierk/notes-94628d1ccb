@@ -105,13 +105,23 @@ export function isRiv(head: Uint8Array): boolean {
 const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
 
 /** Identify uploaded media from its first bytes; never trust the client's type. */
-export function sniffMedia(head: Uint8Array): { kind: 'video' | 'image'; mime: string } | null {
+export function sniffMedia(head: Uint8Array): { kind: 'video' | 'image' | 'audio'; mime: string } | null {
   if (head.byteLength < 12) return null;
   const box = ascii(head, 4, 8);
   if (box === 'ftyp') {
     const brand = ascii(head, 8, 12);
+    if (brand === 'M4A ' || brand === 'M4B ') return { kind: 'audio', mime: 'audio/mp4' };
     return { kind: 'video', mime: brand.startsWith('qt') ? 'video/quicktime' : 'video/mp4' };
   }
+  // audio
+  if (ascii(head, 0, 3) === 'ID3') return { kind: 'audio', mime: 'audio/mpeg' };
+  if (head[0] === 0xff && (head[1]! & 0xe0) === 0xe0) {
+    // MPEG audio frame sync; layer bits 00 = ADTS (AAC), otherwise MP3
+    return (head[1]! & 0x06) === 0 ? { kind: 'audio', mime: 'audio/aac' } : { kind: 'audio', mime: 'audio/mpeg' };
+  }
+  if (ascii(head, 0, 4) === 'RIFF' && ascii(head, 8, 12) === 'WAVE') return { kind: 'audio', mime: 'audio/wav' };
+  if (ascii(head, 0, 4) === 'OggS') return { kind: 'audio', mime: 'audio/ogg' };
+  if (ascii(head, 0, 4) === 'fLaC') return { kind: 'audio', mime: 'audio/flac' };
   if (['moov', 'mdat', 'wide', 'free', 'skip'].includes(box)) return { kind: 'video', mime: 'video/quicktime' };
   if (head[0] === 0x89 && ascii(head, 1, 4) === 'PNG') return { kind: 'image', mime: 'image/png' };
   if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return { kind: 'image', mime: 'image/jpeg' };

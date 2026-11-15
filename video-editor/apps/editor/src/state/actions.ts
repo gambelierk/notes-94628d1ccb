@@ -26,7 +26,23 @@ import {
   type TrackKind,
   type VideoAsset,
 } from '@ve/core';
-import { createId, type ImageAsset, type MediaDTO } from '@ve/core';
+import {
+  createAudioClip,
+  createId,
+  createTextClip,
+  parseSubtitles,
+  setClipFades,
+  setTextContent,
+  setTrackVolume,
+  SUBTITLE_STYLE,
+  SUBTITLE_Y,
+  TEXT_PRESETS,
+  toSrt,
+  type Cue,
+  type ImageAsset,
+  type MediaDTO,
+  type TextStyle,
+} from '@ve/core';
 import { UnsupportedMediaError } from '@ve/media';
 import { customerApi } from '../services/api';
 import { media } from '../services/media';
@@ -64,7 +80,9 @@ async function uploadToProject(file: File): Promise<MediaDTO> {
   }
 }
 
-/** Import files picked or dropped by the user: MP4 video, images and .riv templates. */
+const AUDIO_FILE = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac)$/;
+
+/** Import files picked or dropped by the user: video, images, sound files, subtitles and .riv templates. */
 export async function importFiles(files: Iterable<File>): Promise<void> {
   const store = useEditor.getState();
   const saved = !!store.composition; // customer composition: files go to the server
@@ -73,6 +91,15 @@ export async function importFiles(files: Iterable<File>): Promise<void> {
     try {
       if (name.endsWith('.riv')) {
         await importTemplateFile(file);
+      } else if (/\.(srt|vtt)$/.test(name)) {
+        await importSubtitles(file);
+      } else if (file.type.startsWith('audio/') || AUDIO_FILE.test(name)) {
+        // Probe locally first: fail fast on unsupported formats before uploading.
+        await media.importAudio(file, createId('probe'));
+        const id = saved ? (await uploadToProject(file)).id : createId('aud');
+        const asset = await media.importAudio(file, id);
+        store.apply((p) => addAsset(p, asset), 'Importera ljud');
+        void media.peaks(asset.id);
       } else if (file.type.startsWith('image/')) {
         const id = saved ? (await uploadToProject(file)).id : createId('img');
         const asset = await media.importImage(file, id);
@@ -86,7 +113,7 @@ export async function importFiles(files: Iterable<File>): Promise<void> {
         if (thumbnail) store.setMediaThumb(asset.id, thumbnail);
         store.apply((p) => addAsset(p, asset), 'Importera video');
       } else {
-        store.toast(`${file.name}: filtypen stöds inte än (MP4, MOV, PNG, JPEG, WebP och .riv)`, 'error');
+        store.toast(`${file.name}: filtypen stöds inte (film: MP4/MOV, bild: PNG/JPEG/WebP, ljud: MP3/WAV/M4A/Ogg/FLAC, text: SRT/VTT, mallar: .riv)`, 'error');
       }
     } catch (e) {
       const msg = e instanceof UnsupportedMediaError || e instanceof Error ? e.message : String(e);
@@ -153,6 +180,96 @@ export async function addVideoToTimeline(assetId: string, trackId: string | null
     return insertClip(p, tid, clip);
   }, 'Lägg till klipp');
   if (newClipId) store.select(newClipId);
+}
+
+/** Put a sound file on an audio track (default: the first audio track, at the playhead). */
+export async function addAudioToTimeline(assetId: string, trackId: string | null, frame: Frame | null): Promise<void> {
+  const store = useEditor.getState();
+  if (!findAsset(committedProject(), assetId)) {
+    try {
+      const asset = await media.probeRemoteAudio(assetId);
+      store.apply((p) => addAsset(p, asset), 'Lägg till ljud');
+    } catch (e) {
+      store.toast(`Ljudfilen kunde inte öppnas: ${e instanceof Error ? e.message : e}`, 'error');
+      return;
+    }
+  }
+  let newClipId: string | null = null;
+  store.apply((p0) => {
+    const asset = findAsset(p0, assetId);
+    if (!asset || asset.kind !== 'audio') throw new Error('Ljudfilen finns inte');
+    const [p, tid] = ensureTrack(p0, 'audio', trackId);
+    const clip = createAudioClip(asset, frame ?? useEditor.getState().playhead, p.settings.fps);
+    newClipId = clip.id;
+    return insertClip(p, tid, clip);
+  }, 'Lägg till ljud');
+  if (newClipId) store.select(newClipId);
+}
+
+export const TEXT_DEFAULT_SECONDS = 4;
+
+/** Add a text clip from a preset on a graphics track at the playhead. */
+export function addTextToTimeline(presetId: string, trackId: string | null, frame: Frame | null) {
+  const store = useEditor.getState();
+  const preset = TEXT_PRESETS.find((p) => p.id === presetId) ?? TEXT_PRESETS[0]!;
+  let newClipId: string | null = null;
+  store.apply((p0) => {
+    const [p, tid] = ensureTrack(p0, 'graphics', trackId);
+    const clip = createTextClip(preset.sample, preset.style, frame ?? store.playhead, secondsToFrames(TEXT_DEFAULT_SECONDS, p.settings.fps), preset.y);
+    newClipId = clip.id;
+    return insertClip(p, tid, clip);
+  }, `Lägg till ${preset.label.toLowerCase()}`);
+  if (newClipId) store.select(newClipId);
+}
+
+export function setText(clipId: string, patch: { text?: string; style?: Partial<TextStyle> }) {
+  const key = patch.text !== undefined ? 'text' : Object.keys(patch.style ?? {}).join();
+  useEditor.getState().apply((p) => setTextContent(p, clipId, patch), 'Ändra text', `text:${clipId}:${key}`);
+}
+
+export function setFades(clipId: string, fades: { fadeIn?: Frame; fadeOut?: Frame }) {
+  useEditor.getState().apply((p) => setClipFades(p, clipId, fades), 'Tona in/ut', `fade:${clipId}:${Object.keys(fades).join()}`);
+}
+
+export function setTrackGain(trackId: string, volume: number) {
+  useEditor.getState().apply((p) => setTrackVolume(p, trackId, volume), 'Spårvolym', `trackvol:${trackId}`);
+}
+
+/** Import .srt/.vtt: every cue becomes a text clip on a new subtitle track. */
+export async function importSubtitles(file: File): Promise<void> {
+  const store = useEditor.getState();
+  const cues = parseSubtitles(await file.text());
+  if (cues.length === 0) {
+    store.toast(`${file.name}: hittade inga undertexter`, 'error');
+    return;
+  }
+  store.apply((p0) => {
+    let p = addTrack(p0, 'graphics');
+    const tid = p.tracks[p.tracks.length - 1]!.id;
+    const n = p.tracks.filter((t) => t.role === 'subtitles').length + 1;
+    p = { ...p, tracks: p.tracks.map((t) => (t.id === tid ? { ...t, name: `T${n}`, role: 'subtitles' as const } : t)) };
+    const fps = p.settings.fps;
+    for (const cue of cues) {
+      const start = secondsToFrames(cue.start, fps);
+      const end = Math.max(start + 1, secondsToFrames(cue.end, fps));
+      p = insertClip(p, tid, createTextClip(cue.text, SUBTITLE_STYLE, start, end - start, SUBTITLE_Y));
+    }
+    return p;
+  }, 'Importera undertexter');
+  store.toast(`${cues.length} undertexter importerade från ${file.name}`);
+}
+
+/** Text clips on subtitle tracks (or all text clips if there are none) as SRT. */
+export function subtitlesAsSrt(project: Project): { srt: string; count: number } {
+  const fps = project.settings.fps;
+  const subTracks = project.tracks.filter((t) => t.role === 'subtitles');
+  const tracks = subTracks.length ? subTracks : project.tracks.filter((t) => t.kind === 'graphics');
+  const cues: Cue[] = tracks
+    .flatMap((t) => t.clips)
+    .filter((c) => c.kind === 'text')
+    .map((c) => ({ start: (c.start * fps.den) / fps.num, end: ((c.start + c.duration) * fps.den) / fps.num, text: c.kind === 'text' ? c.text : '' }))
+    .sort((a, b) => a.start - b.start);
+  return { srt: toSrt(cues), count: cues.length };
 }
 
 export const IMAGE_DEFAULT_SECONDS = 5;

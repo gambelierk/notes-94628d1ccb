@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { addImageToTimeline, addTemplateToTimeline, addVideoToTimeline } from '../state/actions';
+import { addAudioToTimeline, addImageToTimeline, addTemplateToTimeline, addTextToTimeline, addVideoToTimeline } from '../state/actions';
 import { useEditor, type DragPayload } from '../state/store';
 
 const DRAG_THRESHOLD = 4;
@@ -31,6 +31,8 @@ export function startLibraryDrag(e: ReactPointerEvent, payload: DragPayload) {
     store.setDropTarget(null);
     if (!active || !dropTarget) return;
     if (payload.type === 'template') addTemplateToTimeline(payload.id, dropTarget.trackId, dropTarget.frame);
+    else if (payload.type === 'text') addTextToTimeline(payload.id, dropTarget.trackId, dropTarget.frame);
+    else if (payload.type === 'audio') void addAudioToTimeline(payload.id, dropTarget.trackId, dropTarget.frame);
     else if (payload.type === 'image') void addImageToTimeline(payload.id, dropTarget.trackId, dropTarget.frame);
     else void addVideoToTimeline(payload.id, dropTarget.trackId, dropTarget.frame);
   };

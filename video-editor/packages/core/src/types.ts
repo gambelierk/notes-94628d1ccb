@@ -47,7 +47,17 @@ export interface ImageAsset {
   mime: string;
 }
 
-export type MediaAsset = VideoAsset | ImageAsset;
+export interface AudioAsset {
+  kind: 'audio';
+  id: string;
+  name: string;
+  durationUs: Micros;
+  sampleRate: number;
+  channels: number;
+  size: number;
+}
+
+export type MediaAsset = VideoAsset | ImageAsset | AudioAsset;
 
 export type TemplateFieldType = 'string' | 'color' | 'number' | 'boolean' | 'enum' | 'image';
 
@@ -65,6 +75,13 @@ interface ClipBase {
   start: Frame;
   /** Length on the timeline. */
   duration: Frame;
+  /**
+   * Fade from black/silence over this many frames at the start, and to
+   * black/silence at the end. Pictures fade their opacity, sound its volume
+   * (a video clip fades both). Missing = no fade.
+   */
+  fadeIn?: Frame;
+  fadeOut?: Frame;
 }
 
 /**
@@ -109,10 +126,48 @@ export interface TemplateClip extends ClipBase {
   transform?: ClipTransform;
 }
 
-export type Clip = VideoClip | ImageClip | TemplateClip;
-export type VisualClip = Clip;
+/** A sound file on an audio track (music, voice-over, effects). */
+export interface AudioClip extends ClipBase {
+  kind: 'audio';
+  assetId: string;
+  sourceStart: Micros;
+  volume: Param<number>;
+}
 
-export type TrackKind = 'video' | 'graphics';
+export type TextAlign = 'left' | 'center' | 'right';
+export type TextFont = 'sans' | 'mono';
+
+export interface TextStyle {
+  font: TextFont;
+  /** Font size as a fraction of the frame height, so text scales with the format. */
+  size: number;
+  weight: 400 | 500 | 600 | 700;
+  color: string; // #RRGGBB
+  align: TextAlign;
+  lineHeight: number;
+  /** Wrap width as a fraction of the frame width. */
+  maxWidth: number;
+  /** Box behind the text (subtitles, labels). */
+  background: { color: string; opacity: number } | null;
+  shadow: boolean;
+}
+
+/** Plain text rendered by the editor itself (titles, subtitles), no Rive needed. */
+export interface TextClip extends ClipBase {
+  kind: 'text';
+  text: string;
+  style: TextStyle;
+  opacity: Param<number>;
+  transform?: ClipTransform;
+}
+
+export type Clip = VideoClip | ImageClip | TemplateClip | TextClip | AudioClip;
+/** Clips that draw something. */
+export type VisualClip = Exclude<Clip, AudioClip>;
+/** Clips that make sound. */
+export type SoundClip = VideoClip | AudioClip;
+
+export type TrackKind = 'video' | 'graphics' | 'audio';
 
 export interface Track {
   id: string;
@@ -120,6 +175,10 @@ export interface Track {
   name: string;
   muted: boolean;
   hidden: boolean;
+  /** Track gain applied to every clip's sound on the track (video and audio tracks). */
+  volume?: Param<number>;
+  /** Marks a track holding subtitles (export as .srt). */
+  role?: 'subtitles';
   clips: Clip[];
 }
 

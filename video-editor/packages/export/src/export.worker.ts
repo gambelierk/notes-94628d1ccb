@@ -10,10 +10,10 @@ import {
   Output,
 } from 'mediabunny';
 import { registerAacEncoder } from '@mediabunny/aac-encoder';
-import { evaluateParam, fpsValue, framesToSeconds, microsToSeconds, projectDuration, type VideoClip } from '@ve/core';
+import { fpsValue, framesToSeconds, projectDuration, soundSpans } from '@ve/core';
 import { AudioMixer, MediaSource, type AudioClipSpec } from '@ve/media';
 import { loadRiveRuntime, TemplateRegistry } from '@ve/rive';
-import { Compositor, RenderResources, renderFrame } from '@ve/render';
+import { Compositor, registerFonts, RenderResources, renderFrame } from '@ve/render';
 import type { ExportEvent, ExportJob, ExportRequest } from './protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -71,6 +71,8 @@ async function run(job: ExportJob) {
     return p;
   };
 
+  if (job.fonts?.length) await registerFonts(job.fonts);
+
   // Templates
   const rive = await loadRiveRuntime(job.riveWasmUrl);
   const templates = new TemplateRegistry(rive);
@@ -94,27 +96,13 @@ async function run(job: ExportJob) {
     height,
   );
 
-  // Audio clips: every unmuted video clip whose source has audio.
+  // Everything that makes sound: video clips' own audio and sound files on audio tracks,
+  // with clip × track volume and fades.
   const audioClips: AudioClipSpec[] = [];
-  for (const track of project.tracks) {
-    if (track.muted || track.hidden) continue;
-    for (const c of track.clips) {
-      if (c.kind !== 'video') continue;
-      const clip = c as VideoClip;
-      const vol = evaluateParam(clip.volume);
-      if (vol <= 0) continue;
-      const src = await openSource(clip.assetId);
-      const sink = src?.audioSamples();
-      if (!sink) continue;
-      const clipStart = framesToSeconds(clip.start - start, fps);
-      audioClips.push({
-        start: clipStart,
-        duration: framesToSeconds(clip.duration, fps),
-        sourceStart: microsToSeconds(clip.sourceStart),
-        volume: vol,
-        sink,
-      });
-    }
+  for (const span of soundSpans(project, start)) {
+    const src = await openSource(span.assetId);
+    const sink = src?.audioSamples();
+    if (sink) audioClips.push({ ...span, sink });
   }
 
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target: new BufferTarget() });

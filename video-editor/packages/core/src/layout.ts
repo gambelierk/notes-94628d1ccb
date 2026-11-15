@@ -3,6 +3,7 @@ import { layoutBox, type TemplateLayout } from './template';
 import type { Frame } from './time';
 import type { Clip, ClipTransform } from './types';
 
+
 /* ------------------------------------------------------------- formats */
 
 export interface FormatPreset {
@@ -70,7 +71,7 @@ export interface TransformValues {
 export const IDENTITY: TransformValues = { x: 0, y: 0, scale: 1, rotation: 0 };
 
 export function transformAt(clip: Clip, frame?: Frame): TransformValues {
-  const t = clip.transform;
+  const t = clip.kind === 'audio' ? undefined : clip.transform;
   if (!t) return IDENTITY;
   return {
     x: evaluateParam(t.x, frame),
@@ -157,4 +158,15 @@ export function hitTest(p: Placement, px: number, py: number): boolean {
   const lx = dx * Math.cos(r) - dy * Math.sin(r);
   const ly = dx * Math.sin(r) + dy * Math.cos(r);
   return Math.abs(lx) <= p.w / 2 && Math.abs(ly) <= p.h / 2;
+}
+
+/** Placement of a text clip: its rendered size (frame pixels) × scale, centred on the offset. */
+export function textPlacement(textW: number, textH: number, frameW: number, frameH: number, t: TransformValues): Placement {
+  return {
+    cx: frameW / 2 + t.x * frameW,
+    cy: frameH / 2 + t.y * frameH,
+    w: textW * t.scale,
+    h: textH * t.scale,
+    rotation: t.rotation,
+  };
 }

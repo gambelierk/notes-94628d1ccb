@@ -1,26 +1,38 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { microsToSeconds, type ImageAsset, type TemplateDefinition, type VideoAsset } from '@ve/core';
+import { microsToSeconds, TEXT_PRESETS, TEXT_FONTS, type MediaAsset, type TemplateDefinition } from '@ve/core';
 import type { TemplateRenderer } from '@ve/rive';
 import { startLibraryDrag } from '../lib/drag';
-import { addImageToTimeline, addTemplateToTimeline, addVideoToTimeline, importFiles } from '../state/actions';
+import {
+  addAudioToTimeline,
+  addImageToTimeline,
+  addTemplateToTimeline,
+  addTextToTimeline,
+  addVideoToTimeline,
+  importFiles,
+  subtitlesAsSrt,
+} from '../state/actions';
+import { Waveform } from './Waveform';
 import { useEditor, useProject, type LibraryTemplate } from '../state/store';
 import { media } from '../services/media';
 import { templates as templateService } from '../services/templates';
 import { Plus, Upload } from './Icons';
 
 export function LeftPanel() {
-  const [tab, setTab] = useState<'templates' | 'media'>('templates');
+  const [tab, setTab] = useState<'templates' | 'text' | 'media'>('templates');
   return (
     <section className="panel left" aria-label="Bibliotek">
       <div className="tabs" role="tablist">
         <button className="tab" role="tab" aria-selected={tab === 'templates'} onClick={() => setTab('templates')}>
           Mallar
         </button>
+        <button className="tab" role="tab" aria-selected={tab === 'text'} onClick={() => setTab('text')}>
+          Text
+        </button>
         <button className="tab" role="tab" aria-selected={tab === 'media'} onClick={() => setTab('media')}>
           Media
         </button>
       </div>
-      {tab === 'templates' ? <TemplateLibrary /> : <MediaBin />}
+      {tab === 'templates' ? <TemplateLibrary /> : tab === 'text' ? <TextPanel /> : <MediaBin />}
     </section>
   );
 }
@@ -178,9 +190,9 @@ function HoverPreview({ def }: { def: TemplateDefinition }) {
 
 interface BinItem {
   id: string;
-  kind: 'video' | 'image';
+  kind: 'video' | 'image' | 'audio';
   name: string;
-  asset: VideoAsset | ImageAsset | null;
+  asset: MediaAsset | null;
   size: number | null;
 }
 
@@ -212,7 +224,10 @@ function MediaBin() {
     <>
       <div className="panel-head">
         <span className="panel-title">{saved ? 'Projektets media' : 'Media'}</span>
-        <FilePicker accept="video/mp4,video/quicktime,.mp4,.m4v,.mov,image/png,image/jpeg,image/webp" label="Importera" />
+        <FilePicker
+          accept="video/mp4,video/quicktime,.mp4,.m4v,.mov,image/png,image/jpeg,image/webp,audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac"
+          label="Importera"
+        />
       </div>
       <div className="scroll" data-testid="media-bin">
         {uploads.length > 0 && (
@@ -232,7 +247,7 @@ function MediaBin() {
           <div className="empty">
             <strong>Inga filer än</strong>
             <br />
-            Importera filmer (MP4, MOV) och bilder (PNG, JPEG, WebP) eller släpp dem var som helst i fönstret.
+            Importera filmer (MP4, MOV), bilder (PNG, JPEG, WebP) och ljud (MP3, WAV, M4A, Ogg, FLAC), eller släpp dem var som helst i fönstret.
             {saved && (
               <>
                 <br />
@@ -241,12 +256,12 @@ function MediaBin() {
             )}
           </div>
         )}
-        {(['video', 'image'] as const).map((kind) => {
+        {(['video', 'image', 'audio'] as const).map((kind) => {
           const list = items.filter((it) => it.kind === kind);
           if (!list.length) return null;
           return (
             <div className="lib-grid" key={kind}>
-              <div className="lib-cat">{kind === 'video' ? 'Filmer' : 'Bilder'}</div>
+              <div className="lib-cat">{kind === 'video' ? 'Filmer' : kind === 'image' ? 'Bilder' : 'Ljud'}</div>
               {list.map((it) => (
                 <BinTile key={it.id} it={it} thumb={thumbs[it.id] ?? null} />
               ))}
@@ -267,7 +282,7 @@ function MediaBin() {
             void importFiles([...e.dataTransfer.files]);
           }}
         >
-          Släpp filmer och bilder här
+          Släpp filmer, bilder och ljud här
         </div>
       </div>
     </>
@@ -275,35 +290,46 @@ function MediaBin() {
 }
 
 function BinTile({ it, thumb }: { it: BinItem; thumb: string | null }) {
-  const add = () => void (it.kind === 'image' ? addImageToTimeline(it.id, null, null) : addVideoToTimeline(it.id, null, null));
+  const add = () =>
+    void (it.kind === 'image'
+      ? addImageToTimeline(it.id, null, null)
+      : it.kind === 'audio'
+        ? addAudioToTimeline(it.id, null, null)
+        : addVideoToTimeline(it.id, null, null));
   const a = it.asset;
   const meta = a
     ? a.kind === 'video'
       ? `${a.width}×${a.height} · ${Math.round(a.fps)} fps${a.hasAudio ? '' : ' · utan ljud'}`
-      : `${a.width}×${a.height} · ${a.mime.replace('image/', '').toUpperCase()}`
+      : a.kind === 'image'
+        ? `${a.width}×${a.height} · ${a.mime.replace('image/', '').toUpperCase()}`
+        : `${Math.round(a.sampleRate / 100) / 10} kHz · ${a.channels === 1 ? 'mono' : 'stereo'}`
     : it.size
       ? formatBytes(it.size)
       : '';
+  const dragType = it.kind === 'image' ? 'image' : it.kind === 'audio' ? 'audio' : 'media';
   return (
     <div
       className="lib-item"
       role="button"
       tabIndex={0}
-      aria-label={`${it.kind === 'image' ? 'Bild' : 'Video'}: ${it.name}`}
+      aria-label={`${it.kind === 'image' ? 'Bild' : it.kind === 'audio' ? 'Ljud' : 'Video'}: ${it.name}`}
       data-asset-id={it.id}
       data-asset-kind={it.kind}
-      onPointerDown={(e) => startLibraryDrag(e, { type: it.kind === 'image' ? 'image' : 'media', id: it.id, label: it.name, thumbnail: thumb })}
+      onPointerDown={(e) => startLibraryDrag(e, { type: dragType, id: it.id, label: it.name, thumbnail: thumb })}
       onKeyDown={(e) => {
         if (e.key === 'Enter') add();
       }}
     >
-      <div className={`thumb${it.kind === 'video' ? ' video' : ''}`}>
+      <div className={`thumb${it.kind === 'video' ? ' video' : ''}${it.kind === 'audio' ? ' audio' : ''}`}>
         {thumb && <img src={thumb} alt="" draggable={false} />}
-        {a?.kind === 'video' && <span className="badge">{formatDuration(microsToSeconds(a.durationUs))}</span>}
+        {it.kind === 'audio' && a?.kind === 'audio' && (
+          <Waveform assetId={it.id} sourceStart={0} seconds={microsToSeconds(a.durationUs)} width={130} height={60} />
+        )}
+        {(a?.kind === 'video' || a?.kind === 'audio') && <span className="badge">{formatDuration(microsToSeconds(a.durationUs))}</span>}
       </div>
       <button
         className="lib-add"
-        aria-label={it.kind === 'image' ? `Lägg ${it.name} vid spelhuvudet` : `Lägg ${it.name} sist på tidslinjen`}
+        aria-label={it.kind === 'video' ? `Lägg ${it.name} sist på tidslinjen` : `Lägg ${it.name} vid spelhuvudet`}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={add}
       >
@@ -314,6 +340,86 @@ function BinTile({ it, thumb }: { it: BinItem; thumb: string | null }) {
       </span>
       <span className="lib-meta">{meta}</span>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------- text */
+
+function TextPanel() {
+  const project = useProject();
+  const subs = project.tracks.filter((t) => t.role === 'subtitles').flatMap((t) => t.clips).length;
+  const exportSrt = () => {
+    const { srt, count } = subtitlesAsSrt(project);
+    if (!count) {
+      useEditor.getState().toast('Det finns inga textklipp att exportera', 'error');
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([srt], { type: 'application/x-subrip' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(useEditor.getState().composition?.name ?? project.name).replace(/[\\/:*?"<>|]+/g, '-')}.srt`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  return (
+    <>
+      <div className="panel-head">
+        <span className="panel-title">Text</span>
+      </div>
+      <div className="scroll" data-testid="text-panel">
+        <div className="text-presets">
+          {TEXT_PRESETS.map((p) => (
+            <div
+              key={p.id}
+              className="text-preset"
+              role="button"
+              tabIndex={0}
+              aria-label={`Text: ${p.label}`}
+              data-text-preset={p.id}
+              onPointerDown={(e) => startLibraryDrag(e, { type: 'text', id: p.id, label: p.label, thumbnail: null })}
+              onKeyDown={(e) => e.key === 'Enter' && addTextToTimeline(p.id, null, null)}
+            >
+              <span
+                className="text-preset-sample"
+                style={{
+                  fontFamily: TEXT_FONTS[p.style.font].family,
+                  fontWeight: p.style.weight,
+                  fontSize: Math.max(11, Math.min(26, p.style.size * 300)),
+                  color: p.style.background ? p.style.color : 'var(--text)',
+                  background: p.style.background ? p.style.background.color : undefined,
+                  padding: p.style.background ? '2px 8px' : undefined,
+                  borderRadius: p.style.background ? 4 : undefined,
+                }}
+              >
+                {p.sample}
+              </span>
+              <span className="mono dim text-preset-label">{p.label}</span>
+              <button
+                className="lib-add"
+                aria-label={`Lägg till ${p.label.toLowerCase()} vid spelhuvudet`}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => addTextToTimeline(p.id, null, null)}
+              >
+                <Plus width={14} height={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="panel-head">
+          <span className="panel-title">Undertexter</span>
+        </div>
+        <div className="subs-actions">
+          <FilePicker accept=".srt,.vtt,text/vtt" label="Importera .srt/.vtt" multiple={false} />
+          <button className="btn" onClick={exportSrt} data-testid="export-srt">
+            Exportera .srt
+          </button>
+          <p className="hint">
+            Varje undertext blir ett textklipp på ett eget spår som kan redigeras och flyttas. {subs > 0 && <span className="mono">{subs} st i projektet.</span>}
+          </p>
+          <p className="hint">Automatisk undertextning från filmens ljud är förberedd: resultatet läggs in på samma sätt som en importerad .srt.</p>
+        </div>
+      </div>
+    </>
   );
 }
 

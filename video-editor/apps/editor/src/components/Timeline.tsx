@@ -11,14 +11,18 @@ import {
   setTrackFlag,
   snap,
   snapPoints,
-  trackKindFor,
+  evaluateParam,
+  framesToSeconds,
+  gainToDb,
+  trackAcceptsClip,
   trimClip,
   type Clip,
   type Frame,
   type Project,
   type Track,
 } from '@ve/core';
-import { deleteSelection, IMAGE_DEFAULT_SECONDS, splitAtPlayhead } from '../state/actions';
+import { deleteSelection, IMAGE_DEFAULT_SECONDS, setTrackGain, splitAtPlayhead, TEXT_DEFAULT_SECONDS } from '../state/actions';
+import { Waveform } from './Waveform';
 import { committedProject, useEditor, useProject } from '../state/store';
 import { preview } from '../services/preview';
 import { Eye, EyeOff, Fit, Plus, Speaker, SpeakerOff, Split, Trash, ZoomIn, ZoomOut } from './Icons';
@@ -48,7 +52,11 @@ export function Timeline() {
   const fv = fpsValue(fps);
   const pxPerFrame = zoom / fv;
   const duration = projectDuration(project);
-  const rows = useMemo(() => [...project.tracks].reverse(), [project.tracks]);
+  // Picture tracks top → bottom (topmost layer first), then sound tracks below them.
+  const rows = useMemo(
+    () => [...project.tracks.filter((t) => t.kind !== 'audio').reverse(), ...project.tracks.filter((t) => t.kind === 'audio')],
+    [project.tracks],
+  );
   const contentWidth = Math.max(view.width, ((duration / fv) + 20) * zoom);
   const xOf = (f: Frame) => f * pxPerFrame;
 
@@ -102,19 +110,23 @@ export function Timeline() {
       setSnapLine(null);
       return;
     }
-    const kind = drag.payload.type === 'media' ? 'video' : 'graphics';
+    const type = drag.payload.type;
+    const kind = type === 'media' ? 'video' : type === 'audio' ? 'audio' : 'graphics';
     const row = rowAtClientY(drag.y);
-    // images go on any track; video only on video tracks, templates only on graphics tracks
-    const track = row && (row.kind === kind || drag.payload.type === 'image') ? row : nearestTrack(rows, kind, row);
+    // images go on any picture track; video on video tracks, sound on audio tracks, the rest on graphics tracks
+    const fits = !!row && (row.kind === kind || (type === 'image' && row.kind !== 'audio'));
+    const track = fits ? row : nearestTrack(rows, kind, row);
     let dur: Frame;
-    if (drag.payload.type === 'template') {
+    if (type === 'template') {
       const tpl = templates.find((t) => t.def.id === drag.payload.id);
       dur = secondsToFrames(tpl?.def.defaultDuration ?? 5, fps);
-    } else if (drag.payload.type === 'image') {
+    } else if (type === 'image') {
       dur = secondsToFrames(IMAGE_DEFAULT_SECONDS, fps);
+    } else if (type === 'text') {
+      dur = secondsToFrames(TEXT_DEFAULT_SECONDS, fps);
     } else {
       const a = findAsset(project, drag.payload.id);
-      dur = a?.kind === 'video' ? microsToFrames(a.durationUs, fps) : secondsToFrames(5, fps);
+      dur = a && (a.kind === 'video' || a.kind === 'audio') ? microsToFrames(a.durationUs, fps) : secondsToFrames(5, fps);
     }
     const pts = [...snapPoints(committedProject()), useEditor.getState().playhead];
     const raw = frameAtClientX(drag.x);
@@ -170,7 +182,7 @@ export function Timeline() {
         if (s1 !== raw) line = s1;
         else if (s2 !== raw) line = s2 + clip.duration;
         const row = rowAtClientY(ev.clientY);
-        const trackId = row && (clip.kind === 'image' || row.kind === trackKindFor(clip.kind)) ? row.id : trackOf(base, clip.id)!;
+        const trackId = row && trackAcceptsClip(row, clip) ? row.id : trackOf(base, clip.id)!;
         next = moveClip(base, clip.id, trackId, start);
       } else {
         const raw = frameAtClientX(ev.clientX);
@@ -286,6 +298,13 @@ export function Timeline() {
         >
           <Plus /> Grafikspår
         </button>
+        <button
+          className="btn ghost"
+          onClick={() => useEditor.getState().apply((p) => addTrack(p, 'audio'), 'Nytt ljudspår')}
+          title="Lägg till ett ljudspår för musik, speakerröst eller effekter"
+        >
+          <Plus /> Ljudspår
+        </button>
         <div className="spacer" />
         <span className="timecode dim" style={{ minWidth: 0, marginRight: 8 }}>
           {formatTimecode(playhead, fps)}
@@ -342,6 +361,7 @@ export function Timeline() {
                     w={Math.max(2, xOf(clip.duration))}
                     selected={clip.id === selection}
                     thumb={clip.kind === 'video' || clip.kind === 'image' ? thumbs[clip.assetId] : undefined}
+                    pxPerFrame={pxPerFrame}
                     templateName={clip.kind === 'template' ? templates.find((t) => t.def.id === clip.templateId)?.def.name : undefined}
                     onDown={onClipDown}
                   />
@@ -353,7 +373,7 @@ export function Timeline() {
             ))}
             {snapLine !== null && <div className="snap-line" style={{ left: xOf(snapLine) }} />}
             <div className="playhead" style={{ left: xOf(playhead) }} />
-            {duration === 0 && !drag && <div className="tl-empty">Dra in video och mallar hit</div>}
+            {duration === 0 && !drag && <div className="tl-empty">Dra in film, bilder, ljud, text och mallar hit</div>}
           </div>
         </div>
       </div>
@@ -390,28 +410,51 @@ function tickLabel(t: number, step: number, fps: Project['settings']['fps']): st
 
 function TrackHeader({ track }: { track: Track }) {
   const apply = useEditor((s) => s.apply);
+  const sound = track.kind === 'video' || track.kind === 'audio';
+  const vol = track.volume ? evaluateParam(track.volume) : 1;
+  const kindLabel = track.kind === 'video' ? 'Video' : track.kind === 'audio' ? 'Ljud' : track.role === 'subtitles' ? 'Undertext' : 'Grafik';
   return (
-    <div className="tl-track-head">
-      <span className="tl-track-name">{track.name}</span>
-      <span className="tl-track-kind">{track.kind === 'video' ? 'Video' : 'Grafik'}</span>
-      {track.kind === 'video' && (
-        <button
-          className="tl-toggle"
-          aria-pressed={track.muted}
-          aria-label={track.muted ? `Slå på ljud för ${track.name}` : `Stäng av ljud för ${track.name}`}
-          onClick={() => apply((p) => setTrackFlag(p, track.id, 'muted', !track.muted), 'Ljud av/på')}
-        >
-          {track.muted ? <SpeakerOff /> : <Speaker />}
-        </button>
+    <div className={`tl-track-head ${track.kind}`} data-track-head={track.id}>
+      <div className="tl-track-top">
+        <span className="tl-track-name">{track.name}</span>
+        <span className="tl-track-kind">{kindLabel}</span>
+        {sound && (
+          <button
+            className="tl-toggle"
+            aria-pressed={track.muted}
+            aria-label={track.muted ? `Slå på ljud för ${track.name}` : `Stäng av ljud för ${track.name}`}
+            onClick={() => apply((p) => setTrackFlag(p, track.id, 'muted', !track.muted), 'Ljud av/på')}
+          >
+            {track.muted ? <SpeakerOff /> : <Speaker />}
+          </button>
+        )}
+        {track.kind !== 'audio' && (
+          <button
+            className="tl-toggle"
+            aria-pressed={track.hidden}
+            aria-label={track.hidden ? `Visa ${track.name}` : `Dölj ${track.name}`}
+            onClick={() => apply((p) => setTrackFlag(p, track.id, 'hidden', !track.hidden), 'Visa/dölj spår')}
+          >
+            {track.hidden ? <EyeOff /> : <Eye />}
+          </button>
+        )}
+      </div>
+      {sound && (
+        <label className="tl-track-vol" title={`Spårvolym ${gainToDb(vol)}`}>
+          <input
+            type="range"
+            min={0}
+            max={2}
+            step={0.01}
+            value={vol}
+            aria-label={`Volym för spår ${track.name}`}
+            disabled={track.muted}
+            onChange={(e) => setTrackGain(track.id, Number(e.target.value))}
+            onDoubleClick={() => setTrackGain(track.id, 1)}
+          />
+          <span className="mono">{Math.round(vol * 100)}%</span>
+        </label>
       )}
-      <button
-        className="tl-toggle"
-        aria-pressed={track.hidden}
-        aria-label={track.hidden ? `Visa ${track.name}` : `Dölj ${track.name}`}
-        onClick={() => apply((p) => setTrackFlag(p, track.id, 'hidden', !track.hidden), 'Visa/dölj spår')}
-      >
-        {track.hidden ? <EyeOff /> : <Eye />}
-      </button>
     </div>
   );
 }
@@ -424,16 +467,25 @@ function ClipView(props: {
   selected: boolean;
   thumb?: string;
   templateName?: string;
+  pxPerFrame: number;
   onDown: (e: RPE<HTMLElement>, clip: Clip, mode: 'move' | 'l' | 'r') => void;
 }) {
-  const { clip, project, x, w, selected, thumb, templateName, onDown } = props;
+  const { clip, project, x, w, selected, thumb, templateName, pxPerFrame, onDown } = props;
+  const fps = project.settings.fps;
   let label: string;
   let sub: string | null = null;
   let missing = false;
-  if (clip.kind === 'video' || clip.kind === 'image') {
+  let wave: { assetId: string; sourceStart: number } | null = null;
+  if (clip.kind === 'video' || clip.kind === 'image' || clip.kind === 'audio') {
     const a = findAsset(project, clip.assetId);
     label = a?.name ?? 'Saknad fil';
     missing = !a;
+    if (clip.kind === 'audio' || (clip.kind === 'video' && a?.kind === 'video' && a.hasAudio)) {
+      wave = { assetId: clip.assetId, sourceStart: clip.sourceStart / 1_000_000 };
+    }
+  } else if (clip.kind === 'text') {
+    label = clip.text.split('\n')[0] || 'Text';
+    sub = clip.text.includes('\n') ? clip.text.split('\n').slice(1).join(' ') : null;
   } else {
     label = templateName ?? clip.templateId;
     missing = !templateName;
@@ -450,6 +502,19 @@ function ClipView(props: {
       onPointerDown={(e) => onDown(e, clip, 'move')}
     >
       {(clip.kind === 'video' || clip.kind === 'image') && thumb && <div className="clip-strip" style={{ backgroundImage: `url(${thumb})` }} />}
+      {wave && (
+        <div className={`clip-wave${clip.kind === 'video' ? ' under' : ''}`}>
+          <Waveform
+            assetId={wave.assetId}
+            sourceStart={wave.sourceStart}
+            seconds={framesToSeconds(clip.duration, fps)}
+            width={w}
+            height={clip.kind === 'audio' ? 38 : 16}
+          />
+        </div>
+      )}
+      {!!clip.fadeIn && <div className="clip-fade in" style={{ width: clip.fadeIn * pxPerFrame }} title="Intoning" />}
+      {!!clip.fadeOut && <div className="clip-fade out" style={{ width: clip.fadeOut * pxPerFrame }} title="Uttoning" />}
       <span className="clip-label">{label}</span>
       {sub && <span className="clip-sub">{sub}</span>}
       <div className="clip-handle l" onPointerDown={(e) => onDown(e, clip, 'l')} />

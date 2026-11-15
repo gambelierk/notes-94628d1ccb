@@ -1,6 +1,8 @@
 import {
   activeClipsAt,
+  clipOpacity,
   evaluateParam,
+  textPlacement,
   findAsset,
   framesToSeconds,
   mediaPlacement,
@@ -11,12 +13,14 @@ import {
   type Project,
   type PropValue,
   type TemplateClip,
+  type TextClip,
   type VideoAsset,
   type VideoClip,
 } from '@ve/core';
 import { VideoFrameReader, type MediaSource } from '@ve/media';
 import type { ImageBytesResolver, TemplateRegistry, TemplateRenderer } from '@ve/rive';
 import type { Compositor } from './compositor';
+import { drawText, ensureFont } from './text';
 
 export interface RenderResourcesOptions {
   /** Open (or return an already opened) media source for an asset. */
@@ -40,6 +44,11 @@ interface ImageEntry {
   bitmap: Promise<ImageBitmap | null>;
   lastUsed: number;
 }
+interface TextEntry {
+  key: string;
+  canvas: OffscreenCanvas;
+  lastUsed: number;
+}
 
 const IDLE_FRAMES_BEFORE_RELEASE = 300;
 /** Decode video up to this multiple of the output size, so zooming in keeps detail. */
@@ -53,8 +62,9 @@ export class RenderResources {
   private readers = new Map<string, ReaderEntry>();
   private templates = new Map<string, TemplateEntry>();
   private images = new Map<string, ImageEntry>();
+  private texts = new Map<string, TextEntry>();
   private tick = 0;
-  /** Image keys released since the last frame; the compositor drops their textures. */
+  /** Still-texture keys released since the last frame; the compositor drops their textures. */
   readonly releasedImages: string[] = [];
 
   constructor(
@@ -99,6 +109,20 @@ export class RenderResources {
     return e.bitmap;
   }
 
+  /** Rendered text for a clip; re-rendered only when text, style or size change. */
+  async text(clip: TextClip): Promise<{ key: string; canvas: OffscreenCanvas }> {
+    const key = `text:${clip.id}:${this.width}x${this.height}:${clip.text}:${JSON.stringify(clip.style)}`;
+    let e = this.texts.get(clip.id);
+    if (!e || e.key !== key) {
+      await ensureFont(clip.style, clip.text);
+      if (e) this.releasedImages.push(e.key);
+      e = { key, canvas: drawText(clip.text, clip.style, this.width, this.height).canvas, lastUsed: this.tick };
+      this.texts.set(clip.id, e);
+    }
+    e.lastUsed = this.tick;
+    return e;
+  }
+
   template(clip: TemplateClip): TemplateRenderer | null {
     if (!this.opts.templates.has(clip.templateId)) return null;
     let e = this.templates.get(clip.id);
@@ -136,6 +160,11 @@ export class RenderResources {
         this.images.delete(id);
         this.releasedImages.push(id);
       }
+    for (const [id, e] of this.texts)
+      if (idle(e.lastUsed)) {
+        this.texts.delete(id);
+        this.releasedImages.push(e.key);
+      }
   }
 
   disposeAll() {
@@ -145,9 +174,11 @@ export class RenderResources {
       void e.bitmap.then((b) => b?.close());
       this.releasedImages.push(id);
     }
+    for (const e of this.texts.values()) this.releasedImages.push(e.key);
     this.readers.clear();
     this.templates.clear();
     this.images.clear();
+    this.texts.clear();
   }
 }
 
@@ -160,6 +191,7 @@ function propValues(clip: TemplateClip, frame: Frame): Record<string, PropValue>
 type Prepared =
   | { kind: 'video'; clip: VideoClip; asset: VideoAsset; frame: CanvasImageSource | null }
   | { kind: 'image'; clip: ImageClip; bitmap: ImageBitmap | null }
+  | { kind: 'text'; clip: TextClip; key: string; canvas: OffscreenCanvas }
   | { kind: 'template'; clip: TemplateClip; renderer: TemplateRenderer | null; props: Record<string, PropValue> };
 
 /**
@@ -185,6 +217,10 @@ export async function renderFrame(project: Project, frame: Frame, compositor: Co
         if (clip.kind === 'image') {
           return { kind: 'image', clip, bitmap: await res.image(clip.assetId) };
         }
+        if (clip.kind === 'text') {
+          const t = await res.text(clip);
+          return { kind: 'text', clip, key: t.key, canvas: t.canvas };
+        }
         const r = res.template(clip);
         const props = propValues(clip, frame);
         if (r) await r.prepareImages(props, res.imageBytes);
@@ -197,10 +233,12 @@ export async function renderFrame(project: Project, frame: Frame, compositor: Co
 
   compositor.begin(project.settings.background);
   for (const layer of prepared) {
-    const opacity = evaluateParam(layer.clip.opacity, frame);
+    const opacity = clipOpacity(layer.clip, frame); // includes fade in/out
     const t = transformAt(layer.clip, frame);
     if (layer.kind === 'video') {
       if (layer.frame) compositor.draw(layer.frame as TexImageSource, opacity, mediaPlacement(layer.asset.width, layer.asset.height, W, H, t));
+    } else if (layer.kind === 'text') {
+      compositor.drawStill(layer.key, layer.canvas, opacity, textPlacement(layer.canvas.width, layer.canvas.height, W, H, t));
     } else if (layer.kind === 'image') {
       const b = layer.bitmap;
       if (b) compositor.drawStill(layer.clip.assetId, b, opacity, mediaPlacement(b.width, b.height, W, H, t));

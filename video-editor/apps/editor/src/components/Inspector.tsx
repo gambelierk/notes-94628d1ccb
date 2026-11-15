@@ -7,10 +7,16 @@ import {
   framesToSeconds,
   microsToSeconds,
   coverScale,
+  gainToDb,
+  secondsToFrames,
+  TEXT_FONTS,
   transformAt,
   updateSettings,
+  type AudioClip,
   type Clip,
   type ImageClip,
+  type TextClip,
+  type TextStyle,
   type Project,
   type PropValue,
   type TemplateClip,
@@ -20,7 +26,8 @@ import {
 import { media } from '../services/media';
 import { FormatPicker } from './FormatPicker';
 import { clipPlacement, sourceSize } from '../lib/placement';
-import { resetTransform, setParam, setTemplateField, setTemplateImage, setTransform } from '../state/actions';
+import { resetTransform, setFades, setParam, setTemplateField, setTemplateImage, setText, setTransform } from '../state/actions';
+import { Waveform } from './Waveform';
 import { useEditor, useProject } from '../state/store';
 import { Image as ImageIcon, Trash } from './Icons';
 
@@ -41,6 +48,8 @@ export function Inspector() {
         {found?.clip.kind === 'template' && <TemplateInspector key={found.clip.id} clip={found.clip} project={project} />}
         {found?.clip.kind === 'video' && <VideoInspector key={found.clip.id} clip={found.clip} project={project} />}
         {found?.clip.kind === 'image' && <ImageInspector key={found.clip.id} clip={found.clip} project={project} />}
+        {found?.clip.kind === 'audio' && <AudioInspector key={found.clip.id} clip={found.clip} project={project} trackName={found.track.name} />}
+        {found?.clip.kind === 'text' && <TextInspector key={found.clip.id} clip={found.clip} project={project} />}
       </div>
     </section>
   );
@@ -86,6 +95,7 @@ function TemplateInspector({ clip, project }: { clip: TemplateClip; project: Pro
         format={(v) => `${Math.round(v * 100)} %`}
         onChange={(v) => setParam(clip.id, 'opacity', v)}
       />
+      <FadeFields clip={clip} project={project} />
       <p className="hint">
         Dra i klippets kanter på tidslinjen för att ändra längden.
         {def.timing.kind === 'segments'
@@ -307,15 +317,7 @@ function VideoInspector({ clip, project }: { clip: VideoClip; project: Project }
         )}
       </dl>
       <div className="divider" />
-      <RangeField
-        label="Volym"
-        value={evaluateParam(clip.volume)}
-        min={0}
-        max={2}
-        step={0.01}
-        format={(v) => `${Math.round(v * 100)} %`}
-        onChange={(v) => setParam(clip.id, 'volume', v)}
-      />
+      <VolumeField clip={clip} label={asset?.kind === 'video' && !asset.hasAudio ? 'Volym (filmen saknar ljud)' : 'Volym för klippets ljud'} />
       <TransformFields clip={clip} project={project} />
       <RangeField
         label="Opacitet"
@@ -326,6 +328,8 @@ function VideoInspector({ clip, project }: { clip: VideoClip; project: Project }
         format={(v) => `${Math.round(v * 100)} %`}
         onChange={(v) => setParam(clip.id, 'opacity', v)}
       />
+      <FadeFields clip={clip} project={project} />
+      <p className="hint">Filmens ljud följer klippet: det flyttas, trimmas och delas tillsammans med bilden.</p>
     </div>
   );
 }
@@ -364,6 +368,7 @@ function ImageInspector({ clip, project }: { clip: ImageClip; project: Project }
         format={(v) => `${Math.round(v * 100)} %`}
         onChange={(v) => setParam(clip.id, 'opacity', v)}
       />
+      <FadeFields clip={clip} project={project} />
       <p className="hint">Dra bilden i förhandsvisningen för att flytta den och i hörnen för att skala. Ändra längden genom att dra i klippets kanter.</p>
     </div>
   );
@@ -382,7 +387,7 @@ function TransformFields({ clip, project }: { clip: Clip; project: Project }) {
   const pl = clipPlacement(project, clip, templates);
   const src = sourceSize(project, clip, templates);
   const isTemplate = clip.kind === 'template';
-  const cover = src && !isTemplate ? coverScale(src.w, src.h, W, H) : null;
+  const cover = src && !isTemplate && clip.kind !== 'text' ? coverScale(src.w, src.h, W, H) : null;
   const num = (label: string, value: number, unit: string, onChange: (v: number) => void, step = 1, testid?: string) => (
     <label className="xf-field">
       <span>{label}</span>
@@ -415,8 +420,8 @@ function TransformFields({ clip, project }: { clip: Clip; project: Project }) {
         </span>
       )}
       <div className="xf-actions">
-        <button className="btn" onClick={() => resetTransform(clip.id)} title="Hela innehållet syns, centrerat">
-          Anpassa
+        <button className="btn" onClick={() => resetTransform(clip.id)} title={clip.kind === 'text' ? 'Ursprunglig storlek, centrerat' : 'Hela innehållet syns, centrerat'}>
+          {clip.kind === 'text' ? 'Återställ' : 'Anpassa'}
         </button>
         {cover !== null && (
           <button className="btn" onClick={() => setTransform(clip.id, { x: 0, y: 0, scale: cover }, 'Fyll bilden')} title="Täcker hela bilden">
@@ -427,6 +432,236 @@ function TransformFields({ clip, project }: { clip: Clip; project: Project }) {
           Centrera
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- sound */
+
+function VolumeField({ clip, label = 'Volym' }: { clip: VideoClip | AudioClip; label?: string }) {
+  const v = evaluateParam(clip.volume);
+  return (
+    <div className="field" data-testid="clip-volume">
+      <span className="field-label">{label}</span>
+      <div className="range-row">
+        <input
+          type="range"
+          aria-label="Klippets volym"
+          min={0}
+          max={2}
+          step={0.01}
+          value={v}
+          onChange={(e) => setParam(clip.id, 'volume', Number(e.target.value))}
+          onDoubleClick={() => setParam(clip.id, 'volume', 1)}
+        />
+        <span className="val">{Math.round(v * 100)} %</span>
+      </div>
+      <span className="mono dim vol-db">{gainToDb(v)} · dubbelklicka för 100 %</span>
+    </div>
+  );
+}
+
+/** Fade in/out in seconds (stored in frames). */
+function FadeFields({ clip, project }: { clip: Clip; project: Project }) {
+  const fps = project.settings.fps;
+  const sec = (f?: number) => Math.round(framesToSeconds(f ?? 0, fps) * 100) / 100;
+  const max = framesToSeconds(clip.duration, fps);
+  const field = (label: string, key: 'fadeIn' | 'fadeOut') => (
+    <label className="xf-field">
+      <span>{label}</span>
+      <input
+        className="input mono"
+        type="number"
+        min={0}
+        max={max}
+        step={0.1}
+        value={sec(clip[key])}
+        data-testid={`fade-${key}`}
+        onChange={(e) => {
+          const v = e.target.valueAsNumber;
+          if (Number.isFinite(v)) setFades(clip.id, { [key]: secondsToFrames(Math.max(0, v), fps) });
+        }}
+      />
+      <span className="mono dim">s</span>
+    </label>
+  );
+  return (
+    <div className="field" data-testid="fade-fields">
+      <span className="field-label">{clip.kind === 'audio' ? 'Tona in/ut (volym)' : clip.kind === 'video' ? 'Tona in/ut (bild och ljud)' : 'Tona in/ut'}</span>
+      <div className="xf-grid">
+        {field('In', 'fadeIn')}
+        {field('Ut', 'fadeOut')}
+      </div>
+      <div className="xf-actions">
+        {[0.5, 1].map((s) => (
+          <button key={s} className="btn" onClick={() => setFades(clip.id, { fadeIn: secondsToFrames(s, fps), fadeOut: secondsToFrames(s, fps) })}>
+            {s.toString().replace('.', ',')} s in + ut
+          </button>
+        ))}
+        <button className="btn ghost" onClick={() => setFades(clip.id, { fadeIn: 0, fadeOut: 0 })}>
+          Ingen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AudioInspector({ clip, project, trackName }: { clip: AudioClip; project: Project; trackName: string }) {
+  const asset = findAsset(project, clip.assetId);
+  const fps = project.settings.fps;
+  return (
+    <div className="inspector" data-testid="audio-inspector">
+      <div className="insp-head">
+        <div className="thumb audio">
+          {asset?.kind === 'audio' && <Waveform assetId={asset.id} sourceStart={0} seconds={microsToSeconds(asset.durationUs)} width={72} height={40} />}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div className="insp-title ellipsis">{asset?.name ?? 'Saknad fil'}</div>
+          <div className="insp-sub">Ljud · spår {trackName}</div>
+        </div>
+      </div>
+      <dl className="kv">
+        <dt>Start</dt>
+        <dd>{formatTimecode(clip.start, fps)}</dd>
+        <dt>Längd</dt>
+        <dd>{formatTimecode(clip.duration, fps)}</dd>
+        <dt>Källans in</dt>
+        <dd>{microsToSeconds(clip.sourceStart).toFixed(2)} s</dd>
+        {asset?.kind === 'audio' && (
+          <>
+            <dt>Format</dt>
+            <dd>
+              {(asset.sampleRate / 1000).toFixed(1)} kHz · {asset.channels === 1 ? 'mono' : 'stereo'}
+            </dd>
+          </>
+        )}
+      </dl>
+      <div className="divider" />
+      <VolumeField clip={clip} />
+      <FadeFields clip={clip} project={project} />
+      <p className="hint">Spårets volym (reglaget i spårhuvudet) påverkar alla klipp på spåret och multipliceras med klippets volym.</p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- text */
+
+function TextInspector({ clip, project }: { clip: TextClip; project: Project }) {
+  const st = clip.style;
+  const H = project.settings.height;
+  const setStyle = (patch: Partial<TextStyle>) => setText(clip.id, { style: patch });
+  return (
+    <div className="inspector" data-testid="text-inspector">
+      <div className="field">
+        <label htmlFor={`t-${clip.id}`}>Text</label>
+        <textarea id={`t-${clip.id}`} className="textarea" value={clip.text} onChange={(e) => setText(clip.id, { text: e.target.value })} rows={3} />
+      </div>
+      <div className="two-col">
+        <div className="field">
+          <label htmlFor={`tf-${clip.id}`}>Typsnitt</label>
+          <select id={`tf-${clip.id}`} className="select" value={st.font} onChange={(e) => setStyle({ font: e.target.value as TextStyle['font'] })}>
+            {Object.entries(TEXT_FONTS).map(([k, f]) => (
+              <option key={k} value={k}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor={`tw-${clip.id}`}>Vikt</label>
+          <select
+            id={`tw-${clip.id}`}
+            className="select"
+            value={st.weight}
+            onChange={(e) => setStyle({ weight: Number(e.target.value) as TextStyle['weight'] })}
+          >
+            <option value={400}>Regular</option>
+            <option value={500}>Medium</option>
+            <option value={600}>Semibold</option>
+            <option value={700}>Bold</option>
+          </select>
+        </div>
+      </div>
+      <div className="xf-grid">
+        <label className="xf-field">
+          <span>Storlek</span>
+          <input
+            className="input mono"
+            type="number"
+            min={6}
+            step={1}
+            value={Math.round(st.size * H)}
+            data-testid="text-size"
+            onChange={(e) => e.target.valueAsNumber > 0 && setStyle({ size: e.target.valueAsNumber / H })}
+          />
+          <span className="mono dim">px</span>
+        </label>
+        <label className="xf-field">
+          <span>Radbredd</span>
+          <input
+            className="input mono"
+            type="number"
+            min={10}
+            max={100}
+            step={1}
+            value={Math.round(st.maxWidth * 100)}
+            onChange={(e) => e.target.valueAsNumber > 0 && setStyle({ maxWidth: Math.min(100, e.target.valueAsNumber) / 100 })}
+          />
+          <span className="mono dim">%</span>
+        </label>
+      </div>
+      <div className="seg" role="group" aria-label="Justering">
+        {(['left', 'center', 'right'] as const).map((a) => (
+          <button key={a} aria-pressed={st.align === a} onClick={() => setStyle({ align: a })}>
+            {a === 'left' ? 'Vänster' : a === 'center' ? 'Centrerad' : 'Höger'}
+          </button>
+        ))}
+      </div>
+      <ColorField id={`tc-${clip.id}`} label="Textfärg" value={`${st.color}ff`} palette={projectPalette(project)} onChange={(v) => setStyle({ color: v.slice(0, 7) })} />
+      <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!st.background}
+          onChange={(e) => setStyle({ background: e.target.checked ? { color: '#000000', opacity: 0.72 } : null })}
+        />
+        <span className="field-label">Platta bakom texten</span>
+      </label>
+      {st.background && (
+        <>
+          <ColorField
+            id={`tb-${clip.id}`}
+            label="Plattans färg"
+            value={`${st.background.color}ff`}
+            palette={['#000000', '#ffffff', ...projectPalette(project)]}
+            onChange={(v) => setStyle({ background: { ...st.background!, color: v.slice(0, 7) } })}
+          />
+          <RangeField
+            label="Plattans opacitet"
+            value={st.background.opacity}
+            min={0}
+            max={1}
+            step={0.01}
+            format={(v) => `${Math.round(v * 100)} %`}
+            onChange={(v) => setStyle({ background: { ...st.background!, opacity: v } })}
+          />
+        </>
+      )}
+      <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input type="checkbox" checked={st.shadow} onChange={(e) => setStyle({ shadow: e.target.checked })} />
+        <span className="field-label">Skugga</span>
+      </label>
+      <div className="divider" />
+      <TransformFields clip={clip} project={project} />
+      <RangeField
+        label="Opacitet"
+        value={evaluateParam(clip.opacity)}
+        min={0}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)} %`}
+        onChange={(v) => setParam(clip.id, 'opacity', v)}
+      />
+      <FadeFields clip={clip} project={project} />
     </div>
   );
 }

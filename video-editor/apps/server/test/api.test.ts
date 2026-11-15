@@ -316,3 +316,23 @@ describe('compositions', () => {
     expect((await req('DELETE', `${b.s}/compositions/${c.id}`)).status).toBe(404);
   });
 });
+
+import { sniffMedia } from '../src/http.ts';
+describe('media sniffing', () => {
+  const b = (...xs: (number | string)[]) => {
+    const out: number[] = [];
+    for (const x of xs) typeof x === 'string' ? out.push(...[...x].map((c) => c.charCodeAt(0))) : out.push(x);
+    while (out.length < 16) out.push(0);
+    return new Uint8Array(out);
+  };
+  it('recognises audio formats', () => {
+    expect(sniffMedia(b('ID3', 4, 0))?.mime).toBe('audio/mpeg');
+    expect(sniffMedia(b(0xff, 0xfb, 0x90, 0x64))?.mime).toBe('audio/mpeg');
+    expect(sniffMedia(b(0xff, 0xf1, 0x50, 0x80))?.mime).toBe('audio/aac');
+    expect(sniffMedia(b('RIFF', 0, 0, 0, 0, 'WAVE'))?.mime).toBe('audio/wav');
+    expect(sniffMedia(b('OggS', 0))?.mime).toBe('audio/ogg');
+    expect(sniffMedia(b('fLaC', 0))?.mime).toBe('audio/flac');
+    expect(sniffMedia(b(0, 0, 0, 0x20, 'ftypM4A '))?.kind).toBe('audio');
+    expect(sniffMedia(b(0, 0, 0, 0x20, 'ftypisom'))?.kind).toBe('video');
+  });
+});

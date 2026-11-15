@@ -1,9 +1,8 @@
 import {
-  evaluateParam,
   fpsValue,
   framesToSeconds,
-  microsToSeconds,
   projectDuration,
+  soundSpans,
   secondsToFrameFloor,
   type Frame,
   type Project,
@@ -124,26 +123,15 @@ class PreviewEngine {
 
   /* ---------------------------------------------------------- playback */
 
+  /** Same sound list as the exporter: video sound and audio files, with volumes and fades. */
   private audioClips(project: Project): Promise<PreviewAudioClip[]> {
-    const fps = project.settings.fps;
     return Promise.all(
-      project.tracks
-        .filter((t) => !t.muted && !t.hidden)
-        .flatMap((t) => t.clips)
-        .filter((c) => c.kind === 'video')
-        .map(async (c) => {
-          if (c.kind !== 'video') return null;
-          const src = await media.openSource(c.assetId);
-          const sink = src?.audioBuffers();
-          if (!sink) return null;
-          return {
-            start: framesToSeconds(c.start, fps),
-            duration: framesToSeconds(c.duration, fps),
-            sourceStart: microsToSeconds(c.sourceStart),
-            volume: evaluateParam(c.volume),
-            sink,
-          } satisfies PreviewAudioClip;
-        }),
+      soundSpans(project).map(async (span) => {
+        const src = await media.openSource(span.assetId);
+        const sink = src?.audioBuffers();
+        const clip: PreviewAudioClip | null = sink ? { ...span, sink } : null;
+        return clip;
+      }),
     ).then((xs) => xs.filter((x): x is PreviewAudioClip => !!x));
   }
 

@@ -1,6 +1,8 @@
 import { framesToMicros, microsToFrames, type Frame, type Micros, type Rational } from './time';
 import {
   PROJECT_VERSION,
+  type AudioAsset,
+  type AudioClip,
   type Clip,
   type ClipTransform,
   type ImageAsset,
@@ -11,10 +13,13 @@ import {
   type ProjectSettings,
   type PropValue,
   type TemplateClip,
+  type TextClip,
+  type TextStyle,
   type Track,
   type TrackKind,
   type VideoAsset,
   type VideoClip,
+  type VisualClip,
 } from './types';
 
 let idCounter = 0;
@@ -46,6 +51,7 @@ export function createProject(name = 'Nytt projekt', settings: Partial<ProjectSe
     tracks: [
       { id: createId('trk'), kind: 'video', name: 'V1', muted: false, hidden: false, clips: [] },
       { id: createId('trk'), kind: 'graphics', name: 'G1', muted: false, hidden: false, clips: [] },
+      { id: createId('trk'), kind: 'audio', name: 'A1', muted: false, hidden: false, clips: [] },
     ],
   };
 }
@@ -79,13 +85,13 @@ export function findClip(project: Project, clipId: string): { track: Track; clip
   return undefined;
 }
 
-/** Clips visible at `frame`, ordered bottom → top. */
-export function activeClipsAt(project: Project, frame: Frame): { track: Track; clip: Clip }[] {
-  const out: { track: Track; clip: Clip }[] = [];
+/** Clips visible at `frame` (no sound-only clips), ordered bottom → top. */
+export function activeClipsAt(project: Project, frame: Frame): { track: Track; clip: VisualClip }[] {
+  const out: { track: Track; clip: VisualClip }[] = [];
   for (const track of project.tracks) {
-    if (track.hidden) continue;
+    if (track.hidden || track.kind === 'audio') continue;
     for (const clip of track.clips) {
-      if (frame >= clip.start && frame < clipEnd(clip)) {
+      if (clip.kind !== 'audio' && frame >= clip.start && frame < clipEnd(clip)) {
         out.push({ track, clip });
         break; // clips never overlap within a track
       }
@@ -94,24 +100,35 @@ export function activeClipsAt(project: Project, frame: Frame): { track: Track; c
   return out;
 }
 
-/** Source time (µs) shown by a video clip at timeline `frame`. */
-export function sourceTimeAt(clip: VideoClip, frame: Frame, fps: Rational): Micros {
+/** Source time (µs) shown/played by a clip at timeline `frame`. */
+export function sourceTimeAt(clip: VideoClip | AudioClip, frame: Frame, fps: Rational): Micros {
   return clip.sourceStart + framesToMicros(frame - clip.start, fps);
 }
 
-/** Longest a video clip can be given its source start and the asset length. */
-export function maxVideoClipDuration(asset: VideoAsset, sourceStart: Micros, fps: Rational): Frame {
+/** Longest a video/audio clip can be given its source start and the asset length. */
+export function maxVideoClipDuration(asset: VideoAsset | AudioAsset, sourceStart: Micros, fps: Rational): Frame {
   return Math.max(1, Math.floor(((asset.durationUs - sourceStart) * fps.num) / (fps.den * 1_000_000) + 1e-6));
 }
 
-/** Video clips need a video track and templates a graphics track; images go on either. */
+/**
+ * Video clips need a video track, sound files an audio track, templates and
+ * text a graphics track; images go on any track with pictures.
+ */
 export function trackAcceptsClip(track: Track, clip: Pick<Clip, 'kind'>): boolean {
-  return clip.kind === 'image' || trackKindFor(clip.kind) === track.kind;
+  if (clip.kind === 'image') return track.kind !== 'audio';
+  return trackKindFor(clip.kind) === track.kind;
 }
 
 /** The track kind a new clip of this kind is placed on by default. */
 export function trackKindFor(clipKind: Clip['kind']): TrackKind {
-  return clipKind === 'video' ? 'video' : 'graphics';
+  if (clipKind === 'video') return 'video';
+  if (clipKind === 'audio') return 'audio';
+  return 'graphics';
+}
+
+/** Has the clip got source media with a start offset (video, audio)? */
+function hasSource(c: Clip): c is VideoClip | AudioClip {
+  return c.kind === 'video' || c.kind === 'audio';
 }
 
 /** Frames that the playhead / clip edges should snap to. */
@@ -153,7 +170,7 @@ function sortClips(clips: Clip[]): Clip[] {
 /** Shift a clip's start edge by `delta` frames, keeping its end in place. */
 function trimStartBy<C extends Clip>(clip: C, delta: Frame, fps: Rational): C {
   const next = { ...clip, start: clip.start + delta, duration: clip.duration - delta };
-  if (next.kind === 'video') (next as VideoClip).sourceStart = (clip as VideoClip).sourceStart + framesToMicros(delta, fps);
+  if (hasSource(next)) next.sourceStart = (clip as unknown as VideoClip).sourceStart + framesToMicros(delta, fps);
   return next;
 }
 
@@ -196,7 +213,7 @@ export function addTrack(project: Project, kind: TrackKind): Project {
   const track: Track = {
     id: createId('trk'),
     kind,
-    name: `${kind === 'video' ? 'V' : 'G'}${n}`,
+    name: `${kind === 'video' ? 'V' : kind === 'audio' ? 'A' : 'G'}${n}`,
     muted: false,
     hidden: false,
     clips: [],
@@ -254,7 +271,7 @@ export function trimClip(project: Project, clipId: string, edge: 'start' | 'end'
 
   if (edge === 'start') {
     let minStart = prev ? clipEnd(prev) : 0;
-    if (clip.kind === 'video') {
+    if (hasSource(clip)) {
       // can't reveal media before the source's first frame
       minStart = Math.max(minStart, clip.start - microsToFrames(clip.sourceStart, fps));
     }
@@ -262,9 +279,9 @@ export function trimClip(project: Project, clipId: string, edge: 'start' | 'end'
     updated = trimStartBy(clip, s - clip.start, fps);
   } else {
     let maxEnd = next ? next.start : Number.POSITIVE_INFINITY;
-    if (clip.kind === 'video') {
+    if (hasSource(clip)) {
       const asset = findAsset(project, clip.assetId);
-      if (asset?.kind === 'video') maxEnd = Math.min(maxEnd, clip.start + maxVideoClipDuration(asset, clip.sourceStart, fps));
+      if (asset && asset.kind !== 'image') maxEnd = Math.min(maxEnd, clip.start + maxVideoClipDuration(asset, clip.sourceStart, fps));
     }
     const e = Math.max(Math.min(target, maxEnd), clip.start + 1);
     updated = { ...clip, duration: e - clip.start };
@@ -278,8 +295,9 @@ export function splitClip(project: Project, clipId: string, atFrame: Frame): Pro
   const { track, clip } = found;
   const at = Math.round(atFrame);
   if (at <= clip.start || at >= clipEnd(clip)) return project;
-  const left: Clip = { ...clip, duration: at - clip.start };
-  const right: Clip = { ...trimStartBy(clip, at - clip.start, project.settings.fps), id: createId('clp') };
+  // the fade-in stays on the left part, the fade-out on the right part
+  const left: Clip = { ...clip, duration: at - clip.start, fadeOut: undefined };
+  const right: Clip = { ...trimStartBy(clip, at - clip.start, project.settings.fps), id: createId('clp'), fadeIn: undefined };
   return mapTrack(project, track.id, (t) => ({
     ...t,
     clips: sortClips(t.clips.flatMap((c) => (c.id === clipId ? [left, right] : [c]))),
@@ -310,7 +328,8 @@ export function setTemplateProp(project: Project, clipId: string, key: string, v
 
 export function setClipParam(project: Project, clipId: string, param: 'volume' | 'opacity', value: number): Project {
   return updateClip(project, clipId, (c) => {
-    if (param === 'volume' && c.kind !== 'video') return c;
+    if (param === 'volume' && !hasSource(c)) return c;
+    if (param === 'opacity' && c.kind === 'audio') return c;
     return { ...c, [param]: { value } } as Clip;
   });
 }
@@ -322,6 +341,7 @@ export function setClipTransform(
   patch: Partial<{ x: number; y: number; scale: number; rotation: number }>,
 ): Project {
   return updateClip(project, clipId, (c) => {
+    if (c.kind === 'audio') return c;
     const cur = c.transform;
     const v = (k: keyof ClipTransform, d: number) => ({ value: patch[k] ?? cur?.[k].value ?? d });
     const transform: ClipTransform = { x: v('x', 0), y: v('y', 0), scale: v('scale', 1), rotation: v('rotation', 0) };
@@ -332,9 +352,34 @@ export function setClipTransform(
 
 export function resetClipTransform(project: Project, clipId: string): Project {
   return updateClip(project, clipId, (c) => {
+    if (c.kind === 'audio') return c;
     const { transform: _t, ...rest } = c;
     return rest as Clip;
   });
+}
+
+/** Fade lengths in frames; each is clamped so the two never overlap. */
+export function setClipFades(project: Project, clipId: string, fades: { fadeIn?: Frame; fadeOut?: Frame }): Project {
+  return updateClip(project, clipId, (c) => {
+    let fi = Math.min(c.duration, Math.max(0, Math.round(fades.fadeIn ?? c.fadeIn ?? 0)));
+    let fo = Math.min(c.duration, Math.max(0, Math.round(fades.fadeOut ?? c.fadeOut ?? 0)));
+    if (fi + fo > c.duration) {
+      // shorten the fade that is being changed (the fade-out if both are)
+      if (fades.fadeOut !== undefined) fo = c.duration - fi;
+      else fi = c.duration - fo;
+    }
+    return { ...c, fadeIn: fi || undefined, fadeOut: fo || undefined };
+  });
+}
+
+export function setTrackVolume(project: Project, trackId: string, volume: number): Project {
+  return mapTrack(project, trackId, (t) => ({ ...t, volume: { value: Math.max(0, Math.min(4, volume)) } }));
+}
+
+export function setTextContent(project: Project, clipId: string, patch: { text?: string; style?: Partial<TextStyle> }): Project {
+  return updateClip(project, clipId, (c) =>
+    c.kind === 'text' ? ({ ...c, text: patch.text ?? c.text, style: { ...c.style, ...patch.style } } satisfies TextClip) : c,
+  );
 }
 
 export function setTrackFlag(project: Project, trackId: string, flag: 'muted' | 'hidden', value: boolean): Project {
@@ -364,6 +409,31 @@ export function createImageClip(asset: ImageAsset, start: Frame, duration: Frame
     start,
     duration,
     opacity: { value: 1 },
+  };
+}
+
+export function createAudioClip(asset: AudioAsset, start: Frame, fps: Rational): AudioClip {
+  return {
+    id: createId('clp'),
+    kind: 'audio',
+    assetId: asset.id,
+    start,
+    duration: maxVideoClipDuration(asset, 0, fps),
+    sourceStart: 0,
+    volume: { value: 1 },
+  };
+}
+
+export function createTextClip(text: string, style: TextStyle, start: Frame, duration: Frame, y = 0): TextClip {
+  return {
+    id: createId('clp'),
+    kind: 'text',
+    text,
+    style,
+    start,
+    duration,
+    opacity: { value: 1 },
+    ...(y ? { transform: { x: { value: 0 }, y: { value: y }, scale: { value: 1 }, rotation: { value: 0 } } } : {}),
   };
 }
 

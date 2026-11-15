@@ -5,3 +5,6 @@ export * from './history';
 export * from './template';
 export * from './library';
 export * from './layout';
+export * from './fades';
+export * from './text';
+export * from './subtitles';

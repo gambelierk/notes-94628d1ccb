@@ -1,9 +1,11 @@
 import { CanvasSink } from 'mediabunny';
-import { createId, type ImageAsset, type VideoAsset } from '@ve/core';
-import { MediaSource, probeVideo } from '@ve/media';
+import { createId, type AudioAsset, type ImageAsset, type VideoAsset } from '@ve/core';
+import { computePeaks, MediaSource, probeAudio, probeVideo, type Peaks } from '@ve/media';
+
+type Kind = 'video' | 'image' | 'audio';
 
 interface Entry {
-  kind?: 'video' | 'image';
+  kind?: Kind;
   /** Local file, when this browser has it (just imported or uploaded). */
   blob?: Blob;
   /** Absolute URL on the server, when the file is stored there. */
@@ -23,14 +25,63 @@ class MediaLibrary {
   private thumbs = new Map<string, Promise<string | null>>();
 
   /** Make a server-stored file available under `id`. */
-  registerRemote(id: string, url: string, name?: string, size?: number, kind?: 'video' | 'image') {
+  registerRemote(id: string, url: string, name?: string, size?: number, kind?: Kind) {
     const e = this.entries.get(id) ?? {};
     this.entries.set(id, { ...e, url: new URL(url, location.href).href, name: name ?? e.name, size: size ?? e.size, kind: kind ?? e.kind });
   }
 
   registerLocal(id: string, blob: Blob) {
     const e = this.entries.get(id) ?? {};
-    this.entries.set(id, { ...e, blob, size: blob.size, kind: e.kind ?? (blob.type.startsWith('image/') ? 'image' : 'video') });
+    const guess: Kind = blob.type.startsWith('image/') ? 'image' : blob.type.startsWith('audio/') ? 'audio' : 'video';
+    this.entries.set(id, { ...e, blob, size: blob.size, kind: e.kind ?? guess });
+  }
+
+  kindOf(id: string): Kind | undefined {
+    return this.entries.get(id)?.kind;
+  }
+
+  async importAudio(file: File, id: string = createId('aud')): Promise<AudioAsset> {
+    const e = this.entries.get(id) ?? {};
+    this.entries.set(id, { ...e, kind: 'audio' });
+    const { asset, source } = await probeAudio(file, id, file.name, file.size);
+    this.registerLocal(id, file);
+    this.sources.set(id, Promise.resolve(source));
+    return asset;
+  }
+
+  /** Metadata for a server-stored sound file so it can be placed on a timeline. */
+  async probeRemoteAudio(id: string): Promise<AudioAsset> {
+    const e = this.entries.get(id);
+    if (!e?.url && !e?.blob) throw new Error('Filen finns inte');
+    const { asset, source } = await probeAudio(e.blob ?? e.url!, id, e.name ?? 'ljud', e.size);
+    this.sources.set(id, Promise.resolve(source));
+    return asset;
+  }
+
+  private peakCache = new Map<string, Promise<Peaks | null>>();
+
+  /** Waveform overview for a video's or sound file's audio (computed once, in the background). */
+  peaks(id: string): Promise<Peaks | null> {
+    let p = this.peakCache.get(id);
+    if (!p) {
+      p = (async () => {
+        // a separate decoder so the waveform doesn't disturb playback
+        const e = this.entries.get(id);
+        const src = e?.blob ?? e?.url;
+        if (!src) return null;
+        const source = await MediaSource.open(src);
+        try {
+          return await computePeaks(source);
+        } finally {
+          source.dispose();
+        }
+      })().catch((err) => {
+        console.warn('Vågform kunde inte beräknas', err);
+        return null;
+      });
+      this.peakCache.set(id, p);
+    }
+    return p;
   }
 
   private isImage(id: string): boolean {
@@ -125,6 +176,7 @@ class MediaLibrary {
   }
 
   private async posterFrame(id: string): Promise<string | null> {
+    if (this.entries.get(id)?.kind === 'audio') return null;
     if (this.isImage(id)) {
       const blob = await this.bytesBlob(id);
       if (!blob) return null;

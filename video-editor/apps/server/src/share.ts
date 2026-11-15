@@ -158,7 +158,7 @@ export function shareRoutes(repo: Repo, blobs: BlobStore, config: ShareConfig) {
     const kind = sniffMedia(stored.head);
     if (!kind) {
       await discard(stored.key);
-      throw new HttpError(415, `${fileName}: filtypen stöds inte (MP4, MOV, PNG, JPEG, WebP)`);
+      throw new HttpError(415, `${fileName}: filtypen stöds inte (film: MP4/MOV, bild: PNG/JPEG/WebP, ljud: MP3/WAV/M4A/Ogg/FLAC)`);
     }
     const m = repo.createMedia({ workspaceId: w.id, kind: kind.kind, name: fileName, mime: kind.mime, size: stored.size, blobKey: stored.key });
     return c.json(mediaDTO(c, m), 201);

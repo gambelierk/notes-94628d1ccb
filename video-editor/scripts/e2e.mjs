@@ -137,7 +137,7 @@ try {
   await page.locator('input[type=file][accept*="image/png"]').setInputFiles(logo);
   await page.waitForFunction(() => {
     const p = window.__editor.getState().history.present.project;
-    const c = p.tracks[2]?.clips[0];
+    const c = p.tracks.filter((t) => t.kind === 'graphics')[1]?.clips[0];
     return c && c.props.itemImage?.value.assetId;
   }, null, { timeout: 10000 });
   check(true, 'bildfältet fick en egen bild på nytt grafikspår G2');

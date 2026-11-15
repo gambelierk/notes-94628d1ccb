@@ -1,5 +1,6 @@
 import type { Project } from '@ve/core';
 import type { TemplateSource } from '@ve/rive';
+import type { FontSource } from '@ve/render';
 
 export interface ExportOptions {
   /** Bits per second for H.264. */
@@ -16,6 +17,8 @@ export interface ExportJob {
   templates: TemplateSource[];
   /** Absolute URL of rive.wasm. */
   riveWasmUrl: string;
+  /** Font files for text clips (workers cannot see fonts declared in CSS). */
+  fonts?: FontSource[];
   options: ExportOptions;
 }
 

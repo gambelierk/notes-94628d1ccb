@@ -78,6 +78,41 @@ PNG, JPEG och WebP kan importeras och läggas in i filmen som egna klipp, till e
 Genomskinlighet bevaras. Bilder flyttas, skalas, roteras, tonas (opacitet) och trimmas som andra klipp.
 I kundprojekt sparas bilderna i projektets media och kan återanvändas.
 
+### Ljud
+
+- **Egna ljudfiler:** MP3, WAV, M4A/AAC, Ogg/Opus och FLAC importeras som filmer och bilder
+  och läggs på **ljudspår** (A1, A2 …) under bildspåren. Lägg till fler med **+ Ljudspår**.
+- **Filmens ljud följer klippet:** det flyttas, trimmas och delas tillsammans med bilden.
+- **Volym per klipp:** 0–200 %, med dB-visning; dubbelklicka på reglaget för 100 %.
+- **Volym per spår:** reglaget i spårhuvudet gäller alla klipp på spåret, för både video- och
+  ljudspår. Slutlig nivå = klippvolym × spårvolym. Högtalarknappen stänger av spåret.
+- **Ljudvågor** visas på ljudklipp och under filmklipp. De beräknas en gång per fil i bakgrunden.
+- Förhandsvisning och export använder samma volymkurva. E2e-testet mäter exporten och kontrollerar
+  att 50 % klippvolym ger −6,02 dB och 25 % spårvolym −12,0 dB.
+
+### Text och undertexter
+
+- Fliken **Text** har förval: Rubrik, Underrubrik, Brödtext, Etikett och Undertext. Dra in ett
+  förval eller klicka **+**.
+- Textklipp har typsnitt (IBM Plex Sans/Mono), vikt, storlek i px, färg, justering, radbredd, platta
+  bakom texten, skugga och opacitet. De kan flyttas, skalas och roteras som andra lager.
+  Storleken är relativ till bildhöjden, så texten ser likadan ut i alla upplösningar.
+- **Undertexter:** importera `.srt` eller `.vtt`. Varje rad blir ett redigerbart textklipp på ett
+  eget undertextspår. **Exportera .srt** skriver ut dem igen, till exempel för uppladdning på YouTube.
+- *Förberett:* automatisk undertextning (tal till text) kan läggas in på samma sätt som en
+  importerad `.srt`, så resten av flödet är redan klart.
+
+### Övergångar
+
+- **Tona in/ut** på alla klipp (sekunder). Bild, bilder, text och mallar tonas från och till svart
+  (genomskinligt), ljud tonas i volym, och ett filmklipp tonar både bild och ljud. Snabbval:
+  0,5 s och 1 s. Toningarna visas som trianglar på klippen i tidslinjen.
+- Vid delning behåller vänster del intoningen och höger del uttoningen.
+- *Förberett:* övertoning mellan två klipp på samma spår (crossfade) bygger på samma modell; i dag
+  görs det genom att lägga klippen på två spår med uttoning respektive intoning.
+
+![Ljud och text](docs/ljud-text.jpg)
+
 ### Övrigt
 
 - **Import** av MP4 (H.264/AAC och det webbläsaren kan avkoda), bilder och egna `.riv`-mallar.
@@ -118,7 +153,7 @@ pnpm dev          # editor på http://localhost:5173, API på :8787 (lösenord "
 | `pnpm start` | Servern: API och det byggda gränssnittet i en process |
 | `pnpm test` | Enhetstester (Vitest): datamodell, mallar och API |
 | `pnpm typecheck` | TypeScript, strikt läge |
-| `pnpm e2e` | End-to-end i Chromium för editorn och admin→kund (kräver `pnpm build`, Playwright och ffmpeg) |
+| `pnpm e2e` | End-to-end i Chromium: editorn, admin→kund, format/placering och ljud/text, med mätning av den exporterade filen (kräver `pnpm build`, Playwright och ffmpeg) |
 
 Webbläsare: Chromium-baserad (Chrome/Edge) med WebCodecs, OffscreenCanvas och WebGL2.
 
@@ -188,6 +223,8 @@ manifest). Demomallarna i `apps/editor/public/templates` är testfiler från Riv
   filmer. Byt länk i admin om den sprids.
 - Tar admin bort en mall som kunden har lagt på tidslinjen visas klippet som saknat.
 - Rive-mallar med **ljud** stöds inte i exporten.
+- Volym och opacitet är fasta per klipp (plus toningar). Volymkurvor med nyckelbildrutor och automatisk
+  sänkning av musik under tal (ducking) är nästa steg; datamodellen är förberedd (`Param`).
 - Endast MP4 in och ut. Fler format kan läggas till senare i `media`-paketet; mediabunny stöder
   redan WebM, MOV med flera.
 - Firefox och Safari är inte testade.
