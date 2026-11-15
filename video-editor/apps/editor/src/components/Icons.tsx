@@ -128,6 +128,6 @@ export const Image = (p: SVGProps<SVGSVGElement>) => (
 );
 export const Logo = (p: SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" {...p}>
-    <path d="M9 7l9 5-9 5z" fill="#fff" />
+    <path d="M9 7l9 5-9 5z" fill="currentColor" />
   </svg>
 );

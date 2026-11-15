@@ -11,8 +11,8 @@ export interface ExportOptions {
 
 export interface ExportJob {
   project: Project;
-  /** Media bytes by asset id (videos and images). */
-  media: Record<string, Blob>;
+  /** Media by asset id (videos and images): a local file, or an absolute URL. */
+  media: Record<string, Blob | string>;
   templates: TemplateSource[];
   /** Absolute URL of rive.wasm. */
   riveWasmUrl: string;

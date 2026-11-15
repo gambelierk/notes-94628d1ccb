@@ -34,10 +34,10 @@ async function buildJob(project: Project, preset: QualityPreset): Promise<Export
         for (const p of Object.values(c.props)) if (p.value.type === 'image' && p.value.assetId) mediaIds.add(p.value.assetId);
       }
     }
-  const mediaBlobs: Record<string, Blob> = {};
+  const mediaBlobs: Record<string, Blob | string> = {};
   for (const id of mediaIds) {
-    const b = media.blob(id);
-    if (b) mediaBlobs[id] = b;
+    const src = media.exportSource(id);
+    if (src) mediaBlobs[id] = src;
   }
   const { width, height, fps } = project.settings;
   return {
@@ -53,7 +53,8 @@ function Dialog() {
   const close = () => useEditor.getState().setExportOpen(false);
   const project = committedProject();
   const [preset, setPreset] = useState<QualityPreset>('high');
-  const [name, setName] = useState(project.name || 'export');
+  const compName = useEditor((s) => s.composition?.name);
+  const [name, setName] = useState(compName || project.name || 'export');
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' });
   const abort = useRef<AbortController | null>(null);
   const { width, height, fps } = project.settings;

@@ -1,19 +1,41 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { FieldOverride, TemplateDTO, TemplateLayout, TemplateSettings, WorkspaceDTO } from '@ve/core';
+import type {
+  CompositionDTO,
+  CompositionSummaryDTO,
+  FieldOverride,
+  MediaDTO,
+  TemplateDTO,
+  TemplateLayout,
+  TemplateSettings,
+  UploadedBy,
+  WorkspaceDTO,
+} from '@ve/core';
 import type { DB } from './db.ts';
 
 const now = () => new Date().toISOString();
 export const newShareToken = () => randomBytes(18).toString('base64url'); // 144 bits
 const newId = (prefix: string) => `${prefix}_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
 
+export class RevisionConflict extends Error {
+  readonly current: number;
+  constructor(current: number) {
+    super('Kompositionen har ändrats någon annanstans');
+    this.current = current;
+  }
+}
+
 interface WorkspaceRow {
   id: string;
   name: string;
   share_token: string;
   sharing_enabled: number;
+  allow_customer_uploads: number;
   created_at: string;
   updated_at: string;
-  template_count?: number;
+  template_count: number;
+  composition_count: number;
+  media_count: number;
+  media_bytes: number;
 }
 
 interface TemplateRow {
@@ -30,9 +52,43 @@ interface TemplateRow {
   sha256: string;
   size: number;
   sort: number;
+  uploaded_by: UploadedBy;
   created_at: string;
   updated_at: string;
 }
+
+interface MediaRow {
+  id: string;
+  workspace_id: string;
+  kind: 'video' | 'image';
+  name: string;
+  mime: string;
+  size: number;
+  blob_key: string;
+  created_at: string;
+}
+
+interface CompositionRow {
+  id: string;
+  workspace_id: string;
+  name: string;
+  project_json: string;
+  revision: number;
+  width: number;
+  height: number;
+  duration_seconds: number;
+  thumb_key: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const WORKSPACE_SELECT = `
+  SELECT w.*,
+    (SELECT COUNT(*) FROM templates t WHERE t.workspace_id = w.id) AS template_count,
+    (SELECT COUNT(*) FROM compositions c WHERE c.workspace_id = w.id) AS composition_count,
+    (SELECT COUNT(*) FROM media m WHERE m.workspace_id = w.id) AS media_count,
+    (SELECT COALESCE(SUM(m.size), 0) FROM media m WHERE m.workspace_id = w.id) AS media_bytes
+  FROM workspaces w`;
 
 function toWorkspace(r: WorkspaceRow): WorkspaceDTO {
   return {
@@ -40,7 +96,11 @@ function toWorkspace(r: WorkspaceRow): WorkspaceDTO {
     name: r.name,
     shareToken: r.share_token,
     sharingEnabled: r.sharing_enabled === 1,
+    allowCustomerUploads: r.allow_customer_uploads === 1,
     templateCount: r.template_count ?? 0,
+    compositionCount: r.composition_count ?? 0,
+    mediaCount: r.media_count ?? 0,
+    mediaBytes: r.media_bytes ?? 0,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -50,6 +110,7 @@ function toTemplate(r: TemplateRow): TemplateDTO {
   return {
     id: r.id,
     workspaceId: r.workspace_id,
+    uploadedBy: r.uploaded_by,
     name: r.name,
     category: r.category,
     artboard: r.artboard,
@@ -64,37 +125,86 @@ function toTemplate(r: TemplateRow): TemplateDTO {
   };
 }
 
+export interface MediaRecord extends Omit<MediaDTO, 'url'> {
+  workspaceId: string;
+  blobKey: string;
+}
+
+function toMedia(r: MediaRow): MediaRecord {
+  return {
+    id: r.id,
+    workspaceId: r.workspace_id,
+    kind: r.kind,
+    name: r.name,
+    mime: r.mime,
+    size: r.size,
+    blobKey: r.blob_key,
+    createdAt: r.created_at,
+  };
+}
+
+export interface CompositionRecord extends Omit<CompositionDTO, 'thumbnailUrl'> {
+  workspaceId: string;
+  thumbKey: string | null;
+}
+
+function toComposition(r: CompositionRow, withProject: boolean): CompositionRecord {
+  return {
+    id: r.id,
+    workspaceId: r.workspace_id,
+    name: r.name,
+    revision: r.revision,
+    width: r.width,
+    height: r.height,
+    durationSeconds: r.duration_seconds,
+    thumbKey: r.thumb_key,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    project: withProject ? JSON.parse(r.project_json) : undefined,
+  };
+}
+
+export type { CompositionSummaryDTO };
+
+export interface ProjectMeta {
+  width: number;
+  height: number;
+  durationSeconds: number;
+}
+
 export class Repo {
   private readonly db: DB;
   constructor(db: DB) {
     this.db = db;
   }
 
+  private tx<T>(fn: () => T): T {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const r = fn();
+      this.db.exec('COMMIT');
+      return r;
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+
   /* ------------------------------------------------------------ workspaces */
 
   listWorkspaces(): WorkspaceDTO[] {
-    const rows = this.db
-      .prepare(
-        `SELECT w.*, (SELECT COUNT(*) FROM templates t WHERE t.workspace_id = w.id) AS template_count
-         FROM workspaces w ORDER BY w.name COLLATE NOCASE`,
-      )
-      .all() as unknown as WorkspaceRow[];
+    const rows = this.db.prepare(`${WORKSPACE_SELECT} ORDER BY w.name COLLATE NOCASE`).all() as unknown as WorkspaceRow[];
     return rows.map(toWorkspace);
   }
 
   getWorkspace(id: string): WorkspaceDTO | null {
-    const r = this.db
-      .prepare(
-        `SELECT w.*, (SELECT COUNT(*) FROM templates t WHERE t.workspace_id = w.id) AS template_count
-         FROM workspaces w WHERE w.id = ?`,
-      )
-      .get(id) as WorkspaceRow | undefined;
+    const r = this.db.prepare(`${WORKSPACE_SELECT} WHERE w.id = ?`).get(id) as WorkspaceRow | undefined;
     return r ? toWorkspace(r) : null;
   }
 
   /** Only returns workspaces whose sharing is enabled. */
   getSharedWorkspace(token: string): WorkspaceDTO | null {
-    const r = this.db.prepare('SELECT * FROM workspaces WHERE share_token = ? AND sharing_enabled = 1').get(token) as
+    const r = this.db.prepare(`${WORKSPACE_SELECT} WHERE w.share_token = ? AND w.sharing_enabled = 1`).get(token) as
       | WorkspaceRow
       | undefined;
     return r ? toWorkspace(r) : null;
@@ -109,12 +219,18 @@ export class Repo {
     return this.getWorkspace(id)!;
   }
 
-  updateWorkspace(id: string, patch: { name?: string; sharingEnabled?: boolean }): WorkspaceDTO | null {
+  updateWorkspace(id: string, patch: { name?: string; sharingEnabled?: boolean; allowCustomerUploads?: boolean }): WorkspaceDTO | null {
     const w = this.getWorkspace(id);
     if (!w) return null;
     this.db
-      .prepare('UPDATE workspaces SET name = ?, sharing_enabled = ?, updated_at = ? WHERE id = ?')
-      .run(patch.name ?? w.name, (patch.sharingEnabled ?? w.sharingEnabled) ? 1 : 0, now(), id);
+      .prepare('UPDATE workspaces SET name = ?, sharing_enabled = ?, allow_customer_uploads = ?, updated_at = ? WHERE id = ?')
+      .run(
+        patch.name ?? w.name,
+        (patch.sharingEnabled ?? w.sharingEnabled) ? 1 : 0,
+        (patch.allowCustomerUploads ?? w.allowCustomerUploads) ? 1 : 0,
+        now(),
+        id,
+      );
     return this.getWorkspace(id);
   }
 
@@ -123,13 +239,32 @@ export class Repo {
     return r.changes ? this.getWorkspace(id) : null;
   }
 
-  /** Deletes the workspace and its templates; returns blob keys that may now be orphaned. */
+  /** Deletes the workspace and everything in it; returns blob keys that may now be orphaned. */
   deleteWorkspace(id: string): string[] | null {
-    const keys = (this.db.prepare('SELECT blob_key FROM templates WHERE workspace_id = ?').all(id) as { blob_key: string }[]).map(
-      (r) => r.blob_key,
-    );
+    const keys = [
+      ...(this.db.prepare('SELECT blob_key AS k FROM templates WHERE workspace_id = ?').all(id) as { k: string }[]),
+      ...(this.db.prepare('SELECT blob_key AS k FROM media WHERE workspace_id = ?').all(id) as { k: string }[]),
+      ...(this.db.prepare('SELECT thumb_key AS k FROM compositions WHERE workspace_id = ? AND thumb_key IS NOT NULL').all(id) as {
+        k: string;
+      }[]),
+    ].map((r) => r.k);
     const r = this.db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
     return r.changes ? keys : null;
+  }
+
+  /** Is a stored file still referenced by anything? */
+  blobInUse(key: string): boolean {
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM templates WHERE blob_key = ?1
+         UNION ALL SELECT 1 FROM media WHERE blob_key = ?1
+         UNION ALL SELECT 1 FROM compositions WHERE thumb_key = ?1 LIMIT 1`,
+      )
+      .get(key);
+  }
+
+  private touchWorkspace(id: string) {
+    this.db.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now(), id);
   }
 
   /* ------------------------------------------------------------ templates */
@@ -154,6 +289,7 @@ export class Repo {
     blobKey: string;
     sha256: string;
     size: number;
+    uploadedBy: UploadedBy;
   }): TemplateDTO {
     const id = newId('tpl');
     const t = now();
@@ -162,10 +298,23 @@ export class Repo {
     };
     this.db
       .prepare(
-        `INSERT INTO templates (id, workspace_id, name, category, file_name, blob_key, sha256, size, sort, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO templates (id, workspace_id, name, category, file_name, blob_key, sha256, size, sort, uploaded_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, input.workspaceId, input.name, input.category, input.fileName, input.blobKey, input.sha256, input.size, max.m + 1, t, t);
+      .run(
+        id,
+        input.workspaceId,
+        input.name,
+        input.category,
+        input.fileName,
+        input.blobKey,
+        input.sha256,
+        input.size,
+        max.m + 1,
+        input.uploadedBy,
+        t,
+        t,
+      );
     this.touchWorkspace(input.workspaceId);
     return this.getTemplate(id)!;
   }
@@ -192,7 +341,7 @@ export class Repo {
     return this.getTemplate(id);
   }
 
-  /** Returns the blob key if no other template references it any more. */
+  /** Returns the blob key if nothing references it any more. */
   deleteTemplate(id: string): { orphanedKey: string | null } | null {
     const cur = this.getTemplate(id);
     if (!cur) return null;
@@ -201,12 +350,107 @@ export class Repo {
     return { orphanedKey: this.blobInUse(cur.blobKey) ? null : cur.blobKey };
   }
 
-  blobInUse(key: string): boolean {
-    return !!this.db.prepare('SELECT 1 FROM templates WHERE blob_key = ? LIMIT 1').get(key);
+  /* ------------------------------------------------------------ media */
+
+  listMedia(workspaceId: string): MediaRecord[] {
+    const rows = this.db.prepare('SELECT * FROM media WHERE workspace_id = ? ORDER BY created_at').all(workspaceId) as unknown as MediaRow[];
+    return rows.map(toMedia);
   }
 
-  private touchWorkspace(id: string) {
-    this.db.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now(), id);
+  getMedia(id: string): MediaRecord | null {
+    const r = this.db.prepare('SELECT * FROM media WHERE id = ?').get(id) as MediaRow | undefined;
+    return r ? toMedia(r) : null;
+  }
+
+  mediaBytes(workspaceId: string): number {
+    return (this.db.prepare('SELECT COALESCE(SUM(size), 0) AS s FROM media WHERE workspace_id = ?').get(workspaceId) as { s: number }).s;
+  }
+
+  createMedia(input: Omit<MediaRecord, 'id' | 'createdAt'>): MediaRecord {
+    const id = newId('med');
+    this.db
+      .prepare('INSERT INTO media (id, workspace_id, kind, name, mime, size, blob_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, input.workspaceId, input.kind, input.name, input.mime, input.size, input.blobKey, now());
+    this.touchWorkspace(input.workspaceId);
+    return this.getMedia(id)!;
+  }
+
+  deleteMedia(id: string): { orphanedKey: string | null } | null {
+    const cur = this.getMedia(id);
+    if (!cur) return null;
+    this.db.prepare('DELETE FROM media WHERE id = ?').run(id);
+    return { orphanedKey: this.blobInUse(cur.blobKey) ? null : cur.blobKey };
+  }
+
+  /* ------------------------------------------------------------ compositions */
+
+  listCompositions(workspaceId: string): CompositionRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, workspace_id, name, '' AS project_json, revision, width, height, duration_seconds, thumb_key, created_at, updated_at
+         FROM compositions WHERE workspace_id = ? ORDER BY updated_at DESC`,
+      )
+      .all(workspaceId) as unknown as CompositionRow[];
+    return rows.map((r) => toComposition(r, false));
+  }
+
+  getComposition(id: string): CompositionRecord | null {
+    const r = this.db.prepare('SELECT * FROM compositions WHERE id = ?').get(id) as CompositionRow | undefined;
+    return r ? toComposition(r, true) : null;
+  }
+
+  createComposition(workspaceId: string, name: string, projectJson: string, meta: ProjectMeta): CompositionRecord {
+    const id = newId('cmp');
+    const t = now();
+    this.db
+      .prepare(
+        `INSERT INTO compositions (id, workspace_id, name, project_json, revision, width, height, duration_seconds, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+      )
+      .run(id, workspaceId, name, projectJson, meta.width, meta.height, meta.durationSeconds, t, t);
+    this.touchWorkspace(workspaceId);
+    return this.getComposition(id)!;
+  }
+
+  /**
+   * Save a new version. `baseRevision` must match the stored revision
+   * (optimistic concurrency), otherwise RevisionConflict is thrown.
+   */
+  saveComposition(id: string, baseRevision: number, projectJson: string, meta: ProjectMeta, name?: string): CompositionRecord | null {
+    return this.tx(() => {
+      const cur = this.db.prepare('SELECT revision, name FROM compositions WHERE id = ?').get(id) as
+        | { revision: number; name: string }
+        | undefined;
+      if (!cur) return null;
+      if (cur.revision !== baseRevision) throw new RevisionConflict(cur.revision);
+      this.db
+        .prepare(
+          `UPDATE compositions SET project_json = ?, revision = revision + 1, width = ?, height = ?, duration_seconds = ?, name = ?, updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(projectJson, meta.width, meta.height, meta.durationSeconds, name ?? cur.name, now(), id);
+      return this.getComposition(id);
+    });
+  }
+
+  renameComposition(id: string, name: string): CompositionRecord | null {
+    const r = this.db.prepare('UPDATE compositions SET name = ?, updated_at = ? WHERE id = ?').run(name, now(), id);
+    return r.changes ? this.getComposition(id) : null;
+  }
+
+  setCompositionThumb(id: string, key: string): string | null {
+    const cur = this.getComposition(id);
+    if (!cur) return null;
+    this.db.prepare('UPDATE compositions SET thumb_key = ? WHERE id = ?').run(key, id);
+    return cur.thumbKey;
+  }
+
+  deleteComposition(id: string): { orphanedKey: string | null } | null {
+    const cur = this.getComposition(id);
+    if (!cur) return null;
+    this.db.prepare('DELETE FROM compositions WHERE id = ?').run(id);
+    this.touchWorkspace(cur.workspaceId);
+    return { orphanedKey: cur.thumbKey && !this.blobInUse(cur.thumbKey) ? cur.thumbKey : null };
   }
 
   /* ------------------------------------------------------------ sessions */

@@ -5,6 +5,7 @@ import {
   BlobSource,
   CanvasSink,
   Input,
+  UrlSource,
   type InputAudioTrack,
   type InputVideoTrack,
 } from 'mediabunny';
@@ -22,15 +23,17 @@ export class MediaSource {
   private audioBufferSink: AudioBufferSink | null = null;
 
   private constructor(
-    readonly blob: Blob,
+    readonly src: Blob | string,
     readonly input: Input,
     readonly video: InputVideoTrack | null,
     readonly audio: InputAudioTrack | null,
     readonly durationSec: number,
   ) {}
 
-  static async open(blob: Blob): Promise<MediaSource> {
-    const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+  /** Open a local file (Blob) or a remote file by URL (read with HTTP range requests). */
+  static async open(src: Blob | string): Promise<MediaSource> {
+    const source = typeof src === 'string' ? new UrlSource(src, { maxCacheSize: 32 * 1024 * 1024 }) : new BlobSource(src);
+    const input = new Input({ source, formats: ALL_FORMATS });
     if (!(await input.canRead())) throw new UnsupportedMediaError('Filformatet stöds inte');
     const video = await input.getPrimaryVideoTrack();
     let audio = await input.getPrimaryAudioTrack();
@@ -39,7 +42,7 @@ export class MediaSource {
     }
     if (audio && !(await audio.canDecode())) audio = null; // keep the video, drop undecodable audio
     const durationSec = await input.computeDuration();
-    return new MediaSource(blob, input, video, audio, durationSec);
+    return new MediaSource(src, input, video, audio, durationSec);
   }
 
   /** Decoder that renders frames into canvases of the given size (letterboxed). */
@@ -73,8 +76,13 @@ export class MediaSource {
 }
 
 /** Read the metadata we need to place a file on the timeline. */
-export async function probeVideo(blob: Blob, id: string, name: string): Promise<{ asset: VideoAsset; source: MediaSource }> {
-  const source = await MediaSource.open(blob);
+export async function probeVideo(
+  src: Blob | string,
+  id: string,
+  name: string,
+  size?: number,
+): Promise<{ asset: VideoAsset; source: MediaSource }> {
+  const source = await MediaSource.open(src);
   const v = source.video;
   if (!v) throw new UnsupportedMediaError('Filen innehåller inget videospår');
   let fps = 30;
@@ -93,7 +101,7 @@ export async function probeVideo(blob: Blob, id: string, name: string): Promise<
     height: v.displayHeight,
     fps,
     hasAudio: !!source.audio,
-    size: blob.size,
+    size: size ?? (typeof src === 'string' ? 0 : src.size),
   };
   return { asset, source };
 }

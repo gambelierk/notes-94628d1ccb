@@ -19,7 +19,8 @@
   gap: 16px;
 }
 .form-error {
-  color: var(--danger);
+  color: var(--text);
+  font-weight: 600;
   margin: 0;
   font-size: 12px;
 }
@@ -78,7 +79,7 @@
   font-weight: 600;
 }
 .ws-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
 }
 .admin-empty {
@@ -158,7 +159,7 @@ a.btn {
   border: 0;
   background: none;
   padding: 0;
-  color: var(--accent-2);
+  color: var(--text);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -234,13 +235,16 @@ a.btn {
   color: var(--text-2);
   border: 1px solid var(--line-2);
 }
+.pill {
+  font-family: var(--mono);
+}
 .pill.ok {
-  border-color: rgba(46, 194, 126, 0.5);
-  color: #6ee0a8;
+  border-color: var(--text-2);
+  color: var(--text);
 }
 .pill.warn {
-  border-color: rgba(255, 200, 80, 0.45);
-  color: #ffd27a;
+  border-style: dashed;
+  color: var(--text-2);
 }
 .tpl-foot {
   display: flex;
@@ -248,11 +252,11 @@ a.btn {
   justify-content: space-between;
 }
 .card.danger {
-  border-color: rgba(255, 89, 100, 0.35);
+  border-style: dashed;
+  border-color: var(--line-2);
 }
 .danger-btn {
-  color: var(--danger);
-  border-color: rgba(255, 89, 100, 0.45);
+  border-color: var(--text-2);
 }
 @media (max-width: 760px) {
   .admin-shell {
@@ -290,4 +294,20 @@ a.btn {
 .fe-type {
   font-size: 11px;
   color: var(--muted);
+}
+.ws-title-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ws-stats {
+  font-size: 12px;
+}
+.comp-row {
+  grid-template-columns: minmax(0, 1fr) auto auto auto !important;
+}
+.pill.strong {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
 }

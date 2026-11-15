@@ -6,24 +6,48 @@ import { Inspector } from './components/Inspector';
 import { LeftPanel } from './components/LeftPanel';
 import { Timeline } from './components/Timeline';
 import { Viewer } from './components/Viewer';
+import { ApiError } from './services/api';
+import { composition } from './services/composition';
 import { preview } from './services/preview';
 import { templates, type LibrarySource } from './services/templates';
 import { deleteSelection, importFiles, splitAtPlayhead, stepPlayhead } from './state/actions';
 import { useEditor, useProjectDuration } from './state/store';
 
-export function App({ source }: { source: LibrarySource }) {
+export function App({ source, compositionId }: { source: LibrarySource; compositionId?: string }) {
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [ready, setReady] = useState(!compositionId);
   useEffect(() => {
     void templates.loadLibrary(source);
   }, [source]);
+  useEffect(() => {
+    if (!compositionId || source.kind !== 'share') return;
+    composition
+      .open(source.token, compositionId)
+      .then(() => setReady(true))
+      .catch((e) => setLoadError(e instanceof ApiError && e.status === 404 ? 'Kompositionen finns inte (den kan ha tagits bort).' : String(e?.message ?? e)));
+    return () => composition.close();
+  }, [source, compositionId]);
   useKeyboard();
   const fileDrag = useWindowFileDrop();
   const library = useEditor((s) => s.library);
 
-  if (library.kind === 'error') {
+  if (library.kind === 'error' || loadError) {
     return (
       <div className="unsupported" role="alert">
-        <h1>Länken fungerar inte</h1>
-        <p>{library.message}</p>
+        <h1>{library.kind === 'error' ? 'Länken fungerar inte' : 'Kunde inte öppna kompositionen'}</h1>
+        <p>{library.kind === 'error' ? library.message : loadError}</p>
+        {source.kind === 'share' && library.kind !== 'error' && (
+          <a className="btn" href={`/p/${source.token}`}>
+            Till kompositionerna
+          </a>
+        )}
+      </div>
+    );
+  }
+  if (!ready) {
+    return (
+      <div className="unsupported">
+        <div className="spinner" /> <span className="mono">Öppnar komposition…</span>
       </div>
     );
   }
@@ -38,6 +62,7 @@ export function App({ source }: { source: LibrarySource }) {
       <ExportDialog />
       <DragGhost />
       <Toasts />
+      <ConflictBanner />
       {fileDrag && <div className="file-drop-overlay">Släpp för att importera</div>}
     </div>
   );
@@ -50,21 +75,37 @@ function TopBar() {
   const duration = useProjectDuration();
   const name = useEditor((s) => s.history.present.project.name);
   const library = useEditor((s) => s.library);
+  const comp = useEditor((s) => s.composition);
   return (
     <header className="topbar">
-      <div className="brand">
-        <span className="brand-mark">
-          <Logo width={16} height={16} />
-        </span>
-        Klipp
-      </div>
-      {library.kind === 'share' ? (
+      {comp ? (
+        <a
+          className="btn ghost back-link"
+          href={`/p/${comp.token}`}
+          onClick={async (e) => {
+            e.preventDefault();
+            const href = e.currentTarget.href;
+            await composition.flush();
+            void composition.uploadThumbnail().finally(() => (location.href = href));
+          }}
+        >
+          ← Kompositioner
+        </a>
+      ) : (
+        <div className="brand">
+          <span className="brand-mark">
+            <Logo width={16} height={16} />
+          </span>
+          Klipp
+        </div>
+      )}
+      {library.kind === 'share' && (
         <span className="project-name" data-testid="customer-name">
           {library.name}
         </span>
-      ) : (
-        <span className="project-name">{name}</span>
       )}
+      {comp ? <CompositionName key={comp.id} name={comp.name} /> : library.kind !== 'share' && <span className="project-name">{name}</span>}
+      {comp && <SaveIndicator />}
       <div className="spacer" />
       <button className="btn ghost icon-btn" aria-label="Ångra" title={`Ångra ${history.present.label}`} disabled={!canUndo(history)} onClick={undo}>
         <Undo />
@@ -76,6 +117,77 @@ function TopBar() {
         <Download /> Exportera
       </button>
     </header>
+  );
+}
+
+function CompositionName({ name }: { name: string }) {
+  const [v, setV] = useState(name);
+  return (
+    <input
+      className="comp-name"
+      aria-label="Kompositionens namn"
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => (v.trim() ? void composition.rename(v.trim()) : setV(name))}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') {
+          setV(name);
+          e.currentTarget.blur();
+        }
+        e.stopPropagation();
+      }}
+    />
+  );
+}
+
+function SaveIndicator() {
+  const st = useEditor((s) => s.saveState);
+  const uploads = useEditor((s) => s.uploads.length);
+  let text: string;
+  switch (st.kind) {
+    case 'saved':
+      text = st.at ? `Sparat ${new Date(st.at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}` : 'Sparat';
+      break;
+    case 'dirty':
+      text = 'Ändrat…';
+      break;
+    case 'saving':
+      text = 'Sparar…';
+      break;
+    case 'error':
+      text = `Kunde inte spara – försöker igen`;
+      break;
+    case 'conflict':
+      text = 'Konflikt';
+      break;
+  }
+  return (
+    <span className={`save-state ${st.kind}`} data-testid="save-state" role="status" title={st.kind === 'error' ? st.message : undefined}>
+      {uploads > 0 ? `Laddar upp ${uploads} fil${uploads > 1 ? 'er' : ''}… · ` : ''}
+      {text}
+    </span>
+  );
+}
+
+function ConflictBanner() {
+  const st = useEditor((s) => s.saveState);
+  if (st.kind !== 'conflict') return null;
+  return (
+    <div className="modal-backdrop">
+      <div className="modal" role="alertdialog" aria-labelledby="conflict-h">
+        <h2 id="conflict-h">Kompositionen har ändrats i ett annat fönster</h2>
+        <p className="hint">Dina senaste ändringar här är inte sparade. Välj vilken version som ska gälla.</p>
+        <div className="modal-actions">
+          <button className="btn" onClick={() => void composition.resolveConflict('reload')}>
+            Ladda den andra versionen
+          </button>
+          <button className="btn primary" onClick={() => void composition.resolveConflict('overwrite')}>
+            Behåll min version
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

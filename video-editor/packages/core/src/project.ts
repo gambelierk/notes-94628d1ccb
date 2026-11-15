@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: ProjectSettings = {
   fps: { num: 30, den: 1 },
   sampleRate: 48_000,
   background: '#000000',
+  autoFormat: true,
 };
 
 export function createProject(name = 'Nytt projekt', settings: Partial<ProjectSettings> = {}): Project {

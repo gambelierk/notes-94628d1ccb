@@ -3,9 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { lazy, Suspense, useMemo } from 'react';
 import { App } from './App';
 import { currentRoute } from './routes';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
 import './styles.css';
 
 const AdminApp = lazy(() => import('./admin/AdminApp').then((m) => ({ default: m.AdminApp })));
+const ProjectManager = lazy(() => import('./pm/ProjectManager').then((m) => ({ default: m.ProjectManager })));
 
 function Root() {
   const route = useMemo(() => currentRoute(), []);
@@ -16,8 +19,17 @@ function Root() {
       </Suspense>
     );
   }
-  const source = route.kind === 'share' ? ({ kind: 'share', token: route.token } as const) : ({ kind: 'demo' } as const);
-  return <App source={source} />;
+  if (route.kind === 'projects') {
+    return (
+      <Suspense fallback={null}>
+        <ProjectManager token={route.token} />
+      </Suspense>
+    );
+  }
+  if (route.kind === 'composition') {
+    return <App source={{ kind: 'share', token: route.token }} compositionId={route.id} />;
+  }
+  return <App source={{ kind: 'demo' }} />;
 }
 
 function supported(): string | null {

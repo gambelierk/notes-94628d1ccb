@@ -4,6 +4,7 @@ import type { TemplateRenderer } from '@ve/rive';
 import { startLibraryDrag } from '../lib/drag';
 import { addTemplateToTimeline, addVideoToTimeline, importFiles } from '../state/actions';
 import { useEditor, useProject, type LibraryTemplate } from '../state/store';
+import { media } from '../services/media';
 import { templates as templateService } from '../services/templates';
 import { Plus, Upload } from './Icons';
 
@@ -67,6 +68,7 @@ function TemplateLibrary() {
       <div className="panel-head">
         <span className="panel-title">{library.kind === 'share' ? `Mallar · ${library.name}` : 'Rive-mallar'}</span>
         {library.kind !== 'share' && <FilePicker accept=".riv" label="Importera .riv" />}
+        {library.kind === 'share' && library.allowUploads && <FilePicker accept=".riv" label="Ladda upp .riv" />}
       </div>
       <div className="scroll" data-testid="template-library">
         {loading && items.length === 0 && (
@@ -174,56 +176,106 @@ function HoverPreview({ def }: { def: TemplateDefinition }) {
 
 /* ------------------------------------------------------------- media */
 
+interface BinItem {
+  id: string;
+  name: string;
+  asset: VideoAsset | null;
+  size: number | null;
+}
+
 function MediaBin() {
   const project = useProject();
   const thumbs = useEditor((s) => s.mediaThumbs);
-  const videos = project.assets.filter((a): a is VideoAsset => a.kind === 'video');
+  const serverMedia = useEditor((s) => s.serverMedia);
+  const uploads = useEditor((s) => s.uploads);
+  const saved = useEditor((s) => !!s.composition);
   const [over, setOver] = useState(false);
+
+  // In a saved composition the bin shows all videos in the customer project,
+  // so footage can be reused across compositions.
+  const items = useMemo<BinItem[]>(() => {
+    const out = new Map<string, BinItem>();
+    for (const a of project.assets) if (a.kind === 'video') out.set(a.id, { id: a.id, name: a.name, asset: a, size: a.size });
+    for (const m of serverMedia)
+      if (m.kind === 'video' && !out.has(m.id)) out.set(m.id, { id: m.id, name: m.name, asset: null, size: m.size });
+    return [...out.values()];
+  }, [project.assets, serverMedia]);
+
+  useEffect(() => {
+    for (const it of items) {
+      if (thumbs[it.id] || !media.has(it.id)) continue;
+      void media.thumbnail(it.id).then((u) => u && useEditor.getState().setMediaThumb(it.id, u));
+    }
+  }, [items, thumbs]);
+
   return (
     <>
       <div className="panel-head">
-        <span className="panel-title">Projektets media</span>
-        <FilePicker accept="video/mp4,.mp4,.m4v,.mov" label="Importera MP4" />
+        <span className="panel-title">{saved ? 'Projektets media' : 'Media'}</span>
+        <FilePicker accept="video/mp4,video/quicktime,.mp4,.m4v,.mov" label="Importera film" />
       </div>
-      <div className="scroll">
-        {videos.length === 0 && (
+      <div className="scroll" data-testid="media-bin">
+        {uploads.length > 0 && (
+          <div className="uploads">
+            {uploads.map((u) => (
+              <div key={u.id} className="upload-row">
+                <span className="mono ellipsis">{u.name}</span>
+                <span className="mono">{Math.round(u.progress * 100)} %</span>
+                <div className="progress">
+                  <div style={{ width: `${u.progress * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {items.length === 0 && uploads.length === 0 && (
           <div className="empty">
-            <strong>Inga klipp än</strong>
+            <strong>Inga filmer än</strong>
             <br />
             Importera en MP4 eller släpp filer var som helst i fönstret.
+            {saved && (
+              <>
+                <br />
+                Filerna sparas i projektet och kan användas i alla kompositioner.
+              </>
+            )}
           </div>
         )}
         <div className="lib-grid">
-          {videos.map((a) => (
+          {items.map((it) => (
             <div
-              key={a.id}
+              key={it.id}
               className="lib-item"
               role="button"
               tabIndex={0}
-              aria-label={`Video: ${a.name}`}
-              data-asset-id={a.id}
-              onPointerDown={(e) => startLibraryDrag(e, { type: 'media', id: a.id, label: a.name, thumbnail: thumbs[a.id] ?? null })}
+              aria-label={`Video: ${it.name}`}
+              data-asset-id={it.id}
+              onPointerDown={(e) => startLibraryDrag(e, { type: 'media', id: it.id, label: it.name, thumbnail: thumbs[it.id] ?? null })}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') addVideoToTimeline(a.id, null, null);
+                if (e.key === 'Enter') void addVideoToTimeline(it.id, null, null);
               }}
             >
               <div className="thumb video">
-                {thumbs[a.id] && <img src={thumbs[a.id]} alt="" draggable={false} />}
-                <span className="badge">{formatDuration(microsToSeconds(a.durationUs))}</span>
+                {thumbs[it.id] && <img src={thumbs[it.id]} alt="" draggable={false} />}
+                {it.asset && <span className="badge">{formatDuration(microsToSeconds(it.asset.durationUs))}</span>}
               </div>
               <button
                 className="lib-add"
-                aria-label={`Lägg ${a.name} sist på tidslinjen`}
+                aria-label={`Lägg ${it.name} sist på tidslinjen`}
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => addVideoToTimeline(a.id, null, null)}
+                onClick={() => void addVideoToTimeline(it.id, null, null)}
               >
                 <Plus width={14} height={14} />
               </button>
-              <span className="lib-name" title={a.name}>
-                {a.name}
+              <span className="lib-name" title={it.name}>
+                {it.name}
               </span>
               <span className="lib-meta">
-                {a.width}×{a.height} · {Math.round(a.fps)} fps{a.hasAudio ? '' : ' · utan ljud'}
+                {it.asset
+                  ? `${it.asset.width}×${it.asset.height} · ${Math.round(it.asset.fps)} fps${it.asset.hasAudio ? '' : ' · utan ljud'}`
+                  : it.size
+                    ? formatBytes(it.size)
+                    : ''}
               </span>
             </div>
           ))}
@@ -242,11 +294,18 @@ function MediaBin() {
             void importFiles([...e.dataTransfer.files]);
           }}
         >
-          Släpp MP4-filer här
+          Släpp filmer här
         </div>
       </div>
     </>
   );
+}
+
+export function formatBytes(n: number): string {
+  if (n <= 0) return '0 kB';
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} kB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 export function formatDuration(sec: number): string {

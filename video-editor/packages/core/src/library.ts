@@ -11,10 +11,18 @@ export interface WorkspaceDTO {
   name: string;
   shareToken: string;
   sharingEnabled: boolean;
+  /** May the customer upload their own .riv templates to this project? */
+  allowCustomerUploads: boolean;
   templateCount: number;
+  compositionCount: number;
+  mediaCount: number;
+  /** Bytes used by the customer's uploaded media. */
+  mediaBytes: number;
   createdAt: string;
   updatedAt: string;
 }
+
+export type UploadedBy = 'admin' | 'customer';
 
 /** Per-field override: a customer-friendly label, or hide the field entirely. */
 export interface FieldOverride {
@@ -36,6 +44,7 @@ export interface TemplateSettings {
 export interface TemplateDTO extends TemplateSettings {
   id: string;
   workspaceId: string;
+  uploadedBy: UploadedBy;
   fileName: string;
   size: number;
   sha256: string;
@@ -45,6 +54,7 @@ export interface TemplateDTO extends TemplateSettings {
 
 export interface SharedTemplateDTO {
   id: string;
+  uploadedBy: UploadedBy;
   /** URL of the .riv file, relative to the site root. */
   url: string;
   sha256: string;
@@ -52,8 +62,36 @@ export interface SharedTemplateDTO {
 }
 
 export interface SharedLibraryDTO {
-  workspace: { id: string; name: string };
+  workspace: { id: string; name: string; allowCustomerUploads: boolean };
   templates: SharedTemplateDTO[];
+}
+
+/** A saved edit ("composition"): one timeline with its own media and templates. */
+export interface CompositionSummaryDTO {
+  id: string;
+  name: string;
+  revision: number;
+  width: number;
+  height: number;
+  durationSeconds: number;
+  thumbnailUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompositionDTO extends CompositionSummaryDTO {
+  /** The serialised editor project (see `Project` in types.ts). */
+  project: unknown;
+}
+
+export interface MediaDTO {
+  id: string;
+  kind: 'video' | 'image';
+  name: string;
+  mime: string;
+  size: number;
+  url: string;
+  createdAt: string;
 }
 
 export function settingsToManifest(s: TemplateSettings, file: string, id: string): TemplateManifest {

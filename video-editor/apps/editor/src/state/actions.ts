@@ -22,7 +22,9 @@ import {
   type TrackKind,
   type VideoAsset,
 } from '@ve/core';
+import { createId, type ImageAsset, type MediaDTO } from '@ve/core';
 import { UnsupportedMediaError } from '@ve/media';
+import { customerApi } from '../services/api';
 import { media } from '../services/media';
 import { templates } from '../services/templates';
 import { committedProject, useEditor } from './store';
@@ -38,28 +40,48 @@ function ensureTrack(p: Project, kind: TrackKind, preferred: string | null): [Pr
   return [next, next.tracks[next.tracks.length - 1]!.id];
 }
 
+/**
+ * Upload a file to the customer project with progress shown in the media bin.
+ * The local file is kept, so playback does not have to fetch it back.
+ */
+async function uploadToProject(file: File): Promise<MediaDTO> {
+  const store = useEditor.getState();
+  const token = store.composition!.token;
+  const uploadId = createId('up');
+  store.setUpload({ id: uploadId, name: file.name, progress: 0 });
+  try {
+    const m = await customerApi.uploadMedia(token, file, (f) => useEditor.getState().setUpload({ id: uploadId, name: file.name, progress: f }));
+    media.registerRemote(m.id, m.url, m.name, m.size);
+    media.registerLocal(m.id, file);
+    useEditor.getState().setServerMedia([...useEditor.getState().serverMedia.filter((x) => x.id !== m.id), m]);
+    return m;
+  } finally {
+    useEditor.getState().endUpload(uploadId);
+  }
+}
+
 /** Import files picked or dropped by the user: MP4 video, images and .riv templates. */
 export async function importFiles(files: Iterable<File>): Promise<void> {
   const store = useEditor.getState();
+  const saved = !!store.composition; // customer composition: files go to the server
   for (const file of files) {
     const name = file.name.toLowerCase();
     try {
       if (name.endsWith('.riv')) {
-        if (store.library.kind === 'share') {
-          store.toast('Mallar läggs till av administratören för det här projektet', 'error');
-          continue;
-        }
-        const def = await templates.importFile(file);
-        store.toast(`Mallen "${def.name}" har lagts till`);
+        await importTemplateFile(file);
       } else if (file.type.startsWith('image/')) {
-        const asset = await media.importImage(file);
+        const id = saved ? (await uploadToProject(file)).id : createId('img');
+        const asset = await media.importImage(file, id);
         store.apply((p) => addAsset(p, asset), 'Importera bild');
       } else if (file.type.startsWith('video/') || /\.(mp4|m4v|mov)$/.test(name)) {
-        const { asset, thumbnail } = await media.importVideo(file);
+        // Probe locally first: fail fast on unsupported codecs before uploading.
+        await media.probeLocal(file);
+        const id = saved ? (await uploadToProject(file)).id : createId('vid');
+        const { asset, thumbnail } = await media.importVideo(file, id);
         if (thumbnail) store.setMediaThumb(asset.id, thumbnail);
         store.apply((p) => addAsset(p, asset), 'Importera video');
       } else {
-        store.toast(`${file.name}: filtypen stöds inte än (MP4, bilder och .riv)`, 'error');
+        store.toast(`${file.name}: filtypen stöds inte än (MP4, MOV, bilder och .riv)`, 'error');
       }
     } catch (e) {
       const msg = e instanceof UnsupportedMediaError || e instanceof Error ? e.message : String(e);
@@ -69,14 +91,49 @@ export async function importFiles(files: Iterable<File>): Promise<void> {
   }
 }
 
-/** First video in an empty sequence decides resolution and frame rate (like "new sequence from clip"). */
-function adoptSettings(p: Project, asset: VideoAsset): Project {
-  if (projectDuration(p) > 0) return p;
-  return updateSettings(p, { width: even(asset.width), height: even(asset.height), fps: normalizeFps(asset.fps) });
+/** A .riv file from the user: local in demo mode, uploaded to the project for customers (if allowed). */
+export async function importTemplateFile(file: File): Promise<void> {
+  const store = useEditor.getState();
+  const lib = store.library;
+  if (lib.kind === 'share') {
+    if (!lib.allowUploads) {
+      store.toast('Mallar läggs till av administratören för det här projektet', 'error');
+      return;
+    }
+    const uploadId = createId('up');
+    store.setUpload({ id: uploadId, name: file.name, progress: 0 });
+    try {
+      const t = await customerApi.uploadTemplate(lib.token, file, (f) => useEditor.getState().setUpload({ id: uploadId, name: file.name, progress: f }));
+      const def = await templates.addShared(t);
+      store.toast(`Mallen "${def.name}" har lagts till i projektet`);
+    } finally {
+      useEditor.getState().endUpload(uploadId);
+    }
+    return;
+  }
+  const def = await templates.importFile(file);
+  store.toast(`Mallen "${def.name}" har lagts till`);
 }
 
-export function addVideoToTimeline(assetId: string, trackId: string | null, frame: Frame | null) {
+/** First video in an empty sequence decides resolution and frame rate (like "new sequence from clip"). */
+function adoptSettings(p: Project, asset: VideoAsset): Project {
+  if (projectDuration(p) > 0 || p.settings.autoFormat === false) return p;
+  return updateSettings(p, { width: even(asset.width), height: even(asset.height), fps: normalizeFps(asset.fps), autoFormat: false });
+}
+
+export async function addVideoToTimeline(assetId: string, trackId: string | null, frame: Frame | null): Promise<void> {
   const store = useEditor.getState();
+  // Media from the project bin that this composition has not used yet.
+  if (!findAsset(committedProject(), assetId)) {
+    try {
+      const asset = await media.probeRemote(assetId);
+      store.apply((p) => addAsset(p, asset), 'Lägg till media');
+      void media.thumbnail(assetId).then((u) => u && useEditor.getState().setMediaThumb(assetId, u));
+    } catch (e) {
+      store.toast(`Filmen kunde inte öppnas: ${e instanceof Error ? e.message : e}`, 'error');
+      return;
+    }
+  }
   let newClipId: string | null = null;
   store.apply((p0) => {
     const asset = findAsset(p0, assetId);
@@ -136,7 +193,8 @@ export function setTemplateField(clipId: string, key: string, value: PropValue) 
 export async function setTemplateImage(clipId: string, key: string, file: File) {
   const store = useEditor.getState();
   try {
-    const asset = await media.importImage(file);
+    const id = store.composition ? (await uploadToProject(file)).id : createId('img');
+    const asset: ImageAsset = await media.importImage(file, id);
     store.apply(
       (p) => setTemplateProp(addAsset(p, asset), clipId, key, { type: 'image', assetId: asset.id }),
       'Byt bild',

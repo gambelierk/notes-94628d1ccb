@@ -9,6 +9,10 @@ export interface Config {
   cookieSecure: boolean;
   trustProxy: boolean;
   maxUploadBytes: number;
+  /** Largest single video/image a customer may upload. */
+  maxMediaBytes: number;
+  /** Total media storage per customer project. */
+  workspaceQuotaBytes: number;
   sessionDays: number;
 }
 
@@ -30,6 +34,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === 'true' : production,
     trustProxy: env.TRUST_PROXY === 'true',
     maxUploadBytes: Number(env.MAX_UPLOAD_MB ?? 25) * 1024 * 1024,
+    maxMediaBytes: Number(env.MAX_MEDIA_MB ?? 2048) * 1024 * 1024,
+    workspaceQuotaBytes: Number(env.WORKSPACE_QUOTA_MB ?? 20480) * 1024 * 1024,
     sessionDays: Number(env.SESSION_DAYS ?? 7),
   };
 }

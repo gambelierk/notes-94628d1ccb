@@ -31,7 +31,7 @@ export function startLibraryDrag(e: ReactPointerEvent, payload: DragPayload) {
     store.setDropTarget(null);
     if (!active || !dropTarget) return;
     if (payload.type === 'template') addTemplateToTimeline(payload.id, dropTarget.trackId, dropTarget.frame);
-    else addVideoToTimeline(payload.id, dropTarget.trackId, dropTarget.frame);
+    else void addVideoToTimeline(payload.id, dropTarget.trackId, dropTarget.frame);
   };
   const cancel = () => {
     window.removeEventListener('pointermove', move);

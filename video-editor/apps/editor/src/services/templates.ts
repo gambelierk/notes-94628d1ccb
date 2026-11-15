@@ -1,5 +1,5 @@
 import riveWasmUrl from '@rive-app/canvas-advanced/rive.wasm?url';
-import type { SharedLibraryDTO, TemplateDefinition, TemplateManifest } from '@ve/core';
+import type { SharedLibraryDTO, SharedTemplateDTO, TemplateDefinition, TemplateManifest, UploadedBy } from '@ve/core';
 import { loadRiveRuntime, renderTemplateThumbnail, TemplateRegistry, type RiveCanvas } from '@ve/rive';
 import { ApiError, api } from './api';
 import { useEditor, type LibraryTemplate } from '../state/store';
@@ -53,12 +53,12 @@ class TemplateService {
         store.setLibrary({ kind: 'error', message: msg });
         return;
       }
-      store.setLibrary({ kind: 'share', name: lib.workspace.name, token });
+      store.setLibrary({ kind: 'share', name: lib.workspace.name, token, allowUploads: lib.workspace.allowCustomerUploads });
       const results = await Promise.allSettled(
         lib.templates.map(async (t, i) => {
           const r = await fetch(t.url);
           if (!r.ok) throw new Error(`${t.manifest.name}: ${r.status}`);
-          return this.add(new Uint8Array(await r.arrayBuffer()), t.manifest, t.id, true, i);
+          return this.add(new Uint8Array(await r.arrayBuffer()), t.manifest, t.id, true, i, t.uploadedBy);
         }),
       );
       const failed = results.filter((r) => r.status === 'rejected');
@@ -112,7 +112,21 @@ class TemplateService {
     return this.add(bytes, { file: file.name, name, category: 'Mina mallar' }, id, false, 1000 + this.imported++);
   }
 
-  private async add(bytes: Uint8Array, manifest: TemplateManifest, id: string, builtIn: boolean, order: number): Promise<TemplateDefinition> {
+  /** Add a template the customer just uploaded to the project. */
+  async addShared(t: SharedTemplateDTO): Promise<TemplateDefinition> {
+    const r = await fetch(t.url);
+    if (!r.ok) throw new Error(`Mallen kunde inte hämtas (${r.status})`);
+    return this.add(new Uint8Array(await r.arrayBuffer()), t.manifest, t.id, true, 500 + this.imported++, t.uploadedBy);
+  }
+
+  private async add(
+    bytes: Uint8Array,
+    manifest: TemplateManifest,
+    id: string,
+    builtIn: boolean,
+    order: number,
+    uploadedBy?: UploadedBy,
+  ): Promise<TemplateDefinition> {
     const { rive, registry } = await this.init();
     const def = await registry.add({ id, bytes, manifest });
     let thumbnail: string | null = null;
@@ -123,7 +137,7 @@ class TemplateService {
     } catch (e) {
       console.warn('Miniatyr misslyckades', def.id, e);
     }
-    const item: LibraryTemplate = { def, thumbnail, builtIn, order };
+    const item: LibraryTemplate = { def, thumbnail, builtIn, order, ...(uploadedBy ? { uploadedBy } : {}) };
     useEditor.getState().addTemplate(item);
     return def;
   }

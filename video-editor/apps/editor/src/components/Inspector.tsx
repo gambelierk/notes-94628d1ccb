@@ -209,7 +209,8 @@ function ColorField({
 
 function ImageField({ clip, field, assetId }: { clip: TemplateClip; field: TemplateField; assetId: string | null }) {
   const ref = useRef<HTMLInputElement>(null);
-  const url = useObjectUrl(assetId ? media.blob(assetId) : undefined);
+  const localUrl = useObjectUrl(assetId ? media.blob(assetId) : undefined);
+  const url = localUrl ?? (assetId ? media.displayUrl(assetId) : null);
   return (
     <div className="field">
       <span className="field-label">{field.label}</span>

@@ -1,96 +1,22 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
-import type { FieldOverride, SharedLibraryDTO, TemplateLayout, TemplateSettings } from '@ve/core';
 import { hashToken, LoginLimiter, newSessionToken, PasswordCheck } from './auth.ts';
 import type { BlobStore } from './blobs.ts';
 import type { Config } from './config.ts';
+import { cleanText, HttpError, isRiv, parseTemplatePatch, readJson, sendBlob, uploadFileName } from './http.ts';
 import type { Repo } from './repo.ts';
+import { shareRoutes } from './share.ts';
 
 const COOKIE = 've_admin';
-const RIV_MAGIC = [0x52, 0x49, 0x56, 0x45]; // "RIVE"
-const ANCHORS = ['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right'];
 
 export interface AppDeps {
   repo: Repo;
   blobs: BlobStore;
-  config: Pick<Config, 'adminPassword' | 'cookieSecure' | 'trustProxy' | 'maxUploadBytes' | 'sessionDays'>;
-}
-
-class HttpError extends Error {
-  readonly status: 400 | 401 | 403 | 404 | 409 | 413 | 429;
-  constructor(status: HttpError['status'], message: string) {
-    super(message);
-    this.status = status;
-  }
-}
-
-/* ------------------------------------------------------------- validation */
-
-function cleanText(v: unknown, field: string, max = 120): string {
-  if (typeof v !== 'string') throw new HttpError(400, `${field} måste vara text`);
-  const s = v.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-  if (!s) throw new HttpError(400, `${field} får inte vara tomt`);
-  if (s.length > max) throw new HttpError(400, `${field} får vara högst ${max} tecken`);
-  return s;
-}
-
-function parseLayout(v: unknown): TemplateLayout | null {
-  if (v === null) return null;
-  const l = v as Record<string, unknown>;
-  if (
-    !l ||
-    typeof l !== 'object' ||
-    !ANCHORS.includes(l.anchor as string) ||
-    typeof l.widthPercent !== 'number' ||
-    !(l.widthPercent > 0 && l.widthPercent <= 100) ||
-    typeof l.marginPercent !== 'number' ||
-    !(l.marginPercent >= 0 && l.marginPercent <= 50)
-  ) {
-    throw new HttpError(400, 'Ogiltig placering');
-  }
-  return { anchor: l.anchor as TemplateLayout['anchor'], widthPercent: l.widthPercent, marginPercent: l.marginPercent };
-}
-
-function parseFields(v: unknown): FieldOverride[] | null {
-  if (v === null) return null;
-  if (!Array.isArray(v) || v.length > 200) throw new HttpError(400, 'Ogiltiga fältinställningar');
-  return v.map((f) => {
-    const o = f as Record<string, unknown>;
-    if (!o || typeof o !== 'object') throw new HttpError(400, 'Ogiltiga fältinställningar');
-    const out: FieldOverride = { key: cleanText(o.key, 'Fältnyckel', 200) };
-    if (o.label !== undefined && o.label !== '') out.label = cleanText(o.label, 'Fältnamn', 60);
-    if (o.hidden !== undefined) {
-      if (typeof o.hidden !== 'boolean') throw new HttpError(400, 'hidden måste vara true/false');
-      if (o.hidden) out.hidden = true;
-    }
-    return out;
-  });
-}
-
-function parseTemplatePatch(body: unknown): Partial<TemplateSettings> {
-  if (!body || typeof body !== 'object') throw new HttpError(400, 'Ogiltig data');
-  const b = body as Record<string, unknown>;
-  const out: Partial<TemplateSettings> = {};
-  if ('name' in b) out.name = cleanText(b.name, 'Namn');
-  if ('category' in b) out.category = cleanText(b.category, 'Kategori', 60);
-  if ('artboard' in b) out.artboard = b.artboard === null ? null : cleanText(b.artboard, 'Artboard', 200);
-  if ('defaultDuration' in b) {
-    const d = b.defaultDuration;
-    if (d !== null && (typeof d !== 'number' || !(d >= 0.1 && d <= 600))) throw new HttpError(400, 'Längden måste vara 0,1–600 sekunder');
-    out.defaultDuration = d as number | null;
-  }
-  if ('layout' in b) out.layout = parseLayout(b.layout);
-  if ('fields' in b) out.fields = parseFields(b.fields);
-  return out;
-}
-
-async function readJson(c: Context): Promise<unknown> {
-  try {
-    return await c.req.json();
-  } catch {
-    throw new HttpError(400, 'Ogiltig JSON');
-  }
+  config: Pick<
+    Config,
+    'adminPassword' | 'cookieSecure' | 'trustProxy' | 'maxUploadBytes' | 'maxMediaBytes' | 'workspaceQuotaBytes' | 'sessionDays'
+  >;
 }
 
 /* ------------------------------------------------------------- app */
@@ -136,7 +62,7 @@ export function createApp({ repo, blobs, config }: AppDeps) {
   app.post('/api/admin/login', async (c) => {
     const key = clientKey(c);
     if (limiter.blocked(key)) throw new HttpError(429, 'För många försök. Vänta en stund.');
-    const body = (await readJson(c)) as { password?: unknown };
+    const body = await readJson(c);
     if (!password.verify(String(body?.password ?? ''))) {
       limiter.fail(key);
       throw new HttpError(401, 'Fel lösenord');
@@ -175,23 +101,28 @@ export function createApp({ repo, blobs, config }: AppDeps) {
   admin.get('/workspaces', (c) => c.json(repo.listWorkspaces()));
 
   admin.post('/workspaces', async (c) => {
-    const body = (await readJson(c)) as { name?: unknown };
-    return c.json(repo.createWorkspace(cleanText(body?.name, 'Namn')), 201);
+    const body = await readJson(c);
+    return c.json(repo.createWorkspace(cleanText(body.name, 'Namn')), 201);
   });
 
   admin.get('/workspaces/:id', (c) => {
     const w = repo.getWorkspace(c.req.param('id'));
     if (!w) throw new HttpError(404, 'Kundprojektet finns inte');
-    return c.json({ workspace: w, templates: repo.listTemplates(w.id) });
+    const compositions = repo.listCompositions(w.id).map(({ project: _p, thumbKey: _t, workspaceId: _w, ...rest }) => ({
+      ...rest,
+      thumbnailUrl: null,
+    }));
+    return c.json({ workspace: w, templates: repo.listTemplates(w.id), compositions });
   });
 
   admin.patch('/workspaces/:id', async (c) => {
-    const body = (await readJson(c)) as { name?: unknown; sharingEnabled?: unknown };
-    const patch: { name?: string; sharingEnabled?: boolean } = {};
-    if (body && 'name' in body) patch.name = cleanText(body.name, 'Namn');
-    if (body && 'sharingEnabled' in body) {
-      if (typeof body.sharingEnabled !== 'boolean') throw new HttpError(400, 'sharingEnabled måste vara true/false');
-      patch.sharingEnabled = body.sharingEnabled;
+    const body = await readJson(c);
+    const patch: { name?: string; sharingEnabled?: boolean; allowCustomerUploads?: boolean } = {};
+    if ('name' in body) patch.name = cleanText(body.name, 'Namn');
+    for (const k of ['sharingEnabled', 'allowCustomerUploads'] as const) {
+      if (!(k in body)) continue;
+      if (typeof body[k] !== 'boolean') throw new HttpError(400, `${k} måste vara true/false`);
+      patch[k] = body[k] as boolean;
     }
     const w = repo.updateWorkspace(c.req.param('id'), patch);
     if (!w) throw new HttpError(404, 'Kundprojektet finns inte');
@@ -224,11 +155,10 @@ export function createApp({ repo, blobs, config }: AppDeps) {
     async (c) => {
       const w = repo.getWorkspace(c.req.param('id'));
       if (!w) throw new HttpError(404, 'Kundprojektet finns inte');
-      const rawName = decodeURIComponent(c.req.header('x-file-name') ?? 'mall.riv');
-      const fileName = cleanText(rawName.split(/[\\/]/).pop() ?? 'mall.riv', 'Filnamn', 200);
+      const fileName = uploadFileName(c, 'mall.riv');
       if (!/\.riv$/i.test(fileName)) throw new HttpError(400, 'Endast .riv-filer kan laddas upp');
       const bytes = new Uint8Array(await c.req.arrayBuffer());
-      if (bytes.byteLength < 8 || RIV_MAGIC.some((b, i) => bytes[i] !== b)) throw new HttpError(400, `${fileName} är inte en giltig Rive-fil`);
+      if (!isRiv(bytes)) throw new HttpError(400, `${fileName} är inte en giltig Rive-fil`);
       const stored = await blobs.put(bytes);
       const t = repo.createTemplate({
         workspaceId: w.id,
@@ -238,6 +168,7 @@ export function createApp({ repo, blobs, config }: AppDeps) {
         blobKey: stored.key,
         sha256: stored.sha256,
         size: stored.size,
+        uploadedBy: 'admin',
       });
       return c.json(t, 201);
     },
@@ -259,57 +190,14 @@ export function createApp({ repo, blobs, config }: AppDeps) {
   admin.get('/templates/:id/file', async (c) => {
     const t = repo.getTemplate(c.req.param('id'));
     if (!t) throw new HttpError(404, 'Mallen finns inte');
-    return sendRiv(c, t.blobKey, t.sha256, 'private, no-cache');
+    return sendBlob(c, blobs, t.blobKey, 'application/octet-stream', 'private, no-cache');
   });
 
   app.route('/api/admin', admin);
 
-  /* ------------------------------------------------------------ public share */
+  /* ------------------------------------------------------------ customer (share link) */
 
-  app.get('/api/share/:token', (c) => {
-    const w = repo.getSharedWorkspace(c.req.param('token'));
-    if (!w) throw new HttpError(404, 'Länken är ogiltig eller har stängts av');
-    const token = encodeURIComponent(c.req.param('token'));
-    const body: SharedLibraryDTO = {
-      workspace: { id: w.id, name: w.name },
-      templates: repo.listTemplates(w.id).map((t) => ({
-        id: t.id,
-        url: `/api/share/${token}/templates/${t.id}/file?v=${t.sha256.slice(0, 12)}`,
-        sha256: t.sha256,
-        manifest: {
-          id: t.id,
-          file: t.fileName,
-          name: t.name,
-          category: t.category,
-          ...(t.artboard ? { artboard: t.artboard } : {}),
-          ...(t.defaultDuration ? { defaultDuration: t.defaultDuration } : {}),
-          ...(t.layout ? { layout: t.layout } : {}),
-          ...(t.fields?.length ? { fields: t.fields } : {}),
-        },
-      })),
-    };
-    c.header('Cache-Control', 'no-store');
-    return c.json(body);
-  });
-
-  app.get('/api/share/:token/templates/:id/file', async (c) => {
-    const w = repo.getSharedWorkspace(c.req.param('token'));
-    const t = repo.getTemplate(c.req.param('id'));
-    if (!w || !t || t.workspaceId !== w.id) throw new HttpError(404, 'Filen finns inte');
-    return sendRiv(c, t.blobKey, t.sha256, 'private, max-age=3600');
-  });
-
-  async function sendRiv(c: Context, key: string, sha: string, cache: string) {
-    const etag = `"${sha}"`;
-    if (c.req.header('if-none-match') === etag) return c.body(null, 304, { ETag: etag, 'Cache-Control': cache });
-    const bytes = await blobs.get(key);
-    if (!bytes) throw new HttpError(404, 'Filen saknas');
-    return c.body(bytes as Uint8Array<ArrayBuffer>, 200, {
-      'Content-Type': 'application/octet-stream',
-      ETag: etag,
-      'Cache-Control': cache,
-    });
-  }
+  app.route('/api/share', shareRoutes(repo, blobs, config));
 
   app.all('/api/*', () => {
     throw new HttpError(404, 'Okänd adress');

@@ -36,6 +36,35 @@ const MIGRATIONS: string[] = [
   );
   `,
   `ALTER TABLE templates ADD COLUMN fields_json TEXT;`,
+  `
+  ALTER TABLE workspaces ADD COLUMN allow_customer_uploads INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE templates ADD COLUMN uploaded_by TEXT NOT NULL DEFAULT 'admin';
+  CREATE TABLE media (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    blob_key TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX media_workspace ON media(workspace_id, created_at);
+  CREATE TABLE compositions (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    project_json TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    duration_seconds REAL NOT NULL,
+    thumb_key TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX compositions_workspace ON compositions(workspace_id, updated_at);
+  `,
 ];
 
 export type DB = DatabaseSync;

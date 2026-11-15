@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import type { FieldOverride, TemplateDTO, TemplateField, TemplateLayout, TemplateSettings, WorkspaceDTO } from '@ve/core';
+import type { CompositionSummaryDTO, FieldOverride, TemplateDTO, TemplateField, TemplateLayout, TemplateSettings, WorkspaceDTO } from '@ve/core';
+import { formatBytes } from '../components/LeftPanel';
 import { ApiError, api, shareUrl } from '../services/api';
 import { Logo, Plus, Trash, Upload } from '../components/Icons';
 import { inspectForAdmin, type AdminInspection } from './rive-inspect';
@@ -155,8 +156,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           {workspaces?.map((w) => (
             <button key={w.id} className="ws-item" aria-current={w.id === selected} onClick={() => setSelected(w.id)}>
               <span className="ws-name">{w.name}</span>
-              <span className="ws-meta">
-                {w.templateCount} {w.templateCount === 1 ? 'mall' : 'mallar'}
+              <span className="ws-meta mono">
+                {w.templateCount} {w.templateCount === 1 ? 'mall' : 'mallar'} · {w.compositionCount} komp.
                 {!w.sharingEnabled && ' · delning av'}
               </span>
             </button>
@@ -200,6 +201,7 @@ function WorkspaceView(props: { id: string; toast: (t: string, k?: 'info' | 'err
   const { id, toast, onChanged, onDeleted } = props;
   const [ws, setWs] = useState<WorkspaceDTO | null>(null);
   const [items, setItems] = useState<TemplateDTO[]>([]);
+  const [comps, setComps] = useState<CompositionSummaryDTO[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [uploading, setUploading] = useState<string[]>([]);
   const [over, setOver] = useState(false);
@@ -210,6 +212,7 @@ function WorkspaceView(props: { id: string; toast: (t: string, k?: 'info' | 'err
       const r = await api.workspace(id);
       setWs(r.workspace);
       setItems(r.templates);
+      setComps(r.compositions);
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) setNotFound(true);
       else toast(errText(e), 'error');
@@ -220,7 +223,7 @@ function WorkspaceView(props: { id: string; toast: (t: string, k?: 'info' | 'err
     void load();
   }, [load]);
 
-  const patchWs = async (patch: { name?: string; sharingEnabled?: boolean }) => {
+  const patchWs = async (patch: { name?: string; sharingEnabled?: boolean; allowCustomerUploads?: boolean }) => {
     const before = ws;
     if (before) setWs({ ...before, ...patch }); // optimistic
     try {
@@ -261,6 +264,10 @@ function WorkspaceView(props: { id: string; toast: (t: string, k?: 'info' | 'err
     <div className="ws-view" data-testid="workspace-view">
       <div className="ws-title-row">
         <EditableTitle value={ws.name} onSave={(name) => patchWs({ name })} />
+        <span className="mono dim ws-stats" data-testid="ws-stats">
+          {ws.compositionCount} {ws.compositionCount === 1 ? 'komposition' : 'kompositioner'} · {ws.mediaCount} mediefiler ·{' '}
+          {formatBytes(ws.mediaBytes)}
+        </span>
       </div>
 
       <section className="card share-card" aria-labelledby="share-h">
@@ -307,6 +314,25 @@ function WorkspaceView(props: { id: string; toast: (t: string, k?: 'info' | 'err
           >
             Skapa ny länk
           </button>
+        </p>
+      </section>
+
+      <section className="card" aria-labelledby="perm-h">
+        <div className="card-head">
+          <h2 id="perm-h">Kundens behörigheter</h2>
+        </div>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={ws.allowCustomerUploads}
+            onChange={(e) => patchWs({ allowCustomerUploads: e.target.checked })}
+            aria-describedby="perm-hint"
+          />
+          <span>Kunden får ladda upp egna Rive-mallar</span>
+        </label>
+        <p className="hint" id="perm-hint">
+          Egna mallar sparas i projektet och syns under ”Egna mallar” hos kunden. De visas också nedan, markerade som kunduppladdade.
+          Kunden kan alltid skapa kompositioner och ladda upp egna filmer.
         </p>
       </section>
 
@@ -367,6 +393,30 @@ function WorkspaceView(props: { id: string; toast: (t: string, k?: 'info' | 'err
           ))}
         </div>
         {items.length === 0 && !uploading.length && <p className="hint">Inga mallar än. Ladda upp kundens .riv-filer ovan.</p>}
+      </section>
+
+      <section className="card" aria-labelledby="comp-h">
+        <div className="card-head">
+          <h2 id="comp-h">
+            Kundens kompositioner <span className="count">{comps.length}</span>
+          </h2>
+        </div>
+        {comps.length === 0 ? (
+          <p className="hint">Kunden har inte skapat några kompositioner än.</p>
+        ) : (
+          <ul className="media-list">
+            {comps.map((c) => (
+              <li key={c.id} className="comp-row">
+                <span className="ellipsis">{c.name}</span>
+                <span className="mono dim">
+                  {c.width}×{c.height}
+                </span>
+                <span className="mono dim">{Math.round(c.durationSeconds)} s</span>
+                <span className="mono dim">{new Date(c.updatedAt).toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' })}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="card danger">
@@ -562,11 +612,14 @@ function TemplateCard(props: { t: TemplateDTO; toast: (t: string, k?: 'info' | '
             />
           </div>
         </div>
-        {def && (
+        {(def || t.uploadedBy === 'customer') && (
           <div className="tpl-meta">
-            <span className={`pill ${def.timing.kind === 'segments' ? 'ok' : 'warn'}`} title={timingHelp(def.timing.kind)}>
-              {def.timing.kind === 'segments' ? 'in / hold / out' : def.timing.kind === 'stateMachine' ? 'state machine' : def.timing.kind === 'animation' ? 'animation' : 'stillbild'}
-            </span>
+            {t.uploadedBy === 'customer' && <span className="pill strong">Kunduppladdad</span>}
+            {def && (
+              <span className={`pill ${def.timing.kind === 'segments' ? 'ok' : 'warn'}`} title={timingHelp(def.timing.kind)}>
+                {def.timing.kind === 'segments' ? 'in / hold / out' : def.timing.kind === 'stateMachine' ? 'state machine' : def.timing.kind === 'animation' ? 'animation' : 'stillbild'}
+              </span>
+            )}
           </div>
         )}
         {def && def.fields.length > 0 && <FieldEditor key={t.artboard ?? ""} fields={def.fields} overrides={t.fields ?? []} onSave={(fields) => save({ fields })} />}

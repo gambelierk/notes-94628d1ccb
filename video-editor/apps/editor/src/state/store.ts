@@ -11,13 +11,17 @@ import {
   type Frame,
   type History,
   type Project,
+  type MediaDTO,
   type TemplateDefinition,
+  type UploadedBy,
 } from '@ve/core';
 
 export interface LibraryTemplate {
   def: TemplateDefinition;
   thumbnail: string | null;
   builtIn: boolean;
+  /** For shared libraries: who added the template. */
+  uploadedBy?: UploadedBy;
   /** Display order (manifest order for built-ins, import order for user files). */
   order: number;
 }
@@ -42,13 +46,34 @@ export interface DropTarget {
 export type LibraryInfo =
   | { kind: 'loading' }
   | { kind: 'demo' }
-  | { kind: 'share'; name: string; token: string }
+  | { kind: 'share'; name: string; token: string; allowUploads: boolean }
   | { kind: 'error'; message: string };
 
 export interface Toast {
   id: number;
   kind: 'info' | 'error';
   text: string;
+}
+
+/** The saved composition being edited (customer mode). */
+export interface OpenComposition {
+  token: string;
+  id: string;
+  name: string;
+  revision: number;
+}
+
+export type SaveState =
+  | { kind: 'saved'; at: number }
+  | { kind: 'dirty' }
+  | { kind: 'saving' }
+  | { kind: 'error'; message: string }
+  | { kind: 'conflict' };
+
+export interface Upload {
+  id: string;
+  name: string;
+  progress: number;
 }
 
 interface EditorState {
@@ -68,6 +93,11 @@ interface EditorState {
   dropTarget: DropTarget | null;
   exportOpen: boolean;
   toasts: Toast[];
+  composition: OpenComposition | null;
+  saveState: SaveState;
+  /** Media stored in the customer project (shared by all its compositions). */
+  serverMedia: MediaDTO[];
+  uploads: Upload[];
 
   apply: (fn: (p: Project) => Project, label: string, mergeKey?: string) => void;
   setDraft: (p: Project | null) => void;
@@ -86,6 +116,13 @@ interface EditorState {
   setDrag: (d: DragState | null) => void;
   setDropTarget: (t: DropTarget | null) => void;
   setExportOpen: (v: boolean) => void;
+  /** Replace the whole document (opening a composition); clears undo history. */
+  loadProject: (p: Project) => void;
+  setComposition: (c: OpenComposition | null) => void;
+  setSaveState: (s: SaveState) => void;
+  setServerMedia: (m: MediaDTO[]) => void;
+  setUpload: (u: Upload) => void;
+  endUpload: (id: string) => void;
   toast: (text: string, kind?: Toast['kind']) => void;
   dismissToast: (id: number) => void;
 }
@@ -109,6 +146,10 @@ export const useEditor = create<EditorState>()((set, get) => ({
   dropTarget: null,
   exportOpen: false,
   toasts: [],
+  composition: null,
+  saveState: { kind: 'saved', at: 0 },
+  serverMedia: [],
+  uploads: [],
 
   apply: (fn, label, mergeKey) => {
     const { history } = get();
@@ -148,6 +189,12 @@ export const useEditor = create<EditorState>()((set, get) => ({
   setDrag: (d) => set({ drag: d }),
   setDropTarget: (t) => set({ dropTarget: t }),
   setExportOpen: (v) => set({ exportOpen: v }),
+  loadProject: (p) => set({ history: createHistory(p), draft: null, selection: null, playhead: 0 }),
+  setComposition: (c) => set({ composition: c }),
+  setSaveState: (s) => set({ saveState: s }),
+  setServerMedia: (m) => set({ serverMedia: m }),
+  setUpload: (u) => set({ uploads: [...get().uploads.filter((x) => x.id !== u.id), u] }),
+  endUpload: (id) => set({ uploads: get().uploads.filter((x) => x.id !== id) }),
   toast: (text, kind = 'info') => {
     const id = ++toastId;
     set({ toasts: [...get().toasts, { id, kind, text }] });

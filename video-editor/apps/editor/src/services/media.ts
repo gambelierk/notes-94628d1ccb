@@ -2,33 +2,68 @@ import { CanvasSink } from 'mediabunny';
 import { createId, type ImageAsset, type VideoAsset } from '@ve/core';
 import { MediaSource, probeVideo } from '@ve/media';
 
+interface Entry {
+  /** Local file, when this browser has it (just imported or uploaded). */
+  blob?: Blob;
+  /** Absolute URL on the server, when the file is stored there. */
+  url?: string;
+  name?: string;
+  size?: number;
+}
+
 /**
- * Bytes and decoders for imported media. The project only stores metadata
- * and ids; the files live here (later: OPFS for persistence across reloads).
+ * Bytes and decoders for media. The project only stores metadata and ids.
+ * A file can be local (demo mode / just imported), remote (saved in a
+ * customer project) or both; local is preferred because it avoids the network.
  */
 class MediaLibrary {
-  private blobs = new Map<string, Blob>();
+  private entries = new Map<string, Entry>();
   private sources = new Map<string, Promise<MediaSource | null>>();
+  private thumbs = new Map<string, Promise<string | null>>();
 
-  async importVideo(file: File): Promise<{ asset: VideoAsset; thumbnail: string | null }> {
-    const id = createId('vid');
-    const { asset, source } = await probeVideo(file, id, file.name);
-    this.blobs.set(id, file);
-    this.sources.set(id, Promise.resolve(source));
-    let thumbnail: string | null = null;
-    try {
-      thumbnail = await this.posterFrame(source, asset);
-    } catch (e) {
-      console.warn('Kunde inte skapa miniatyr', e);
-    }
-    return { asset, thumbnail };
+  /** Make a server-stored file available under `id`. */
+  registerRemote(id: string, url: string, name?: string, size?: number) {
+    const e = this.entries.get(id) ?? {};
+    this.entries.set(id, { ...e, url: new URL(url, location.href).href, name: name ?? e.name, size: size ?? e.size });
   }
 
-  async importImage(file: File): Promise<ImageAsset> {
+  registerLocal(id: string, blob: Blob) {
+    const e = this.entries.get(id) ?? {};
+    this.entries.set(id, { ...e, blob, size: blob.size });
+  }
+
+  has(id: string): boolean {
+    return this.entries.has(id);
+  }
+
+  /** Probe a local file without registering it (used before uploading). */
+  async probeLocal(file: File, id: string = createId('vid')): Promise<VideoAsset> {
+    const { asset, source } = await probeVideo(file, id, file.name, file.size);
+    source.dispose();
+    return asset;
+  }
+
+  async importVideo(file: File, id: string = createId('vid')): Promise<{ asset: VideoAsset; thumbnail: string | null }> {
+    const { asset, source } = await probeVideo(file, id, file.name, file.size);
+    this.registerLocal(id, file);
+    this.sources.set(id, Promise.resolve(source));
+    return { asset, thumbnail: await this.thumbnail(id) };
+  }
+
+  /** Metadata for a remote video so it can be placed on a timeline. */
+  async probeRemote(id: string): Promise<VideoAsset> {
+    const e = this.entries.get(id);
+    if (!e?.url && !e?.blob) throw new Error('Filen finns inte');
+    const { asset, source } = await probeVideo(e.blob ?? e.url!, id, e.name ?? 'video', e.size);
+    this.sources.set(id, Promise.resolve(source));
+    return asset;
+  }
+
+  async importImage(file: File, id: string = createId('img')): Promise<ImageAsset> {
     const bmp = await createImageBitmap(file);
     const asset: ImageAsset = {
       kind: 'image',
-      id: createId('img'),
+      id,
       name: file.name,
       width: bmp.width,
       height: bmp.height,
@@ -36,17 +71,31 @@ class MediaLibrary {
       mime: file.type || 'image/png',
     };
     bmp.close();
-    this.blobs.set(asset.id, file);
+    this.registerLocal(id, file);
     return asset;
   }
 
-  private async posterFrame(source: MediaSource, asset: VideoAsset): Promise<string | null> {
-    if (!source.video) return null;
+  /** A small poster frame (object URL) for bins and clips; cached. */
+  thumbnail(id: string): Promise<string | null> {
+    let p = this.thumbs.get(id);
+    if (!p) {
+      p = this.posterFrame(id).catch((e) => {
+        console.warn('Kunde inte skapa miniatyr', e);
+        return null;
+      });
+      this.thumbs.set(id, p);
+    }
+    return p;
+  }
+
+  private async posterFrame(id: string): Promise<string | null> {
+    const source = await this.openSource(id);
+    if (!source?.video) return null;
     const h = 72;
-    const w = Math.max(1, Math.round((h * asset.width) / Math.max(1, asset.height)));
-    const sink = new CanvasSink(source.video, { width: w * 2, height: h * 2, fit: 'cover' });
-    const at = Math.min(1, source.durationSec / 3);
-    const wrapped = await sink.getCanvas(at);
+    const v = source.video;
+    const w = Math.max(1, Math.round((h * v.displayWidth) / Math.max(1, v.displayHeight)));
+    const sink = new CanvasSink(v, { width: w * 2, height: h * 2, fit: 'cover' });
+    const wrapped = await sink.getCanvas(Math.min(1, source.durationSec / 3));
     if (!wrapped) return null;
     const c = wrapped.canvas;
     const blob =
@@ -56,24 +105,43 @@ class MediaLibrary {
     return blob ? URL.createObjectURL(blob) : null;
   }
 
-  blob(assetId: string): Blob | undefined {
-    return this.blobs.get(assetId);
+  /** Local file if present. */
+  blob(id: string): Blob | undefined {
+    return this.entries.get(id)?.blob;
   }
 
-  openSource = (assetId: string): Promise<MediaSource | null> => {
-    let p = this.sources.get(assetId);
+  /** What the exporter should read: the local file, else the server URL. */
+  exportSource(id: string): Blob | string | undefined {
+    const e = this.entries.get(id);
+    return e?.blob ?? e?.url;
+  }
+
+  openSource = (id: string): Promise<MediaSource | null> => {
+    let p = this.sources.get(id);
     if (!p) {
-      const b = this.blobs.get(assetId);
-      p = b ? MediaSource.open(b).catch(() => null) : Promise.resolve(null);
-      this.sources.set(assetId, p);
+      const e = this.entries.get(id);
+      const src = e?.blob ?? e?.url;
+      p = src ? MediaSource.open(src).catch(() => null) : Promise.resolve(null);
+      this.sources.set(id, p);
     }
     return p;
   };
 
-  imageBytes = async (assetId: string): Promise<Uint8Array | null> => {
-    const b = this.blobs.get(assetId);
-    return b ? new Uint8Array(await b.arrayBuffer()) : null;
+  imageBytes = async (id: string): Promise<Uint8Array | null> => {
+    const e = this.entries.get(id);
+    if (e?.blob) return new Uint8Array(await e.blob.arrayBuffer());
+    if (e?.url) {
+      const r = await fetch(e.url);
+      if (r.ok) return new Uint8Array(await r.arrayBuffer());
+    }
+    return null;
   };
+
+  /** URL for showing an image (object URL for local files, else the server URL). */
+  displayUrl(id: string): string | null {
+    const e = this.entries.get(id);
+    return e?.url ?? null;
+  }
 }
 
 export const media = new MediaLibrary();

@@ -64,8 +64,8 @@ async function run(job: ExportJob) {
   const openSource = (assetId: string) => {
     let p = sources.get(assetId);
     if (!p) {
-      const blob = job.media[assetId];
-      p = blob ? MediaSource.open(blob).catch(() => null) : Promise.resolve(null);
+      const src = job.media[assetId];
+      p = src ? MediaSource.open(src).catch(() => null) : Promise.resolve(null);
       sources.set(assetId, p);
     }
     return p;
@@ -83,8 +83,10 @@ async function run(job: ExportJob) {
       openSource,
       templates,
       imageBytes: async (id) => {
-        const b = job.media[id];
-        return b ? new Uint8Array(await b.arrayBuffer()) : null;
+        const src = job.media[id];
+        if (!src) return null;
+        const blob = typeof src === 'string' ? await (await fetch(src)).blob() : src;
+        return new Uint8Array(await blob.arrayBuffer());
       },
       createCanvas: (w, h) => new OffscreenCanvas(w, h),
     },

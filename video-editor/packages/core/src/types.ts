@@ -16,6 +16,12 @@ export interface ProjectSettings {
   sampleRate: number;
   /** Background colour behind all layers, `#RRGGBB`. */
   background: string;
+  /**
+   * When true the first video placed on an empty timeline decides resolution
+   * and frame rate ("new sequence from clip"). Turned off once applied, or
+   * when the user picked a format explicitly.
+   */
+  autoFormat?: boolean;
 }
 
 export interface VideoAsset {

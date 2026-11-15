@@ -6,21 +6,43 @@ webbläsaren. Ingen server och inget konto behövs.
 
 ![Editorn](docs/skarmbild.jpg)
 
-## Kundprojekt och delningslänkar
+## Kundprojekt, kompositioner och delningslänkar
 
-Som admin skapar du ett **kundprojekt** per kund på `/admin`, laddar upp kundens `.riv`-filer och
-skickar delningslänken (`/p/<nyckel>`) till kunden. Kunden öppnar länken och får editorn med
-**bara det projektets mallar** i panelen. Inget konto behövs.
+**Admin** (`/admin`) skapar ett *kundprojekt* per kund, laddar upp kundens `.riv`-mallar och skickar
+delningslänken (`/p/<nyckel>`) till kunden.
 
 ![Admin](docs/admin.jpg)
 
-Per mall kan du ställa in namn, kategori, artboard (om filen har flera), placering i bilden,
-standardlängd och **vilka fält kunden ser och vad de heter** (t.ex. Rive-egenskapen `name` → "Namn").
-Tumnaglar och fältlistor tas fram i webbläsaren med samma Rive-kod som editorn använder.
+Per mall väljer du namn, kategori, artboard, placering i bilden, standardlängd och vilka fält kunden
+ser och vad de heter. Under **Kundens behörigheter** bestämmer du om kunden får ladda upp egna
+Rive-mallar. De hamnar då under "Egna mallar" och markeras som *Kunduppladdad* i admin. Du ser
+också kundens kompositioner och hur mycket lagring de använder.
 
-Delningslänken kan stängas av och slås på igen, eller ersättas med en ny (då slutar den gamla
-fungera direkt). Kunden kan inte se andra kunders mallar, inte nå admin-API:t och inte importera
-egna `.riv`-filer.
+**Kunden** öppnar länken och kommer till sin **projekthanterare**:
+
+![Projekthanteraren](docs/projekt.jpg)
+
+- **Kompositioner:** varje komposition är en egen film med eget format (16:9, 9:16, 1:1, 4:5,
+  4K eller "från första filmen"). Kompositioner kan skapas, öppnas, döpas om, dupliceras och tas bort.
+- **Autosparning:** varje ändring sparas på servern efter en kort paus ("Sparat 14:32" i toppraden).
+  Kunden kan stänga fliken, öppna länken senare, även på en annan dator, och fortsätta där hen slutade.
+  Om samma komposition ändras i två fönster upptäcks det (versionsnummer) och kunden får välja version.
+- **Projektets media:** filmer som kunden importerar laddas upp till projektet (med förloppsindikator)
+  och kan återanvändas i alla kompositioner. Editorn läser dem med HTTP range-requests, så stora filer
+  behöver inte laddas ner i sin helhet för att spelas upp eller exporteras.
+- **Mallar:** projektets mallar, och kundens egna om admin tillåter det.
+
+Delningslänken kan stängas av eller bytas ut. Då slutar den gamla fungera direkt, även för öppna
+kompositioner. Kunden kan inte se andra kunders mallar, media eller kompositioner och kan inte nå admin-API:t.
+
+![Editorn](docs/skarmbild.jpg)
+
+## Gränssnitt
+
+Gränssnittet är helt i gråskala: hierarkin kommer från ljushet, vikt och typsnitt, inte färg.
+Typsnitten är **Inter** för text och **JetBrains Mono** för tidskoder, siffror, filnamn, etiketter och
+metadata. JetBrains Sans, JetBrains eget sans-typsnitt, bygger på Inter men är inte fritt licensierat.
+Båda typsnitten bäddas in i appen och hämtas inte från externa tjänster.
 
 ## Funktioner i editorn
 
@@ -50,8 +72,9 @@ pnpm dev          # editor på http://localhost:5173, API på :8787 (lösenord "
 | Adress | Vad |
 |---|---|
 | `/` | Demo-editorn med exempelmallar |
-| `/admin` | Admin: kundprojekt, uppladdning och delningslänkar |
-| `/p/<nyckel>` | Editorn för en kund, med kundprojektets mallar |
+| `/admin` | Admin: kundprojekt, mallar, behörigheter och delningslänkar |
+| `/p/<nyckel>` | Kundens projekthanterare (kompositioner, mallar, media) |
+| `/p/<nyckel>/c/<id>` | Editorn för en komposition (sparas automatiskt) |
 
 Övriga kommandon:
 
@@ -80,6 +103,8 @@ NODE_ENV=production ADMIN_PASSWORD='…minst 12 tecken…' DATA_DIR=/var/lib/kli
 | `COOKIE_SECURE` | `true` i produktion | Sätt `false` bara om du kör utan HTTPS lokalt |
 | `TRUST_PROXY` | `false` | `true` bakom en proxy, så att inloggningsspärren ser rätt IP |
 | `MAX_UPLOAD_MB` | `25` | Största tillåtna .riv-fil |
+| `MAX_MEDIA_MB` | `2048` | Största film/bild en kund kan ladda upp |
+| `WORKSPACE_QUOTA_MB` | `20480` | Total lagring för media per kundprojekt |
 | `SESSION_DAYS` | `7` | Hur länge en admininloggning gäller |
 
 Kör bakom HTTPS. Säkerhetskopiera `DATA_DIR`.
@@ -95,7 +120,8 @@ packages/
   export/   Export-worker (rendera → H.264, mixa → AAC, muxa → MP4) och klient-API
 apps/
   editor/   React + Zustand (bibliotek, viewer, egenskapspanel, tidslinje, export) och admin (/admin)
-  server/   Hono + node:sqlite: kundprojekt, mallar, delningslänkar, admininloggning, filer på disk
+  server/   Hono + node:sqlite: kundprojekt, mallar, kompositioner, media (range-requests),
+            delningslänkar och admininloggning; filer lagras innehållsadresserat på disk
 ```
 
 Principer:
@@ -119,15 +145,18 @@ manifest). Demomallarna i `apps/editor/public/templates` är testfiler från Riv
 
 ## Kända begränsningar och nästa steg
 
-- **Kundens redigeringar sparas inte än:** tidslinjen och videofilerna försvinner vid omladdning.
-  Nästa steg är OPFS för mediefiler och IndexedDB för projekt (fas 4).
+- Kompositioner sparas bara för kunder (via delningslänk). Demo-editorn på `/` sparar ingenting.
+- Ingen offline-cache: en återöppnad komposition strömmar filmerna från servern. En lokal cache (OPFS)
+  skulle göra scrubbning snabbare på långsamma anslutningar.
+- Tar kunden bort en film från projektets media visas klipp som använder den som saknade.
 - En enda admin (ett lösenord). Flera administratörer med egna konton kan läggas till senare.
-- Delningslänken fungerar som en nyckel: alla som har den kommer åt mallarna. Byt länk om den sprids.
+- Delningslänken fungerar som en nyckel: alla som har den kommer åt projektets mallar, kompositioner och
+  filmer. Byt länk i admin om den sprids.
 - Tar admin bort en mall som kunden har lagt på tidslinjen visas klippet som saknat.
 - Rive-mallar med **ljud** stöds inte i exporten.
 - Endast MP4 in och ut. Fler format kan läggas till senare i `media`-paketet; mediabunny stöder
   redan WebM, MOV med flera.
 - Firefox och Safari är inte testade.
 - Ingen proxy-redigering: 4K-material med många spår kan bli tungt i förhandsvisningen.
-- Fyrkantigt och stående format väljs i projektinställningarna (klicka i tomrummet på tidslinjen).
+- Formatet väljs när kompositionen skapas, eller i projektinställningarna (klicka i tomrummet på tidslinjen).
   Video skalas in med svarta kanter, och placering per klipp kommer senare.
