@@ -178,8 +178,17 @@ function trimStartBy<C extends Clip>(clip: C, delta: Frame, fps: Rational): C {
  * Overwrite edit: clear [start, end) on a track by trimming, splitting or
  * removing whatever is there.
  */
+/** A clip that dissolves from `fromId` at `at` dissolves from `toId` instead (the tail changed id). */
+function repointDissolve(c: Clip, fromId: string, at: Frame, toId: string): Clip {
+  return c.start === at && c.transitionIn?.from === fromId ? { ...c, transitionIn: { ...c.transitionIn, from: toId } } : c;
+}
+
 export function clearRange(clips: Clip[], start: Frame, end: Frame, fps: Rational): Clip[] {
   const out: Clip[] = [];
+  const moved: [string, Frame, string][] = [];
+  // An edge created by the overwrite is a new cut: the fade or dissolve that sat on the removed edge goes with it.
+  const newTail = (c: Clip, duration: Frame): Clip => ({ ...c, duration, fadeOut: undefined });
+  const newHead = (c: Clip, delta: Frame): Clip => ({ ...trimStartBy(c, delta, fps), fadeIn: undefined, transitionIn: undefined });
   for (const c of clips) {
     const cs = c.start;
     const ce = clipEnd(c);
@@ -188,15 +197,18 @@ export function clearRange(clips: Clip[], start: Frame, end: Frame, fps: Rationa
     } else if (cs >= start && ce <= end) {
       // fully covered → removed
     } else if (cs < start && ce > end) {
-      out.push({ ...c, duration: start - cs });
-      out.push({ ...trimStartBy(c, end - cs, fps), id: createId('clp') });
+      out.push(newTail(c, start - cs));
+      const rest = { ...newHead(c, end - cs), id: createId('clp') };
+      out.push(rest);
+      // the old tail now belongs to `rest`: a dissolve out of it follows
+      moved.push([c.id, ce, rest.id]);
     } else if (cs < start) {
-      out.push({ ...c, duration: start - cs });
+      out.push(newTail(c, start - cs));
     } else {
-      out.push(trimStartBy(c, end - cs, fps));
+      out.push(newHead(c, end - cs));
     }
   }
-  return out;
+  return moved.length ? out.map((c) => moved.reduce((x, [from, at, to]) => repointDissolve(x, from, at, to), c)) : out;
 }
 
 export function addAsset(project: Project, asset: MediaAsset): Project {
@@ -250,12 +262,10 @@ export function moveClip(project: Project, clipId: string, toTrackId: string, ne
   if (!found) return project;
   const target = project.tracks.find((t) => t.id === toTrackId);
   if (!target || !trackAcceptsClip(target, found.clip)) return project;
-  if (newStart === found.clip.start && toTrackId === found.track.id) return project;
-  // A moved clip leaves its transitions behind: drop its own dissolve and the next clip's dissolve into it.
-  const next = found.track.clips[found.index + 1];
-  let base = removeClip(project, clipId);
-  if (next?.transitionIn && next.start === clipEnd(found.clip)) base = updateClip(base, next.id, (c) => ({ ...c, transitionIn: undefined }));
-  return insertClip(base, toTrackId, { ...found.clip, transitionIn: undefined, start: Math.max(0, Math.round(newStart)) });
+  const start = Math.max(0, Math.round(newStart));
+  if (start === found.clip.start && toTrackId === found.track.id) return project;
+  // Dissolves name their partner clip, so they simply stop applying once the clips no longer touch.
+  return insertClip(removeClip(project, clipId), toTrackId, { ...found.clip, start });
 }
 
 /**
@@ -309,7 +319,7 @@ export function splitClip(project: Project, clipId: string, atFrame: Frame): Pro
   };
   return mapTrack(project, track.id, (t) => ({
     ...t,
-    clips: sortClips(t.clips.flatMap((c) => (c.id === clipId ? [left, right] : [c]))),
+    clips: sortClips(t.clips.flatMap((c) => (c.id === clipId ? [left, right] : [repointDissolve(c, clip.id, clipEnd(clip), right.id)]))),
   }));
 }
 

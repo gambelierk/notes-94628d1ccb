@@ -118,8 +118,13 @@ Standardlängden är 1 s. Övergången syns som en randig markör på klippen. K
 
 Om klippen redan använder början eller slutet av sina filer finns inget extra material att tona över
 med. Bilden håller då första eller sista bildrutan, och ljudet tonas ner till skarven och upp från
-den, så att ingenting klipps av tvärt. Flyttas ett klipp bort från sin granne försvinner
-övertoningen mellan dem.
+den, så att ingenting klipps av tvärt.
+
+En övertoning hör till de två klipp den skapades mellan. Flyttas ett av dem bort slutar den gälla,
+och den hamnar aldrig av sig själv mellan andra klipp, till exempel när ett klipp tas bort och
+luckan stängs. Flyttas klippet tillbaka finns övertoningen kvar. Ett fullskärmsklipp ligger kvar
+till 100 % under det inkommande klippet. Ett mindre, flyttat eller genomskinligt lager, en bild,
+en text eller en mall tonas samtidigt ut, så att det aldrig försvinner med ett hopp.
 
 ![Övergångsknapp](docs/overgang-knapp.jpg)
 

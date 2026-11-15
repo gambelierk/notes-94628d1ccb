@@ -40,6 +40,7 @@ import {
 } from '../state/actions';
 import { Waveform } from './Waveform';
 import { useEditor, useProject } from '../state/store';
+import { clipName } from '../lib/names';
 import { Dissolve, FadeIn, FadeOut, Image as ImageIcon, Trash } from './Icons';
 
 const BASE_PALETTE = ['#ffffff', '#111111', '#ff6a3d', '#ffd84d', '#2ec27e', '#3b82f6', '#a855f7', '#ef4444'];
@@ -517,12 +518,7 @@ function AudioInspector({ clip, project, trackName }: { clip: AudioClip; project
 function TransitionInspector({ refTo, t, project }: { refTo: TransitionRef; t: NonNullable<ReturnType<typeof describeTransition>>; project: Project }) {
   const fps = project.settings.fps;
   const templates = useEditor((s) => s.templates);
-  const name = (c: Clip | undefined) => {
-    if (!c) return '';
-    if (c.kind === 'text') return `”${c.text.split('\n')[0]}”`;
-    if (c.kind === 'template') return templates.find((x) => x.def.id === c.templateId)?.def.name ?? 'mall';
-    return findAsset(project, c.assetId)?.name ?? 'klipp';
-  };
+  const name = (c: Clip | undefined) => clipName(project, c, templates);
   const title = t.kind === 'dissolve' ? 'Övertoning' : t.kind === 'fadeIn' ? 'Tona in från svart' : 'Tona ut till svart';
   const what =
     t.kind === 'dissolve'
@@ -574,7 +570,7 @@ function TransitionInspector({ refTo, t, project }: { refTo: TransitionRef; t: N
               </button>
             ))}
         </div>
-        <span className="mono dim xf-size">högst {max.toFixed(2).replace('.', ',')} s ({t.kind === 'dissolve' ? 'kortaste klippet' : 'halva klippet'})</span>
+        <span className="mono dim xf-size">högst {max.toFixed(2).replace('.', ',')} s ({t.kind === 'dissolve' ? 'det kortaste klippet' : t.clip.fadeIn && t.clip.fadeOut ? 'klippets längd minus den andra toningen' : 'klippets längd'})</span>
       </div>
       <button className="btn" onClick={() => deleteTransition(refTo)}>
         <Trash /> Ta bort övergång

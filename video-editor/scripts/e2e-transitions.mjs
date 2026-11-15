@@ -121,7 +121,7 @@ try {
   check((await row.getByTestId('joint-cut').getAttribute('aria-label')).includes('mellan clipA.mp4 och clipB.mp4'), 'skarvknappen beskriver vilka klipp som möts');
   await row.getByTestId('joint-cut').hover();
   const hi = await page.evaluate(() =>
-    [...document.querySelectorAll('.clip-edge-hi')].map((e) => `${e.closest('.clip').getAttribute('data-clip-id') ? e.className.split(' ')[1] : ''}`),
+    [...document.querySelectorAll('.clip-edge-hi')].filter((e) => getComputedStyle(e).display !== 'none').map((e) => e.className.split(' ')[1]),
   );
   check(hi.sort().join() === 'l,r', 'båda klippändarna vid skarven markeras när knappen hålls över');
   await page.screenshot({ path: path.join(out, 'trans-hover.png') });

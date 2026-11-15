@@ -86,7 +86,12 @@ interface ClipBase {
    * Cross-dissolve from the clip directly before this one on the same track.
    * Centred on the cut; only active while the two clips touch.
    */
-  transitionIn?: { kind: 'dissolve'; duration: Frame };
+  transitionIn?: {
+    kind: 'dissolve';
+    duration: Frame;
+    /** Id of the clip it dissolves from. The dissolve only applies while that clip touches this one. */
+    from?: string;
+  };
 }
 
 /**

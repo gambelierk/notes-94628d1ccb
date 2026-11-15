@@ -27,6 +27,7 @@ import {
 } from '@ve/core';
 import { addTransitionAt, deleteSelection, IMAGE_DEFAULT_SECONDS, setTrackGain, splitAtPlayhead, TEXT_DEFAULT_SECONDS } from '../state/actions';
 import { Waveform } from './Waveform';
+import { clipName } from '../lib/names';
 import { committedProject, useEditor, useProject, type LibraryTemplate } from '../state/store';
 import { preview } from '../services/preview';
 import { Dissolve, Eye, EyeOff, FadeIn, FadeOut, Fit, Plus, Speaker, SpeakerOff, Split, Trash, ZoomIn, ZoomOut } from './Icons';
@@ -50,7 +51,6 @@ export function Timeline() {
   const headersRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ left: 0, width: 800 });
   const [snapLine, setSnapLine] = useState<Frame | null>(null);
-  const [hoverJoint, setHoverJoint] = useState<Joint | null>(null);
   const selectedTransition = useEditor((s) => s.transition);
   const [snapping, setSnapping] = useState(true);
 
@@ -362,7 +362,6 @@ export function Timeline() {
               >
                 {track.clips.map((clip) => (
                   <ClipView
-                    edges={edgeHighlight(hoverJoint, clip.id)}
                     key={clip.id}
                     clip={clip}
                     project={project}
@@ -381,7 +380,6 @@ export function Timeline() {
                   templates={templates}
                   pxPerFrame={pxPerFrame}
                   selected={selectedTransition}
-                  onHover={setHoverJoint}
                 />
                 {dropTarget?.trackId === track.id && (
                   <div className="drop-ghost" style={{ left: xOf(dropTarget.frame), width: xOf(dropTarget.duration) }} />
@@ -398,19 +396,24 @@ export function Timeline() {
   );
 }
 
-/** Which ends of a clip to highlight while a transition button is hovered. */
-function edgeHighlight(j: Joint | null, clipId: string): 'l' | 'r' | null {
-  if (!j) return null;
-  if (j.kind === 'cut') return j.rightId === clipId ? 'l' : j.leftId === clipId ? 'r' : null;
-  if (j.clipId !== clipId) return null;
-  return j.kind === 'start' ? 'l' : 'r';
-}
-
-function clipName(project: Project, clip: Clip | undefined, templates: LibraryTemplate[]): string {
-  if (!clip) return 'klippet';
-  if (clip.kind === 'text') return `”${clip.text.split('\n')[0]}”`;
-  if (clip.kind === 'template') return templates.find((t) => t.def.id === clip.templateId)?.def.name ?? 'mallen';
-  return findAsset(project, clip.assetId)?.name ?? 'klippet';
+/**
+ * Highlight the clip ends a transition button would affect. Done directly on
+ * the DOM (a data attribute React doesn't manage) so hovering never
+ * re-renders the timeline.
+ */
+function highlightEdges(button: HTMLElement, j: Joint | null): void {
+  const row = button.closest('.tl-row');
+  if (!row) return;
+  for (const el of row.querySelectorAll<HTMLElement>('.clip[data-hi]')) delete el.dataset.hi;
+  if (!j) return;
+  const mark = (id: string, side: 'l' | 'r') => {
+    const el = row.querySelector<HTMLElement>(`.clip[data-clip-id="${CSS.escape(id)}"]`);
+    if (el) el.dataset.hi = el.dataset.hi && el.dataset.hi !== side ? 'lr' : side;
+  };
+  if (j.kind === 'cut') {
+    mark(j.leftId, 'r');
+    mark(j.rightId, 'l');
+  } else mark(j.clipId, j.kind === 'start' ? 'l' : 'r');
 }
 
 /**
@@ -423,14 +426,14 @@ function TrackJoints(props: {
   templates: LibraryTemplate[];
   pxPerFrame: number;
   selected: TransitionRef | null;
-  onHover: (j: Joint | null) => void;
 }) {
-  const { track, project, templates, pxPerFrame: k, selected, onHover } = props;
+  const { track, project, templates, pxPerFrame: k, selected } = props;
   const byId = (id: string) => track.clips.find((c) => c.id === id);
   const fps = project.settings.fps;
+  const js = useMemo(() => joints(track), [track]);
   return (
     <>
-      {joints(track).map((j) => {
+      {js.map((j) => {
         const ref = jointRef(j);
         const key = `${j.kind}-${j.frame}`;
         if (j.duration !== null) {
@@ -471,13 +474,13 @@ function TrackJoints(props: {
             data-testid={`joint-${j.kind}`}
             aria-label={label}
             title={label}
-            onPointerEnter={() => onHover(j)}
-            onPointerLeave={() => onHover(null)}
-            onFocus={() => onHover(j)}
-            onBlur={() => onHover(null)}
+            onPointerEnter={(e) => highlightEdges(e.currentTarget, j)}
+            onPointerLeave={(e) => highlightEdges(e.currentTarget, null)}
+            onFocus={(e) => highlightEdges(e.currentTarget, j)}
+            onBlur={(e) => highlightEdges(e.currentTarget, null)}
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => {
-              onHover(null);
+            onClick={(e) => {
+              highlightEdges(e.currentTarget, null);
               addTransitionAt(j);
             }}
           >
@@ -576,10 +579,9 @@ function ClipView(props: {
   thumb?: string;
   templateName?: string;
   pxPerFrame: number;
-  edges: 'l' | 'r' | null;
   onDown: (e: RPE<HTMLElement>, clip: Clip, mode: 'move' | 'l' | 'r') => void;
 }) {
-  const { clip, project, x, w, selected, thumb, templateName, edges, onDown } = props;
+  const { clip, project, x, w, selected, thumb, templateName, onDown } = props;
   const fps = project.settings.fps;
   let label: string;
   let sub: string | null = null;
@@ -622,7 +624,8 @@ function ClipView(props: {
           />
         </div>
       )}
-      {edges && <div className={`clip-edge-hi ${edges}`} />}
+      <div className="clip-edge-hi l" />
+      <div className="clip-edge-hi r" />
       <span className="clip-label">{label}</span>
       {sub && <span className="clip-sub">{sub}</span>}
       <div className="clip-handle l" onPointerDown={(e) => onDown(e, clip, 'l')} />

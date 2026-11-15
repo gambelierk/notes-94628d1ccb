@@ -17,8 +17,8 @@ export class VideoFrameReader {
   private current: WrappedCanvas | null = null;
   private pending: WrappedCanvas | null = null;
   private done = false;
-  /** Source time the current iterator started at (0 = from the first frame). */
-  private startedAt = -1;
+  /** Timestamp of the very first frame of the media, once known. */
+  private firstTimestamp: number | null = null;
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly sink: CanvasSink) {}
@@ -36,8 +36,8 @@ export class VideoFrameReader {
   private async frameAtUnsafe(t: number): Promise<WrappedCanvas | null> {
     const cur = this.current;
     if (cur && this.covers(cur, t)) return cur;
-    // before the first frame (e.g. a dissolve reaching before the media starts): hold the first frame
-    if (cur && t < cur.timestamp && this.startedAt === 0) return cur;
+    // before the media's first frame (e.g. a dissolve reaching before it): hold that first frame
+    if (cur && this.firstTimestamp !== null && cur.timestamp === this.firstTimestamp && t < cur.timestamp) return cur;
 
     const canDecodeForward = !!this.iter && !!cur && t > cur.timestamp && t - cur.timestamp < MAX_DECODE_AHEAD;
     if (!canDecodeForward) await this.restart(t);
@@ -62,9 +62,10 @@ export class VideoFrameReader {
   private async restart(t: number): Promise<void> {
     await this.iter?.return(undefined);
     this.done = false;
-    this.startedAt = Math.max(0, t);
-    this.iter = this.sink.canvases(this.startedAt);
+    const from = Math.max(0, t);
+    this.iter = this.sink.canvases(from);
     this.current = await this.pull();
+    if (from === 0 && this.current) this.firstTimestamp = this.current.timestamp;
     this.pending = this.current ? await this.pull() : null;
   }
 

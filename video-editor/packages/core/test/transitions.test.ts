@@ -11,6 +11,10 @@ import {
   joints,
   jointRef,
   moveClip,
+  removeClip,
+  setClipFades,
+  setClipParam,
+  setClipTransform,
   removeTransition,
   setTransitionDuration,
   soundSpans,
@@ -65,15 +69,26 @@ describe('dissolve', () => {
     expect(visibleLayersAt(p, 110).map((l) => l.clip.start)).toEqual([100]);
   });
 
-  it('fades the outgoing clip when it is not opaque', () => {
+  it('fades the outgoing clip out when it does not cover the whole frame', () => {
     let p = createProject('t', { fps });
     p = addAsset(p, img);
     const g = p.tracks[1]!.id;
     p = insertClip(p, g, createImageClip(img, 0, 50));
     p = insertClip(p, g, { ...createImageClip(img, 50, 50) });
-    // images are treated as opaque pictures
+    // a square (possibly transparent) image in a 16:9 frame: fades out instead of vanishing at the end
     p = addTransition(p, joints(p.tracks[1]!)[1]!, 10);
-    expect(visibleLayersAt(p, 50)[0]!.mix).toBe(1);
+    const [out, inc] = visibleLayersAt(p, 50);
+    expect(out!.mix).toBeCloseTo(1 - inc!.mix);
+  });
+
+  it('fades out a scaled-down or translucent video too', () => {
+    let { p, a } = setup();
+    p = addTransition(p, joints(p.tracks[0]!)[1]!, 20);
+    expect(visibleLayersAt(p, 100)[0]!.mix).toBe(1);
+    const small = setClipTransform(p, a, { scale: 0.5 });
+    expect(visibleLayersAt(small, 100)[0]!.mix).toBeCloseTo(0.475);
+    const faint = setClipParam(p, a, 'opacity', 0.5);
+    expect(visibleLayersAt(faint, 100)[0]!.mix).toBeCloseTo(0.475);
   });
 
   it('without spare media: the outgoing sound fades down to the cut and the incoming up from it', () => {
@@ -105,13 +120,60 @@ describe('dissolve', () => {
     expect(describeTransition(p, { clipId: b, edge: 'in' })!.duration).toBe(30);
     const removed = removeTransition(p, { clipId: b, edge: 'in' });
     expect(joints(removed.tracks[0]!)[1]!.duration).toBeNull();
-    // moving B away drops the dissolve
+    // moving B away: no dissolve, and none comes back when it touches another clip
     const moved = moveClip(p, b, v1, 150);
-    expect(moved.tracks[0]!.clips.find((c) => c.id === b)!.transitionIn).toBeUndefined();
+    expect(describeTransition(moved, { clipId: b, edge: 'in' })).toBeNull();
+    expect(visibleLayersAt(moved, 150).map((l) => l.clip.id)).toEqual([b]);
+    // moving it back re-joins the same pair, so the dissolve is there again
+    expect(describeTransition(moveClip(moved, b, v1, 100), { clipId: b, edge: 'in' })).toMatchObject({ kind: 'dissolve' });
     // splitting keeps the dissolve on the left part only
     const s = splitClip(p, b, 150);
     expect(s.tracks[0]!.clips.filter((c) => c.transitionIn).map((c) => c.id)).toEqual([b]);
     void a;
+  });
+});
+
+describe('dissolves stay with the pair that got them', () => {
+  /** A 0..100, B 100..200, C 200..300 with a dissolve B→C. */
+  function three() {
+    let { p, v1, a, b } = setup();
+    p = insertClip(p, v1, createVideoClip(film, 200, fps));
+    const c = p.tracks[0]!.clips.find((x) => x.start === 200)!.id;
+    p = addTransition(p, joints(p.tracks[0]!).find((j) => j.kind === 'cut' && j.rightId === c)!, 20);
+    return { p, v1, a, b, c };
+  }
+
+  it('deleting the left clip and closing the gap does not dissolve from a new neighbour', () => {
+    const { p, a, b, c } = three();
+    const rippled = removeClip(p, b, true);
+    expect(joints(rippled.tracks[0]!).find((j) => j.kind === 'cut')).toMatchObject({ leftId: a, rightId: c, duration: null });
+    expect(visibleLayersAt(rippled, 100).map((l) => l.clip.id)).toEqual([c]);
+  });
+
+  it('overwriting the middle of a clip does not create a dissolve into the overwrite', () => {
+    let { p, v1, b, c } = three();
+    // a clip with a dissolve on its head, overwritten in the middle by a new clip
+    p = insertClip(p, v1, { ...createVideoClip(film, 240, fps), duration: 20 });
+    const ids = p.tracks[0]!.clips.map((x) => x.id);
+    const tail = p.tracks[0]!.clips.find((x) => x.start === 260)!;
+    expect(ids).toContain(c);
+    expect(describeTransition(p, { clipId: tail.id, edge: 'in' })).toBeNull();
+    expect(describeTransition(p, { clipId: c, edge: 'in' })).toMatchObject({ kind: 'dissolve' });
+    void b;
+  });
+
+  it('splitting or overwriting inside the left clip keeps the dissolve on its tail', () => {
+    const { p, v1, b, c } = three();
+    const s = splitClip(p, b, 150);
+    expect(describeTransition(s, { clipId: c, edge: 'in' })).toMatchObject({ kind: 'dissolve' });
+    const o = insertClip(p, v1, { ...createVideoClip(film, 130, fps), duration: 20 });
+    expect(describeTransition(o, { clipId: c, edge: 'in' })).toMatchObject({ kind: 'dissolve' });
+    expect(o.tracks[0]!.clips.length).toBe(5);
+  });
+
+  it('moving to a negative start clamps and keeps an unchanged clip as is', () => {
+    const { p, v1, a } = three();
+    expect(moveClip(p, a, v1, -20)).toBe(p);
   });
 });
 
@@ -126,6 +188,24 @@ describe('fade to black', () => {
     expect(visibleLayersAt(p, 0)[0]!.mix).toBe(0);
     void a;
     void b;
+  });
+
+  it('fades at touching edges (a dip to black at a cut) show up as joints and can be removed', () => {
+    let { p, a } = setup();
+    p = setClipFades(p, a, { fadeOut: 10 });
+    const js = joints(p.tracks[0]!);
+    const dip = js.find((j) => j.kind === 'end' && j.clipId === a)!;
+    expect(dip).toMatchObject({ frame: 100, duration: 10 });
+    expect(describeTransition(removeTransition(p, jointRef(dip)), jointRef(dip))).toBeNull();
+  });
+
+  it('a fade may be as long as the clip minus its other fade', () => {
+    let { p, a } = setup();
+    p = setClipFades(p, a, { fadeIn: 30 });
+    p = addTransition(p, { kind: 'end', frame: 100, clipId: a, duration: null }, 10);
+    expect(describeTransition(p, { clipId: a, edge: 'out' })!.max).toBe(70);
+    p = setTransitionDuration(p, { clipId: a, edge: 'out' }, 999);
+    expect(describeTransition(p, { clipId: a, edge: 'out' })!.duration).toBe(70);
   });
 
   it('works on audio clips too', () => {
