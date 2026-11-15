@@ -13,6 +13,7 @@ import {
   type Project,
   type MediaDTO,
   type TemplateDefinition,
+  type TransitionRef,
   type UploadedBy,
 } from '@ve/core';
 
@@ -84,6 +85,8 @@ interface EditorState {
   /** Uncommitted project shown while dragging/trimming. */
   draft: Project | null;
   selection: string | null;
+  /** A selected transition (mutually exclusive with a selected clip). */
+  transition: TransitionRef | null;
   playhead: Frame;
   playing: boolean;
   /** Timeline zoom in pixels per second. */
@@ -108,6 +111,7 @@ interface EditorState {
   undo: () => void;
   redo: () => void;
   select: (clipId: string | null) => void;
+  selectTransition: (t: TransitionRef | null) => void;
   setPlayhead: (f: Frame) => void;
   setPlaying: (v: boolean) => void;
   setZoom: (z: number) => void;
@@ -138,6 +142,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   history: createHistory(createProject()),
   draft: null,
   selection: null,
+  transition: null,
   playhead: 0,
   playing: false,
   zoom: 60,
@@ -179,7 +184,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const h = get().history;
     if (canRedo(h)) set({ history: redoHistory(h), draft: null });
   },
-  select: (clipId) => set({ selection: clipId }),
+  select: (clipId) => set({ selection: clipId, transition: null }),
+  selectTransition: (t) => set({ transition: t, selection: null }),
   setPlayhead: (f) => set({ playhead: Math.max(0, Math.round(f)) }),
   setPlaying: (v) => set({ playing: v }),
   setZoom: (z) => set({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z)) }),
@@ -192,7 +198,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   setDrag: (d) => set({ drag: d }),
   setDropTarget: (t) => set({ dropTarget: t }),
   setExportOpen: (v) => set({ exportOpen: v }),
-  loadProject: (p) => set({ history: createHistory(p), draft: null, selection: null, playhead: 0 }),
+  loadProject: (p) => set({ history: createHistory(p), draft: null, selection: null, transition: null, playhead: 0 }),
   setComposition: (c) => set({ composition: c }),
   setSaveState: (s) => set({ saveState: s }),
   setServerMedia: (m) => set({ serverMedia: m }),

@@ -82,6 +82,11 @@ interface ClipBase {
    */
   fadeIn?: Frame;
   fadeOut?: Frame;
+  /**
+   * Cross-dissolve from the clip directly before this one on the same track.
+   * Centred on the cut; only active while the two clips touch.
+   */
+  transitionIn?: { kind: 'dissolve'; duration: Frame };
 }
 
 /**

@@ -1,6 +1,7 @@
 import { evaluateParam } from './project';
 import type { Frame, Rational } from './time';
 import type { Clip, Project, Track } from './types';
+import { soundOverlap } from './transitions';
 
 /**
  * Fade multiplier (0–1) at `local` frames into a clip. Fractional frames are
@@ -73,14 +74,16 @@ export function soundSpans(project: Project, fromFrame = 0): SoundSpan[] {
       const volume = soundGain(c, track);
       if (volume <= 0) continue;
       const f = fadeSeconds(c, fps);
+      // Dissolves: the sound starts earlier / ends later and is cross-faded over the dissolve.
+      const o = soundOverlap(project, track, c);
       out.push({
         assetId: c.assetId,
-        start: sec(c.start - fromFrame),
-        duration: sec(c.duration),
-        sourceStart: c.sourceStart / 1_000_000,
+        start: sec(c.start - o.before - fromFrame),
+        duration: sec(c.duration + o.before + o.after),
+        sourceStart: c.sourceStart / 1_000_000 - sec(o.before),
         volume,
-        fadeIn: f.fadeIn,
-        fadeOut: f.fadeOut,
+        fadeIn: o.inLen ? sec(o.inLen) : f.fadeIn,
+        fadeOut: o.outLen ? sec(o.outLen) : f.fadeOut,
       });
     }
   }

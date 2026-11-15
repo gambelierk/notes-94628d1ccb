@@ -120,8 +120,10 @@ try {
   check(true, 'ljudvågor ritas för ljudklippet och filmens ljud');
 
   /* ------------------------------------------------ volumes and fades */
-  // music clip: fade in 1 s
-  await page.getByTestId('fade-fadeIn').fill('1');
+  // music clip: fade in from silence with the transition button at its start (default 1 s)
+  const audioRow = page.locator('[data-track-kind=audio]').first();
+  await audioRow.hover();
+  await audioRow.getByTestId('joint-start').click();
   // music track at 25 %
   await setRange(page.getByLabel(`Volym för spår ${a1.name}`), 0.25);
   // film clip at 50 %

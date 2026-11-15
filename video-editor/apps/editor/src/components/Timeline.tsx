@@ -15,17 +15,21 @@ import {
   framesToSeconds,
   gainToDb,
   trackAcceptsClip,
+  joints,
+  jointRef,
+  type Joint,
+  type TransitionRef,
   trimClip,
   type Clip,
   type Frame,
   type Project,
   type Track,
 } from '@ve/core';
-import { deleteSelection, IMAGE_DEFAULT_SECONDS, setTrackGain, splitAtPlayhead, TEXT_DEFAULT_SECONDS } from '../state/actions';
+import { addTransitionAt, deleteSelection, IMAGE_DEFAULT_SECONDS, setTrackGain, splitAtPlayhead, TEXT_DEFAULT_SECONDS } from '../state/actions';
 import { Waveform } from './Waveform';
-import { committedProject, useEditor, useProject } from '../state/store';
+import { committedProject, useEditor, useProject, type LibraryTemplate } from '../state/store';
 import { preview } from '../services/preview';
-import { Eye, EyeOff, Fit, Plus, Speaker, SpeakerOff, Split, Trash, ZoomIn, ZoomOut } from './Icons';
+import { Dissolve, Eye, EyeOff, FadeIn, FadeOut, Fit, Plus, Speaker, SpeakerOff, Split, Trash, ZoomIn, ZoomOut } from './Icons';
 
 const ROW_H = 64;
 const RULER_H = 28;
@@ -46,6 +50,8 @@ export function Timeline() {
   const headersRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ left: 0, width: 800 });
   const [snapLine, setSnapLine] = useState<Frame | null>(null);
+  const [hoverJoint, setHoverJoint] = useState<Joint | null>(null);
+  const selectedTransition = useEditor((s) => s.transition);
   const [snapping, setSnapping] = useState(true);
 
   const fps = project.settings.fps;
@@ -164,6 +170,8 @@ export function Timeline() {
     // Listen on window: the clip element may re-mount in another track row while dragging.
     const target = window;
     const grab = frameAtClientX(e.clientX) - clip.start;
+    // for trims: how far from the edge the handle was grabbed, so the edge follows the pointer without jumping
+    const edgeGrab = frameAtClientX(e.clientX) - (mode === 'r' ? clip.start + clip.duration : clip.start);
     const pts = [...snapPoints(base, clip.id), store.playhead];
     const startX = e.clientX;
     const startY = e.clientY;
@@ -185,7 +193,7 @@ export function Timeline() {
         const trackId = row && trackAcceptsClip(row, clip) ? row.id : trackOf(base, clip.id)!;
         next = moveClip(base, clip.id, trackId, start);
       } else {
-        const raw = frameAtClientX(ev.clientX);
+        const raw = frameAtClientX(ev.clientX) - edgeGrab;
         const f = snapFrame(raw, pts);
         if (f !== raw) line = f;
         next = trimClip(base, clip.id, mode === 'l' ? 'start' : 'end', f);
@@ -278,7 +286,7 @@ export function Timeline() {
         <button className="btn ghost" onClick={splitAtPlayhead} title="Dela vid spelhuvudet (S)">
           <Split /> Dela
         </button>
-        <button className="btn ghost" onClick={() => deleteSelection(false)} disabled={!selClip} title="Ta bort (Delete)">
+        <button className="btn ghost" onClick={() => deleteSelection(false)} disabled={!selClip && !selectedTransition} title="Ta bort markerat klipp eller övergång (Delete/Backspace)">
           <Trash /> Ta bort
         </button>
         <span className="sep" />
@@ -354,6 +362,7 @@ export function Timeline() {
               >
                 {track.clips.map((clip) => (
                   <ClipView
+                    edges={edgeHighlight(hoverJoint, clip.id)}
                     key={clip.id}
                     clip={clip}
                     project={project}
@@ -366,6 +375,14 @@ export function Timeline() {
                     onDown={onClipDown}
                   />
                 ))}
+                <TrackJoints
+                  track={track}
+                  project={project}
+                  templates={templates}
+                  pxPerFrame={pxPerFrame}
+                  selected={selectedTransition}
+                  onHover={setHoverJoint}
+                />
                 {dropTarget?.trackId === track.id && (
                   <div className="drop-ghost" style={{ left: xOf(dropTarget.frame), width: xOf(dropTarget.duration) }} />
                 )}
@@ -378,6 +395,97 @@ export function Timeline() {
         </div>
       </div>
     </section>
+  );
+}
+
+/** Which ends of a clip to highlight while a transition button is hovered. */
+function edgeHighlight(j: Joint | null, clipId: string): 'l' | 'r' | null {
+  if (!j) return null;
+  if (j.kind === 'cut') return j.rightId === clipId ? 'l' : j.leftId === clipId ? 'r' : null;
+  if (j.clipId !== clipId) return null;
+  return j.kind === 'start' ? 'l' : 'r';
+}
+
+function clipName(project: Project, clip: Clip | undefined, templates: LibraryTemplate[]): string {
+  if (!clip) return 'klippet';
+  if (clip.kind === 'text') return `”${clip.text.split('\n')[0]}”`;
+  if (clip.kind === 'template') return templates.find((t) => t.def.id === clip.templateId)?.def.name ?? 'mallen';
+  return findAsset(project, clip.assetId)?.name ?? 'klippet';
+}
+
+/**
+ * Transition buttons at every cut and free clip end (shown when hovering the
+ * track), and markers for existing transitions (click to select).
+ */
+function TrackJoints(props: {
+  track: Track;
+  project: Project;
+  templates: LibraryTemplate[];
+  pxPerFrame: number;
+  selected: TransitionRef | null;
+  onHover: (j: Joint | null) => void;
+}) {
+  const { track, project, templates, pxPerFrame: k, selected, onHover } = props;
+  const byId = (id: string) => track.clips.find((c) => c.id === id);
+  const fps = project.settings.fps;
+  return (
+    <>
+      {joints(track).map((j) => {
+        const ref = jointRef(j);
+        const key = `${j.kind}-${j.frame}`;
+        if (j.duration !== null) {
+          // existing transition: a selectable marker over the affected frames
+          const d = j.duration;
+          const left = j.kind === 'cut' ? j.frame - Math.floor(d / 2) : j.kind === 'start' ? j.frame : j.frame - d;
+          const isSel = selected?.clipId === ref.clipId && selected.edge === ref.edge;
+          const label = j.kind === 'cut' ? 'Övertoning' : j.kind === 'start' ? 'Tona in från svart' : 'Tona ut till svart';
+          return (
+            <button
+              key={key}
+              className={`tl-transition ${j.kind}${isSel ? ' selected' : ''}`}
+              style={{ left: left * k, width: Math.max(10, d * k) }}
+              data-testid={`transition-${j.kind}`}
+              aria-label={`${label}, ${framesToSeconds(d, fps).toFixed(1).replace('.', ',')} s`}
+              aria-pressed={isSel}
+              title={`${label} · ${framesToSeconds(d, fps).toFixed(2)} s`}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                useEditor.getState().selectTransition(ref);
+              }}
+            >
+              {j.kind === 'cut' ? <Dissolve /> : j.kind === 'start' ? <FadeIn /> : <FadeOut />}
+            </button>
+          );
+        }
+        const label =
+          j.kind === 'cut'
+            ? `Lägg till övertoning mellan ${clipName(project, byId(j.leftId), templates)} och ${clipName(project, byId(j.rightId), templates)}`
+            : j.kind === 'start'
+              ? `Tona in ${clipName(project, byId(j.clipId), templates)} från svart`
+              : `Tona ut ${clipName(project, byId(j.clipId), templates)} till svart`;
+        return (
+          <button
+            key={key}
+            className={`tl-joint ${j.kind}`}
+            style={{ left: j.frame * k }}
+            data-testid={`joint-${j.kind}`}
+            aria-label={label}
+            title={label}
+            onPointerEnter={() => onHover(j)}
+            onPointerLeave={() => onHover(null)}
+            onFocus={() => onHover(j)}
+            onBlur={() => onHover(null)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              onHover(null);
+              addTransitionAt(j);
+            }}
+          >
+            {j.kind === 'cut' ? <Dissolve /> : j.kind === 'start' ? <FadeIn /> : <FadeOut />}
+          </button>
+        );
+      })}
+    </>
   );
 }
 
@@ -468,9 +576,10 @@ function ClipView(props: {
   thumb?: string;
   templateName?: string;
   pxPerFrame: number;
+  edges: 'l' | 'r' | null;
   onDown: (e: RPE<HTMLElement>, clip: Clip, mode: 'move' | 'l' | 'r') => void;
 }) {
-  const { clip, project, x, w, selected, thumb, templateName, pxPerFrame, onDown } = props;
+  const { clip, project, x, w, selected, thumb, templateName, edges, onDown } = props;
   const fps = project.settings.fps;
   let label: string;
   let sub: string | null = null;
@@ -513,8 +622,7 @@ function ClipView(props: {
           />
         </div>
       )}
-      {!!clip.fadeIn && <div className="clip-fade in" style={{ width: clip.fadeIn * pxPerFrame }} title="Intoning" />}
-      {!!clip.fadeOut && <div className="clip-fade out" style={{ width: clip.fadeOut * pxPerFrame }} title="Uttoning" />}
+      {edges && <div className={`clip-edge-hi ${edges}`} />}
       <span className="clip-label">{label}</span>
       {sub && <span className="clip-sub">{sub}</span>}
       <div className="clip-handle l" onPointerDown={(e) => onDown(e, clip, 'l')} />

@@ -8,3 +8,4 @@ export * from './layout';
 export * from './fades';
 export * from './text';
 export * from './subtitles';
+export * from './transitions';

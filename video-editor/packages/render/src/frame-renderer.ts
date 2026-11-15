@@ -1,6 +1,5 @@
 import {
-  activeClipsAt,
-  clipOpacity,
+  visibleLayersAt,
   evaluateParam,
   textPlacement,
   findAsset,
@@ -202,38 +201,43 @@ export async function renderFrame(project: Project, frame: Frame, compositor: Co
   const fps = project.settings.fps;
   const W = compositor.width;
   const H = compositor.height;
-  const active = activeClipsAt(project, frame);
+  // includes both clips during a dissolve; `mix` carries fades and dissolves
+  const active = visibleLayersAt(project, frame);
+
+  const prepare = async (clip: (typeof active)[number]['clip']): Promise<Prepared | null> => {
+    if (clip.kind === 'video') {
+      const asset = findAsset(project, clip.assetId);
+      if (asset?.kind !== 'video') return null;
+      // during a dissolve this may be past the clip's end or before its start; the reader holds the edge frame
+      const f = await res.videoFrame(clip, sourceTimeAt(clip, frame, fps) / 1_000_000);
+      return { kind: 'video', clip, asset, frame: f?.canvas ?? null };
+    }
+    if (clip.kind === 'image') return { kind: 'image', clip, bitmap: await res.image(clip.assetId) };
+    if (clip.kind === 'text') {
+      const t = await res.text(clip);
+      return { kind: 'text', clip, key: t.key, canvas: t.canvas };
+    }
+    const r = res.template(clip);
+    const props = propValues(clip, frame);
+    if (r) await r.prepareImages(props, res.imageBytes);
+    return { kind: 'template', clip, renderer: r, props };
+  };
 
   // Decode everything first (async), then draw synchronously in layer order.
   const prepared = (
     await Promise.all(
-      active.map(async ({ clip }): Promise<Prepared | null> => {
-        if (clip.kind === 'video') {
-          const asset = findAsset(project, clip.assetId);
-          if (asset?.kind !== 'video') return null;
-          const f = await res.videoFrame(clip, sourceTimeAt(clip, frame, fps) / 1_000_000);
-          return { kind: 'video', clip, asset, frame: f?.canvas ?? null };
-        }
-        if (clip.kind === 'image') {
-          return { kind: 'image', clip, bitmap: await res.image(clip.assetId) };
-        }
-        if (clip.kind === 'text') {
-          const t = await res.text(clip);
-          return { kind: 'text', clip, key: t.key, canvas: t.canvas };
-        }
-        const r = res.template(clip);
-        const props = propValues(clip, frame);
-        if (r) await r.prepareImages(props, res.imageBytes);
-        return { kind: 'template', clip, renderer: r, props };
+      active.map(async ({ clip, mix }) => {
+        const p = await prepare(clip);
+        return p ? { ...p, mix } : null;
       }),
     )
-  ).filter((x): x is Prepared => !!x);
+  ).filter((x): x is Prepared & { mix: number } => !!x);
 
   for (const key of res.releasedImages.splice(0)) compositor.releaseStill(key);
 
   compositor.begin(project.settings.background);
   for (const layer of prepared) {
-    const opacity = clipOpacity(layer.clip, frame); // includes fade in/out
+    const opacity = evaluateParam(layer.clip.opacity, frame) * layer.mix; // mix = fades and dissolves
     const t = transformAt(layer.clip, frame);
     if (layer.kind === 'video') {
       if (layer.frame) compositor.draw(layer.frame as TexImageSource, opacity, mediaPlacement(layer.asset.width, layer.asset.height, W, H, t));

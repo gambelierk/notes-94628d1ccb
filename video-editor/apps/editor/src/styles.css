@@ -784,21 +784,6 @@ kbd {
 .waveform {
   display: block;
 }
-.clip-fade {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  z-index: 1;
-  pointer-events: none;
-}
-.clip-fade.in {
-  left: 0;
-  background: linear-gradient(to bottom right, rgba(0, 0, 0, 0.7) 49.5%, transparent 50.5%);
-}
-.clip-fade.out {
-  right: 0;
-  background: linear-gradient(to bottom left, rgba(0, 0, 0, 0.7) 49.5%, transparent 50.5%);
-}
 .clip.image {
   background: var(--image);
   border: 1px solid var(--image-2);
@@ -1440,4 +1425,108 @@ kbd {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+/* ------------------------------------------------------------- transitions */
+.tl-joint {
+  position: absolute;
+  top: 2px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  border-radius: 50%;
+  border: 1px solid var(--text-2);
+  background: var(--panel);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.12s, transform 0.12s;
+}
+.tl-joint.start {
+  margin-left: -3px;
+}
+.tl-joint.end {
+  margin-left: -19px;
+}
+.tl-joint svg {
+  width: 12px;
+  height: 12px;
+}
+.tl-row:hover .tl-joint,
+.tl-joint:focus-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+.tl-joint:hover {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+.clip-edge-hi {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 4px;
+  z-index: 3;
+  background: var(--text);
+  box-shadow: 0 0 0 1px #000;
+  pointer-events: none;
+}
+.clip-edge-hi.l {
+  left: -1px;
+  border-radius: 4px 0 0 4px;
+}
+.clip-edge-hi.r {
+  right: -1px;
+  border-radius: 0 4px 4px 0;
+}
+.tl-transition {
+  position: absolute;
+  bottom: 5px;
+  height: 18px;
+  z-index: 3;
+  border: 1px solid var(--text-2);
+  border-radius: 4px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  cursor: pointer;
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.75) 0 4px, rgba(60, 60, 60, 0.85) 4px 8px);
+}
+.tl-transition svg {
+  width: 12px;
+  height: 12px;
+}
+.tl-transition:hover {
+  border-color: var(--text);
+}
+.tl-transition.selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--text);
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0 4px, rgba(60, 60, 60, 0.9) 4px 8px);
+}
+.trans-icon {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  display: grid;
+  place-items: center;
+  background: var(--panel-2);
+}
+.trans-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.xf-actions .btn[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
 }

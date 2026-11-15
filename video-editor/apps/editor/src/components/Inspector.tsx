@@ -7,6 +7,7 @@ import {
   framesToSeconds,
   microsToSeconds,
   coverScale,
+  describeTransition,
   gainToDb,
   secondsToFrames,
   TEXT_FONTS,
@@ -17,6 +18,7 @@ import {
   type ImageClip,
   type TextClip,
   type TextStyle,
+  type TransitionRef,
   type Project,
   type PropValue,
   type TemplateClip,
@@ -26,17 +28,28 @@ import {
 import { media } from '../services/media';
 import { FormatPicker } from './FormatPicker';
 import { clipPlacement, sourceSize } from '../lib/placement';
-import { resetTransform, setFades, setParam, setTemplateField, setTemplateImage, setText, setTransform } from '../state/actions';
+import {
+  deleteTransition,
+  resetTransform,
+  setParam,
+  setTemplateField,
+  setTemplateImage,
+  setText,
+  setTransform,
+  setTransitionLength,
+} from '../state/actions';
 import { Waveform } from './Waveform';
 import { useEditor, useProject } from '../state/store';
-import { Image as ImageIcon, Trash } from './Icons';
+import { Dissolve, FadeIn, FadeOut, Image as ImageIcon, Trash } from './Icons';
 
 const BASE_PALETTE = ['#ffffff', '#111111', '#ff6a3d', '#ffd84d', '#2ec27e', '#3b82f6', '#a855f7', '#ef4444'];
 
 export function Inspector() {
   const project = useProject();
   const selection = useEditor((s) => s.selection);
+  const transition = useEditor((s) => s.transition);
   const found = selection ? findClip(project, selection) : undefined;
+  const trans = transition ? describeTransition(project, transition) : null;
 
   return (
     <section className="panel right" aria-label="Egenskaper">
@@ -44,7 +57,8 @@ export function Inspector() {
         <span className="panel-title">Egenskaper</span>
       </div>
       <div className="scroll">
-        {!found && <ProjectSettings project={project} />}
+        {trans && transition && <TransitionInspector key={`${transition.clipId}-${transition.edge}`} refTo={transition} t={trans} project={project} />}
+        {!found && !trans && <ProjectSettings project={project} />}
         {found?.clip.kind === 'template' && <TemplateInspector key={found.clip.id} clip={found.clip} project={project} />}
         {found?.clip.kind === 'video' && <VideoInspector key={found.clip.id} clip={found.clip} project={project} />}
         {found?.clip.kind === 'image' && <ImageInspector key={found.clip.id} clip={found.clip} project={project} />}
@@ -95,7 +109,6 @@ function TemplateInspector({ clip, project }: { clip: TemplateClip; project: Pro
         format={(v) => `${Math.round(v * 100)} %`}
         onChange={(v) => setParam(clip.id, 'opacity', v)}
       />
-      <FadeFields clip={clip} project={project} />
       <p className="hint">
         Dra i klippets kanter på tidslinjen för att ändra längden.
         {def.timing.kind === 'segments'
@@ -328,8 +341,10 @@ function VideoInspector({ clip, project }: { clip: VideoClip; project: Project }
         format={(v) => `${Math.round(v * 100)} %`}
         onChange={(v) => setParam(clip.id, 'opacity', v)}
       />
-      <FadeFields clip={clip} project={project} />
-      <p className="hint">Filmens ljud följer klippet: det flyttas, trimmas och delas tillsammans med bilden.</p>
+      <p className="hint">
+        Filmens ljud följer klippet: det flyttas, trimmas och delas tillsammans med bilden. Övergångar läggs till med knapparna vid klippets
+        kanter på tidslinjen.
+      </p>
     </div>
   );
 }
@@ -368,7 +383,6 @@ function ImageInspector({ clip, project }: { clip: ImageClip; project: Project }
         format={(v) => `${Math.round(v * 100)} %`}
         onChange={(v) => setParam(clip.id, 'opacity', v)}
       />
-      <FadeFields clip={clip} project={project} />
       <p className="hint">Dra bilden i förhandsvisningen för att flytta den och i hörnen för att skala. Ändra längden genom att dra i klippets kanter.</p>
     </div>
   );
@@ -461,51 +475,6 @@ function VolumeField({ clip, label = 'Volym' }: { clip: VideoClip | AudioClip; l
   );
 }
 
-/** Fade in/out in seconds (stored in frames). */
-function FadeFields({ clip, project }: { clip: Clip; project: Project }) {
-  const fps = project.settings.fps;
-  const sec = (f?: number) => Math.round(framesToSeconds(f ?? 0, fps) * 100) / 100;
-  const max = framesToSeconds(clip.duration, fps);
-  const field = (label: string, key: 'fadeIn' | 'fadeOut') => (
-    <label className="xf-field">
-      <span>{label}</span>
-      <input
-        className="input mono"
-        type="number"
-        min={0}
-        max={max}
-        step={0.1}
-        value={sec(clip[key])}
-        data-testid={`fade-${key}`}
-        onChange={(e) => {
-          const v = e.target.valueAsNumber;
-          if (Number.isFinite(v)) setFades(clip.id, { [key]: secondsToFrames(Math.max(0, v), fps) });
-        }}
-      />
-      <span className="mono dim">s</span>
-    </label>
-  );
-  return (
-    <div className="field" data-testid="fade-fields">
-      <span className="field-label">{clip.kind === 'audio' ? 'Tona in/ut (volym)' : clip.kind === 'video' ? 'Tona in/ut (bild och ljud)' : 'Tona in/ut'}</span>
-      <div className="xf-grid">
-        {field('In', 'fadeIn')}
-        {field('Ut', 'fadeOut')}
-      </div>
-      <div className="xf-actions">
-        {[0.5, 1].map((s) => (
-          <button key={s} className="btn" onClick={() => setFades(clip.id, { fadeIn: secondsToFrames(s, fps), fadeOut: secondsToFrames(s, fps) })}>
-            {s.toString().replace('.', ',')} s in + ut
-          </button>
-        ))}
-        <button className="btn ghost" onClick={() => setFades(clip.id, { fadeIn: 0, fadeOut: 0 })}>
-          Ingen
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function AudioInspector({ clip, project, trackName }: { clip: AudioClip; project: Project; trackName: string }) {
   const asset = findAsset(project, clip.assetId);
   const fps = project.settings.fps;
@@ -538,8 +507,81 @@ function AudioInspector({ clip, project, trackName }: { clip: AudioClip; project
       </dl>
       <div className="divider" />
       <VolumeField clip={clip} />
-      <FadeFields clip={clip} project={project} />
       <p className="hint">Spårets volym (reglaget i spårhuvudet) påverkar alla klipp på spåret och multipliceras med klippets volym.</p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- transitions */
+
+function TransitionInspector({ refTo, t, project }: { refTo: TransitionRef; t: NonNullable<ReturnType<typeof describeTransition>>; project: Project }) {
+  const fps = project.settings.fps;
+  const templates = useEditor((s) => s.templates);
+  const name = (c: Clip | undefined) => {
+    if (!c) return '';
+    if (c.kind === 'text') return `”${c.text.split('\n')[0]}”`;
+    if (c.kind === 'template') return templates.find((x) => x.def.id === c.templateId)?.def.name ?? 'mall';
+    return findAsset(project, c.assetId)?.name ?? 'klipp';
+  };
+  const title = t.kind === 'dissolve' ? 'Övertoning' : t.kind === 'fadeIn' ? 'Tona in från svart' : 'Tona ut till svart';
+  const what =
+    t.kind === 'dissolve'
+      ? `${name(t.other)} → ${name(t.clip)}`
+      : `${t.kind === 'fadeIn' ? 'Början' : 'Slutet'} av ${name(t.clip)}`;
+  const secs = framesToSeconds(t.duration, fps);
+  const max = framesToSeconds(t.max, fps);
+  return (
+    <div className="inspector" data-testid="transition-inspector">
+      <div className="insp-head">
+        <div className="trans-icon">{t.kind === 'dissolve' ? <Dissolve /> : t.kind === 'fadeIn' ? <FadeIn /> : <FadeOut />}</div>
+        <div style={{ minWidth: 0 }}>
+          <div className="insp-title">{title}</div>
+          <div className="insp-sub ellipsis">{what}</div>
+        </div>
+      </div>
+      <p className="hint">
+        {t.kind === 'dissolve'
+          ? 'Klippen tonas över i varandra, centrerat på skarven. Ljudet tonas över på samma sätt.'
+          : t.kind === 'fadeIn'
+            ? 'Bilden tonas upp från svart och ljudet från tystnad.'
+            : 'Bilden tonas ner till svart och ljudet till tystnad.'}
+      </p>
+      <div className="field">
+        <span className="field-label">Längd</span>
+        <label className="xf-field">
+          <span>Sekunder</span>
+          <input
+            className="input mono"
+            type="number"
+            min={0.05}
+            max={max}
+            step={0.1}
+            value={Math.round(secs * 100) / 100}
+            data-testid="transition-duration"
+            onChange={(e) => {
+              const v = e.target.valueAsNumber;
+              if (Number.isFinite(v) && v > 0) setTransitionLength(refTo, secondsToFrames(v, fps));
+            }}
+          />
+          <span className="mono dim">s</span>
+        </label>
+        <div className="xf-actions">
+          {[0.5, 1, 2]
+            .filter((v) => v <= max + 1e-6)
+            .map((v) => (
+              <button key={v} className="btn" aria-pressed={Math.abs(secs - v) < 0.02} onClick={() => setTransitionLength(refTo, secondsToFrames(v, fps))}>
+                {String(v).replace('.', ',')} s
+              </button>
+            ))}
+        </div>
+        <span className="mono dim xf-size">högst {max.toFixed(2).replace('.', ',')} s ({t.kind === 'dissolve' ? 'kortaste klippet' : 'halva klippet'})</span>
+      </div>
+      <button className="btn" onClick={() => deleteTransition(refTo)}>
+        <Trash /> Ta bort övergång
+      </button>
+      <p className="hint">
+        Tips: markera övergången och tryck <kbd>Delete</kbd> eller <kbd>Backspace</kbd> för att ta bort den.
+      </p>
     </div>
   );
 }
@@ -661,7 +703,6 @@ function TextInspector({ clip, project }: { clip: TextClip; project: Project }) 
         format={(v) => `${Math.round(v * 100)} %`}
         onChange={(v) => setParam(clip.id, 'opacity', v)}
       />
-      <FadeFields clip={clip} project={project} />
     </div>
   );
 }

@@ -104,12 +104,29 @@ I kundprojekt sparas bilderna i projektets media och kan återanvändas.
 
 ### Övergångar
 
-- **Tona in/ut** på alla klipp (sekunder). Bild, bilder, text och mallar tonas från och till svart
-  (genomskinligt), ljud tonas i volym, och ett filmklipp tonar både bild och ljud. Snabbval:
-  0,5 s och 1 s. Toningarna visas som trianglar på klippen i tidslinjen.
-- Vid delning behåller vänster del intoningen och höger del uttoningen.
-- *Förberett:* övertoning mellan två klipp på samma spår (crossfade) bygger på samma modell; i dag
-  görs det genom att lägga klippen på två spår med uttoning respektive intoning.
+Övergångar är **valbara** och finns inte på några klipp från början. När muspekaren förs över ett
+spår visas en övergångsknapp
+
+- **där två klipp möts:** skapar en **övertoning** mellan klippen. Båda klippkanterna markeras när
+  knappen hålls över. Övertoningen är centrerad på skarven: det utgående klippet fortsätter och det
+  inkommande börjar tidigare, och ljudet tonas över på samma sätt.
+- **i början eller slutet av ett klipp** (utan grannklipp): skapar en **toning från/till svart**.
+  Ljudet tonas från och till tystnad.
+
+Standardlängden är 1 s. Övergången syns som en randig markör på klippen. Klicka på den för att
+ändra längden (0,5 s, 1 s, 2 s eller valfritt) eller ta bort den, eller tryck **Delete**/**Backspace**.
+
+Om klippen redan använder början eller slutet av sina filer finns inget extra material att tona över
+med. Bilden håller då första eller sista bildrutan, och ljudet tonas ner till skarven och upp från
+den, så att ingenting klipps av tvärt. Flyttas ett klipp bort från sin granne försvinner
+övertoningen mellan dem.
+
+![Övergångsknapp](docs/overgang-knapp.jpg)
+
+### Ta bort
+
+Markera ett klipp eller en övergång och tryck **Delete** eller **Backspace**. Med **Shift** stängs
+luckan efter ett borttaget klipp. **⌘/Ctrl+Z** ångrar.
 
 ![Ljud och text](docs/ljud-text.jpg)
 

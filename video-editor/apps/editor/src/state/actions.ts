@@ -38,6 +38,13 @@ import {
   SUBTITLE_Y,
   TEXT_PRESETS,
   toSrt,
+  addTransition,
+  DEFAULT_TRANSITION_SECONDS,
+  jointRef,
+  removeTransition,
+  setTransitionDuration,
+  type Joint,
+  type TransitionRef,
   type Cue,
   type ImageAsset,
   type MediaDTO,
@@ -336,8 +343,31 @@ export function splitAtPlayhead() {
   }
 }
 
+/** Add a dissolve (between touching clips) or a fade to/from black (free clip end) at a joint. */
+export function addTransitionAt(j: Joint) {
+  const s = useEditor.getState();
+  const frames = secondsToFrames(DEFAULT_TRANSITION_SECONDS, s.history.present.project.settings.fps);
+  s.apply((p) => addTransition(p, j, frames), j.kind === 'cut' ? 'Lägg till övertoning' : j.kind === 'start' ? 'Tona in från svart' : 'Tona ut till svart');
+  s.selectTransition(jointRef(j));
+}
+
+export function setTransitionLength(ref: TransitionRef, frames: Frame) {
+  useEditor.getState().apply((p) => setTransitionDuration(p, ref, frames), 'Övergångens längd', `trans:${ref.clipId}:${ref.edge}`);
+}
+
+export function deleteTransition(ref: TransitionRef) {
+  const s = useEditor.getState();
+  s.apply((p) => removeTransition(p, ref), 'Ta bort övergång');
+  s.selectTransition(null);
+}
+
+/** Delete/Backspace: removes the selected transition, or the selected clip (Shift: close the gap). */
 export function deleteSelection(ripple: boolean) {
   const s = useEditor.getState();
+  if (s.transition) {
+    deleteTransition(s.transition);
+    return;
+  }
   if (!s.selection) return;
   const id = s.selection;
   s.apply((p) => removeClip(p, id, ripple), ripple ? 'Ta bort och stäng luckan' : 'Ta bort klipp');

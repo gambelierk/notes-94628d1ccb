@@ -131,3 +131,22 @@ export const Logo = (p: SVGProps<SVGSVGElement>) => (
     <path d="M9 7l9 5-9 5z" fill="currentColor" />
   </svg>
 );
+/** Two overlapping shots: a cross-dissolve. */
+export const Dissolve = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)} strokeWidth={1.8}>
+    <path d="M3 6l9 6-9 6z" />
+    <path d="M21 6l-9 6 9 6z" />
+  </svg>
+);
+/** A ramp from black: fade in. */
+export const FadeIn = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)} strokeWidth={1.8}>
+    <path d="M4 18L20 6v12z" />
+  </svg>
+);
+/** A ramp to black: fade out. */
+export const FadeOut = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)} strokeWidth={1.8}>
+    <path d="M20 18L4 6v12z" />
+  </svg>
+);

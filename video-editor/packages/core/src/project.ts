@@ -250,8 +250,12 @@ export function moveClip(project: Project, clipId: string, toTrackId: string, ne
   if (!found) return project;
   const target = project.tracks.find((t) => t.id === toTrackId);
   if (!target || !trackAcceptsClip(target, found.clip)) return project;
-  const without = removeClip(project, clipId);
-  return insertClip(without, toTrackId, { ...found.clip, start: Math.max(0, Math.round(newStart)) });
+  if (newStart === found.clip.start && toTrackId === found.track.id) return project;
+  // A moved clip leaves its transitions behind: drop its own dissolve and the next clip's dissolve into it.
+  const next = found.track.clips[found.index + 1];
+  let base = removeClip(project, clipId);
+  if (next?.transitionIn && next.start === clipEnd(found.clip)) base = updateClip(base, next.id, (c) => ({ ...c, transitionIn: undefined }));
+  return insertClip(base, toTrackId, { ...found.clip, transitionIn: undefined, start: Math.max(0, Math.round(newStart)) });
 }
 
 /**
@@ -297,7 +301,12 @@ export function splitClip(project: Project, clipId: string, atFrame: Frame): Pro
   if (at <= clip.start || at >= clipEnd(clip)) return project;
   // the fade-in stays on the left part, the fade-out on the right part
   const left: Clip = { ...clip, duration: at - clip.start, fadeOut: undefined };
-  const right: Clip = { ...trimStartBy(clip, at - clip.start, project.settings.fps), id: createId('clp'), fadeIn: undefined };
+  const right: Clip = {
+    ...trimStartBy(clip, at - clip.start, project.settings.fps),
+    id: createId('clp'),
+    fadeIn: undefined,
+    transitionIn: undefined,
+  };
   return mapTrack(project, track.id, (t) => ({
     ...t,
     clips: sortClips(t.clips.flatMap((c) => (c.id === clipId ? [left, right] : [c]))),
@@ -314,7 +323,7 @@ export function splitAtFrame(project: Project, frame: Frame, trackIds?: string[]
   return p;
 }
 
-function updateClip(project: Project, clipId: string, fn: (c: Clip) => Clip): Project {
+export function updateClip(project: Project, clipId: string, fn: (c: Clip) => Clip): Project {
   const found = findClip(project, clipId);
   if (!found) return project;
   return mapTrack(project, found.track.id, (t) => ({ ...t, clips: t.clips.map((c) => (c.id === clipId ? fn(c) : c)) }));
