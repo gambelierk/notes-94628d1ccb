@@ -57,6 +57,22 @@ export class MediaSource {
     return sink;
   }
 
+  /**
+   * Decoder producing frames at the video's own aspect ratio, downscaled to
+   * fit within maxW × maxH (never upscaled). Placement on the output frame is
+   * done by the compositor.
+   */
+  frameSink(maxW: number, maxH: number): CanvasSink {
+    const v = this.video;
+    if (!v) throw new Error('Filen saknar videospår');
+    const dw = v.displayWidth;
+    const dh = v.displayHeight;
+    const k = Math.min(1, maxW / dw, maxH / dh);
+    const w = Math.max(2, Math.round((dw * k) / 2) * 2);
+    const h = Math.max(2, Math.round((dh * k) / 2) * 2);
+    return this.canvasSink(w, h);
+  }
+
   audioSamples(): AudioSampleSink | null {
     if (!this.audio) return null;
     this.audioSampleSink ??= new AudioSampleSink(this.audio);

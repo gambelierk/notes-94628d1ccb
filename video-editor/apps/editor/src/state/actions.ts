@@ -2,7 +2,11 @@ import {
   addAsset,
   addTrack,
   clipEnd,
+  createImageClip,
   createTemplateClip,
+  resetClipTransform,
+  setClipTransform,
+  type TransformValues,
   createVideoClip,
   findAsset,
   findClip,
@@ -51,7 +55,7 @@ async function uploadToProject(file: File): Promise<MediaDTO> {
   store.setUpload({ id: uploadId, name: file.name, progress: 0 });
   try {
     const m = await customerApi.uploadMedia(token, file, (f) => useEditor.getState().setUpload({ id: uploadId, name: file.name, progress: f }));
-    media.registerRemote(m.id, m.url, m.name, m.size);
+    media.registerRemote(m.id, m.url, m.name, m.size, m.kind);
     media.registerLocal(m.id, file);
     useEditor.getState().setServerMedia([...useEditor.getState().serverMedia.filter((x) => x.id !== m.id), m]);
     return m;
@@ -73,6 +77,7 @@ export async function importFiles(files: Iterable<File>): Promise<void> {
         const id = saved ? (await uploadToProject(file)).id : createId('img');
         const asset = await media.importImage(file, id);
         store.apply((p) => addAsset(p, asset), 'Importera bild');
+        void media.thumbnail(asset.id).then((u) => u && useEditor.getState().setMediaThumb(asset.id, u));
       } else if (file.type.startsWith('video/') || /\.(mp4|m4v|mov)$/.test(name)) {
         // Probe locally first: fail fast on unsupported codecs before uploading.
         await media.probeLocal(file);
@@ -81,7 +86,7 @@ export async function importFiles(files: Iterable<File>): Promise<void> {
         if (thumbnail) store.setMediaThumb(asset.id, thumbnail);
         store.apply((p) => addAsset(p, asset), 'Importera video');
       } else {
-        store.toast(`${file.name}: filtypen stöds inte än (MP4, MOV, bilder och .riv)`, 'error');
+        store.toast(`${file.name}: filtypen stöds inte än (MP4, MOV, PNG, JPEG, WebP och .riv)`, 'error');
       }
     } catch (e) {
       const msg = e instanceof UnsupportedMediaError || e instanceof Error ? e.message : String(e);
@@ -148,6 +153,42 @@ export async function addVideoToTimeline(assetId: string, trackId: string | null
     return insertClip(p, tid, clip);
   }, 'Lägg till klipp');
   if (newClipId) store.select(newClipId);
+}
+
+export const IMAGE_DEFAULT_SECONDS = 5;
+
+/** Put an image on the timeline (default: the first graphics track, at the playhead). */
+export async function addImageToTimeline(assetId: string, trackId: string | null, frame: Frame | null): Promise<void> {
+  const store = useEditor.getState();
+  if (!findAsset(committedProject(), assetId)) {
+    try {
+      const asset = await media.probeImage(assetId);
+      store.apply((p) => addAsset(p, asset), 'Lägg till bild');
+    } catch (e) {
+      store.toast(`Bilden kunde inte öppnas: ${e instanceof Error ? e.message : e}`, 'error');
+      return;
+    }
+  }
+  let newClipId: string | null = null;
+  store.apply((p0) => {
+    const asset = findAsset(p0, assetId);
+    if (!asset || asset.kind !== 'image') throw new Error('Bilden finns inte');
+    const preferred = trackId ? p0.tracks.find((t) => t.id === trackId) : undefined;
+    const [p, tid] = preferred ? [p0, preferred.id] : ensureTrack(p0, 'graphics', null);
+    const clip = createImageClip(asset, frame ?? useEditor.getState().playhead, secondsToFrames(IMAGE_DEFAULT_SECONDS, p.settings.fps));
+    newClipId = clip.id;
+    return insertClip(p, tid, clip);
+  }, 'Lägg till bild');
+  if (newClipId) store.select(newClipId);
+}
+
+/** Move/scale/rotate a visual clip. `mergeKey` groups rapid edits (typing, slider drags). */
+export function setTransform(clipId: string, patch: Partial<TransformValues>, label = 'Placering') {
+  useEditor.getState().apply((p) => setClipTransform(p, clipId, patch), label, `transform:${clipId}:${Object.keys(patch).join()}`);
+}
+
+export function resetTransform(clipId: string) {
+  useEditor.getState().apply((p) => resetClipTransform(p, clipId), 'Återställ placering');
 }
 
 export function addTemplateToTimeline(templateId: string, trackId: string | null, frame: Frame | null) {

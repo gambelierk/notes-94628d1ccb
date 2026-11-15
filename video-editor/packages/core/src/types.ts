@@ -67,6 +67,22 @@ interface ClipBase {
   duration: Frame;
 }
 
+/**
+ * Where a visual clip sits in the frame. Optional: a missing transform means
+ * "fit to the frame, centred". Positions are fractions of the frame size so
+ * a layout survives a change of format; the UI shows them in pixels.
+ */
+export interface ClipTransform {
+  /** Horizontal offset of the clip's centre from the frame centre, as a fraction of frame width. */
+  x: Param<number>;
+  /** Vertical offset, as a fraction of frame height. */
+  y: Param<number>;
+  /** 1 = fitted inside the frame (contain). */
+  scale: Param<number>;
+  /** Degrees, clockwise. */
+  rotation: Param<number>;
+}
+
 export interface VideoClip extends ClipBase {
   kind: 'video';
   assetId: string;
@@ -74,6 +90,14 @@ export interface VideoClip extends ClipBase {
   sourceStart: Micros;
   volume: Param<number>;
   opacity: Param<number>;
+  transform?: ClipTransform;
+}
+
+export interface ImageClip extends ClipBase {
+  kind: 'image';
+  assetId: string;
+  opacity: Param<number>;
+  transform?: ClipTransform;
 }
 
 export interface TemplateClip extends ClipBase {
@@ -81,9 +105,12 @@ export interface TemplateClip extends ClipBase {
   templateId: string;
   props: Record<string, Param<PropValue>>;
   opacity: Param<number>;
+  /** Applied on top of the template's own layout. Rotation is not supported for templates. */
+  transform?: ClipTransform;
 }
 
-export type Clip = VideoClip | TemplateClip;
+export type Clip = VideoClip | ImageClip | TemplateClip;
+export type VisualClip = Clip;
 
 export type TrackKind = 'video' | 'graphics';
 

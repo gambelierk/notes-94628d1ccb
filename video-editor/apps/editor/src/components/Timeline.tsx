@@ -18,7 +18,7 @@ import {
   type Project,
   type Track,
 } from '@ve/core';
-import { deleteSelection, splitAtPlayhead } from '../state/actions';
+import { deleteSelection, IMAGE_DEFAULT_SECONDS, splitAtPlayhead } from '../state/actions';
 import { committedProject, useEditor, useProject } from '../state/store';
 import { preview } from '../services/preview';
 import { Eye, EyeOff, Fit, Plus, Speaker, SpeakerOff, Split, Trash, ZoomIn, ZoomOut } from './Icons';
@@ -102,13 +102,16 @@ export function Timeline() {
       setSnapLine(null);
       return;
     }
-    const kind = drag.payload.type === 'template' ? 'graphics' : 'video';
+    const kind = drag.payload.type === 'media' ? 'video' : 'graphics';
     const row = rowAtClientY(drag.y);
-    const track = row && row.kind === kind ? row : nearestTrack(rows, kind, row);
+    // images go on any track; video only on video tracks, templates only on graphics tracks
+    const track = row && (row.kind === kind || drag.payload.type === 'image') ? row : nearestTrack(rows, kind, row);
     let dur: Frame;
     if (drag.payload.type === 'template') {
       const tpl = templates.find((t) => t.def.id === drag.payload.id);
       dur = secondsToFrames(tpl?.def.defaultDuration ?? 5, fps);
+    } else if (drag.payload.type === 'image') {
+      dur = secondsToFrames(IMAGE_DEFAULT_SECONDS, fps);
     } else {
       const a = findAsset(project, drag.payload.id);
       dur = a?.kind === 'video' ? microsToFrames(a.durationUs, fps) : secondsToFrames(5, fps);
@@ -167,7 +170,7 @@ export function Timeline() {
         if (s1 !== raw) line = s1;
         else if (s2 !== raw) line = s2 + clip.duration;
         const row = rowAtClientY(ev.clientY);
-        const trackId = row && row.kind === trackKindFor(clip.kind) ? row.id : trackOf(base, clip.id)!;
+        const trackId = row && (clip.kind === 'image' || row.kind === trackKindFor(clip.kind)) ? row.id : trackOf(base, clip.id)!;
         next = moveClip(base, clip.id, trackId, start);
       } else {
         const raw = frameAtClientX(ev.clientX);
@@ -338,7 +341,7 @@ export function Timeline() {
                     x={xOf(clip.start)}
                     w={Math.max(2, xOf(clip.duration))}
                     selected={clip.id === selection}
-                    thumb={clip.kind === 'video' ? thumbs[clip.assetId] : undefined}
+                    thumb={clip.kind === 'video' || clip.kind === 'image' ? thumbs[clip.assetId] : undefined}
                     templateName={clip.kind === 'template' ? templates.find((t) => t.def.id === clip.templateId)?.def.name : undefined}
                     onDown={onClipDown}
                   />
@@ -427,7 +430,7 @@ function ClipView(props: {
   let label: string;
   let sub: string | null = null;
   let missing = false;
-  if (clip.kind === 'video') {
+  if (clip.kind === 'video' || clip.kind === 'image') {
     const a = findAsset(project, clip.assetId);
     label = a?.name ?? 'Saknad fil';
     missing = !a;
@@ -446,7 +449,7 @@ function ClipView(props: {
       title={label}
       onPointerDown={(e) => onDown(e, clip, 'move')}
     >
-      {clip.kind === 'video' && thumb && <div className="clip-strip" style={{ backgroundImage: `url(${thumb})` }} />}
+      {(clip.kind === 'video' || clip.kind === 'image') && thumb && <div className="clip-strip" style={{ backgroundImage: `url(${thumb})` }} />}
       <span className="clip-label">{label}</span>
       {sub && <span className="clip-sub">{sub}</span>}
       <div className="clip-handle l" onPointerDown={(e) => onDown(e, clip, 'l')} />

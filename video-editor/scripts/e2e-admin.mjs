@@ -127,9 +127,9 @@ try {
   await cust.waitForFunction(() => window.__editor.getState().templates.some((t) => t.uploadedBy === 'customer'), null, { timeout: 20000 });
   check((await cust.locator('.lib-cat', { hasText: 'Egna mallar' }).count()) === 1, 'kund: egen .riv uppladdad och listad under "Egna mallar"');
 
-  await cust.getByRole('button', { name: 'Ny komposition' }).first().click();
+  await cust.getByRole('button', { name: 'Skapa' }).first().click();
   await cust.getByLabel('Namn', { exact: true }).fill('Reklamfilm');
-  await cust.locator('.format-opt', { hasText: 'Liggande 16:9' }).click();
+  await cust.getByTestId('create-dialog').getByRole('radio', { name: /16:9/ }).click();
   await cust.getByRole('button', { name: 'Skapa och öppna' }).click();
   await cust.waitForURL(/\/p\/[^/]+\/c\/cmp_/);
   const compUrl = cust.url();
@@ -207,9 +207,9 @@ try {
   check(true, 'kund: duplicering skapar en kopia');
 
   // New vertical composition reusing the uploaded film from the project bin
-  await cust.getByRole('button', { name: 'Ny komposition' }).first().click();
+  await cust.getByRole('button', { name: 'Skapa' }).first().click();
   await cust.getByLabel('Namn', { exact: true }).fill('Story');
-  await cust.locator('.format-opt', { hasText: 'Stående 9:16' }).click();
+  await cust.getByTestId('create-dialog').getByRole('radio', { name: /9:16/ }).click();
   await cust.getByRole('button', { name: 'Skapa och öppna' }).click();
   await cust.waitForFunction(() => window.__editor?.getState().composition?.name === 'Story', null, { timeout: 20000 });
   await cust.getByRole('tab', { name: 'Media' }).click();

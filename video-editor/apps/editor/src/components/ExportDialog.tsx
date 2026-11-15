@@ -28,7 +28,7 @@ async function buildJob(project: Project, preset: QualityPreset): Promise<Export
   const mediaIds = new Set<string>();
   for (const t of project.tracks)
     for (const c of t.clips) {
-      if (c.kind === 'video') mediaIds.add(c.assetId);
+      if (c.kind === 'video' || c.kind === 'image') mediaIds.add(c.assetId);
       else {
         usedTemplates.add(c.templateId);
         for (const p of Object.values(c.props)) if (p.value.type === 'image' && p.value.assetId) mediaIds.add(p.value.assetId);

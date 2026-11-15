@@ -1,12 +1,17 @@
 import {
   activeClipsAt,
   evaluateParam,
+  findAsset,
   framesToSeconds,
+  mediaPlacement,
   sourceTimeAt,
+  transformAt,
   type Frame,
+  type ImageClip,
   type Project,
   type PropValue,
   type TemplateClip,
+  type VideoAsset,
   type VideoClip,
 } from '@ve/core';
 import { VideoFrameReader, type MediaSource } from '@ve/media';
@@ -31,17 +36,26 @@ interface TemplateEntry {
   templateId: string;
   lastUsed: number;
 }
+interface ImageEntry {
+  bitmap: Promise<ImageBitmap | null>;
+  lastUsed: number;
+}
 
 const IDLE_FRAMES_BEFORE_RELEASE = 300;
+/** Decode video up to this multiple of the output size, so zooming in keeps detail. */
+const VIDEO_OVERSAMPLE = 2;
 
 /**
- * Per-clip decoders and template renderers, created on demand and released
- * when a clip has not been drawn for a while. One instance per output size.
+ * Per-clip decoders, template renderers and decoded images, created on
+ * demand and released when unused for a while. One instance per output size.
  */
 export class RenderResources {
   private readers = new Map<string, ReaderEntry>();
   private templates = new Map<string, TemplateEntry>();
+  private images = new Map<string, ImageEntry>();
   private tick = 0;
+  /** Image keys released since the last frame; the compositor drops their textures. */
+  readonly releasedImages: string[] = [];
 
   constructor(
     private readonly opts: RenderResourcesOptions,
@@ -63,11 +77,26 @@ export class RenderResources {
       if (e) void e.reader.dispose();
       const src = await this.opts.openSource(clip.assetId);
       if (!src?.video) return null;
-      e = { reader: new VideoFrameReader(src.canvasSink(this.width, this.height)), key, lastUsed: this.tick };
+      const sink = src.frameSink(this.width * VIDEO_OVERSAMPLE, this.height * VIDEO_OVERSAMPLE);
+      e = { reader: new VideoFrameReader(sink), key, lastUsed: this.tick };
       this.readers.set(clip.id, e);
     }
     e.lastUsed = this.tick;
     return e.reader.frameAt(timeSec);
+  }
+
+  image(assetId: string): Promise<ImageBitmap | null> {
+    let e = this.images.get(assetId);
+    if (!e) {
+      const bitmap = this.opts
+        .imageBytes(assetId)
+        .then((b) => (b ? createImageBitmap(new Blob([b as Uint8Array<ArrayBuffer>]), { premultiplyAlpha: 'premultiply' }) : null))
+        .catch(() => null);
+      e = { bitmap, lastUsed: this.tick };
+      this.images.set(assetId, e);
+    }
+    e.lastUsed = this.tick;
+    return e.bitmap;
   }
 
   template(clip: TemplateClip): TemplateRenderer | null {
@@ -90,23 +119,35 @@ export class RenderResources {
   /** Release resources for clips that have not been drawn recently. */
   collect() {
     this.tick++;
+    const idle = (n: number) => this.tick - n > IDLE_FRAMES_BEFORE_RELEASE;
     for (const [id, e] of this.readers)
-      if (this.tick - e.lastUsed > IDLE_FRAMES_BEFORE_RELEASE) {
+      if (idle(e.lastUsed)) {
         void e.reader.dispose();
         this.readers.delete(id);
       }
     for (const [id, e] of this.templates)
-      if (this.tick - e.lastUsed > IDLE_FRAMES_BEFORE_RELEASE) {
+      if (idle(e.lastUsed)) {
         e.renderer.dispose();
         this.templates.delete(id);
+      }
+    for (const [id, e] of this.images)
+      if (idle(e.lastUsed)) {
+        void e.bitmap.then((b) => b?.close());
+        this.images.delete(id);
+        this.releasedImages.push(id);
       }
   }
 
   disposeAll() {
     for (const e of this.readers.values()) void e.reader.dispose();
     for (const e of this.templates.values()) e.renderer.dispose();
+    for (const [id, e] of this.images) {
+      void e.bitmap.then((b) => b?.close());
+      this.releasedImages.push(id);
+    }
     this.readers.clear();
     this.templates.clear();
+    this.images.clear();
   }
 }
 
@@ -116,38 +157,58 @@ function propValues(clip: TemplateClip, frame: Frame): Record<string, PropValue>
   return out;
 }
 
+type Prepared =
+  | { kind: 'video'; clip: VideoClip; asset: VideoAsset; frame: CanvasImageSource | null }
+  | { kind: 'image'; clip: ImageClip; bitmap: ImageBitmap | null }
+  | { kind: 'template'; clip: TemplateClip; renderer: TemplateRenderer | null; props: Record<string, PropValue> };
+
 /**
  * Draw timeline frame `frame` of `project`. This single function is used by
  * the preview and by the exporter, so what you see is what you export.
  */
 export async function renderFrame(project: Project, frame: Frame, compositor: Compositor, res: RenderResources): Promise<void> {
   const fps = project.settings.fps;
+  const W = compositor.width;
+  const H = compositor.height;
   const active = activeClipsAt(project, frame);
 
   // Decode everything first (async), then draw synchronously in layer order.
-  const prepared = await Promise.all(
-    active.map(async ({ clip }) => {
-      if (clip.kind === 'video') {
-        const f = await res.videoFrame(clip, sourceTimeAt(clip, frame, fps) / 1_000_000);
-        return { clip, video: f?.canvas ?? null };
-      }
-      const r = res.template(clip);
-      const props = propValues(clip, frame);
-      if (r) await r.prepareImages(props, res.imageBytes);
-      return { clip, template: r, props };
-    }),
-  );
+  const prepared = (
+    await Promise.all(
+      active.map(async ({ clip }): Promise<Prepared | null> => {
+        if (clip.kind === 'video') {
+          const asset = findAsset(project, clip.assetId);
+          if (asset?.kind !== 'video') return null;
+          const f = await res.videoFrame(clip, sourceTimeAt(clip, frame, fps) / 1_000_000);
+          return { kind: 'video', clip, asset, frame: f?.canvas ?? null };
+        }
+        if (clip.kind === 'image') {
+          return { kind: 'image', clip, bitmap: await res.image(clip.assetId) };
+        }
+        const r = res.template(clip);
+        const props = propValues(clip, frame);
+        if (r) await r.prepareImages(props, res.imageBytes);
+        return { kind: 'template', clip, renderer: r, props };
+      }),
+    )
+  ).filter((x): x is Prepared => !!x);
+
+  for (const key of res.releasedImages.splice(0)) compositor.releaseStill(key);
 
   compositor.begin(project.settings.background);
   for (const layer of prepared) {
     const opacity = evaluateParam(layer.clip.opacity, frame);
-    if ('video' in layer) {
-      if (layer.video) compositor.draw(layer.video, opacity);
-    } else if (layer.template) {
-      const clip = layer.clip as TemplateClip;
-      layer.template.applyProps(layer.props);
-      layer.template.render(framesToSeconds(frame - clip.start, fps), framesToSeconds(clip.duration, fps));
-      compositor.draw(layer.template.canvas, opacity);
+    const t = transformAt(layer.clip, frame);
+    if (layer.kind === 'video') {
+      if (layer.frame) compositor.draw(layer.frame as TexImageSource, opacity, mediaPlacement(layer.asset.width, layer.asset.height, W, H, t));
+    } else if (layer.kind === 'image') {
+      const b = layer.bitmap;
+      if (b) compositor.drawStill(layer.clip.assetId, b, opacity, mediaPlacement(b.width, b.height, W, H, t));
+    } else if (layer.renderer) {
+      const clip = layer.clip;
+      layer.renderer.applyProps(layer.props);
+      layer.renderer.render(framesToSeconds(frame - clip.start, fps), framesToSeconds(clip.duration, fps), t);
+      compositor.draw(layer.renderer.canvas, opacity);
     }
   }
   compositor.end();

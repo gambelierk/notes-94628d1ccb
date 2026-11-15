@@ -3,6 +3,7 @@ import { createId, type ImageAsset, type VideoAsset } from '@ve/core';
 import { MediaSource, probeVideo } from '@ve/media';
 
 interface Entry {
+  kind?: 'video' | 'image';
   /** Local file, when this browser has it (just imported or uploaded). */
   blob?: Blob;
   /** Absolute URL on the server, when the file is stored there. */
@@ -22,14 +23,47 @@ class MediaLibrary {
   private thumbs = new Map<string, Promise<string | null>>();
 
   /** Make a server-stored file available under `id`. */
-  registerRemote(id: string, url: string, name?: string, size?: number) {
+  registerRemote(id: string, url: string, name?: string, size?: number, kind?: 'video' | 'image') {
     const e = this.entries.get(id) ?? {};
-    this.entries.set(id, { ...e, url: new URL(url, location.href).href, name: name ?? e.name, size: size ?? e.size });
+    this.entries.set(id, { ...e, url: new URL(url, location.href).href, name: name ?? e.name, size: size ?? e.size, kind: kind ?? e.kind });
   }
 
   registerLocal(id: string, blob: Blob) {
     const e = this.entries.get(id) ?? {};
-    this.entries.set(id, { ...e, blob, size: blob.size });
+    this.entries.set(id, { ...e, blob, size: blob.size, kind: e.kind ?? (blob.type.startsWith('image/') ? 'image' : 'video') });
+  }
+
+  private isImage(id: string): boolean {
+    return this.entries.get(id)?.kind === 'image';
+  }
+
+  private async bytesBlob(id: string): Promise<Blob | null> {
+    const e = this.entries.get(id);
+    if (e?.blob) return e.blob;
+    if (e?.url) {
+      const r = await fetch(e.url);
+      if (r.ok) return r.blob();
+    }
+    return null;
+  }
+
+  /** Metadata for a server-stored image so it can be placed on a timeline. */
+  async probeImage(id: string): Promise<ImageAsset> {
+    const blob = await this.bytesBlob(id);
+    if (!blob) throw new Error('Bilden finns inte');
+    const bmp = await createImageBitmap(blob);
+    const e = this.entries.get(id);
+    const asset: ImageAsset = {
+      kind: 'image',
+      id,
+      name: e?.name ?? 'bild',
+      width: bmp.width,
+      height: bmp.height,
+      size: blob.size,
+      mime: blob.type || 'image/png',
+    };
+    bmp.close();
+    return asset;
   }
 
   has(id: string): boolean {
@@ -71,6 +105,8 @@ class MediaLibrary {
       mime: file.type || 'image/png',
     };
     bmp.close();
+    const e = this.entries.get(id) ?? {};
+    this.entries.set(id, { ...e, kind: 'image' });
     this.registerLocal(id, file);
     return asset;
   }
@@ -89,6 +125,16 @@ class MediaLibrary {
   }
 
   private async posterFrame(id: string): Promise<string | null> {
+    if (this.isImage(id)) {
+      const blob = await this.bytesBlob(id);
+      if (!blob) return null;
+      // small thumbnail so bins and timelines don't hold full-size photos
+      const bmp = await createImageBitmap(blob, { resizeHeight: 144, resizeQuality: 'medium' });
+      const c = new OffscreenCanvas(bmp.width, bmp.height);
+      c.getContext('2d')!.drawImage(bmp, 0, 0);
+      bmp.close();
+      return URL.createObjectURL(await c.convertToBlob({ type: 'image/png' }));
+    }
     const source = await this.openSource(id);
     if (!source?.video) return null;
     const h = 72;

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { canRedo, canUndo } from '@ve/core';
+import { canRedo, canUndo, createProject, projectDuration } from '@ve/core';
+import { CreateDialog } from './components/FormatPicker';
 import { ExportDialog } from './components/ExportDialog';
-import { Download, Logo, Redo, Undo } from './components/Icons';
+import { Download, Logo, Plus, Redo, Undo } from './components/Icons';
 import { Inspector } from './components/Inspector';
 import { LeftPanel } from './components/LeftPanel';
 import { Timeline } from './components/Timeline';
@@ -107,6 +108,7 @@ function TopBar() {
       {comp ? <CompositionName key={comp.id} name={comp.name} /> : library.kind !== 'share' && <span className="project-name">{name}</span>}
       {comp && <SaveIndicator />}
       <div className="spacer" />
+      {!comp && <CreateButton />}
       <button className="btn ghost icon-btn" aria-label="Ångra" title={`Ångra ${history.present.label}`} disabled={!canUndo(history)} onClick={undo}>
         <Undo />
       </button>
@@ -117,6 +119,31 @@ function TopBar() {
         <Download /> Exportera
       </button>
     </header>
+  );
+}
+
+/** Demo editor: start a new (unsaved) film in a chosen format. */
+function CreateButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button className="btn" onClick={() => setOpen(true)}>
+        <Plus /> Skapa
+      </button>
+      {open && (
+        <CreateDialog
+          title="Skapa ny film"
+          onClose={() => setOpen(false)}
+          onCreate={(name, size) => {
+            const s = useEditor.getState();
+            if (projectDuration(s.history.present.project) > 0 && !confirm('Börja om med en tom tidslinje? Det nuvarande projektet sparas inte.')) return;
+            preview.pause();
+            s.loadProject(createProject(name, { width: size.width, height: size.height, autoFormat: false }));
+            setOpen(false);
+          }}
+        />
+      )}
+    </>
   );
 }
 

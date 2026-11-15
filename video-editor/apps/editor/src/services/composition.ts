@@ -36,7 +36,7 @@ class CompositionSession {
   }
 
   registerMedia(list: MediaDTO[]) {
-    for (const m of list) media.registerRemote(m.id, m.url, m.name, m.size);
+    for (const m of list) media.registerRemote(m.id, m.url, m.name, m.size, m.kind);
   }
 
   private watch() {

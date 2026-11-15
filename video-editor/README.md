@@ -40,11 +40,45 @@ kompositioner. Kunden kan inte se andra kunders mallar, media eller kompositione
 ## Gränssnitt
 
 Gränssnittet är helt i gråskala: hierarkin kommer från ljushet, vikt och typsnitt, inte färg.
-Typsnitten är **Inter** för text och **JetBrains Mono** för tidskoder, siffror, filnamn, etiketter och
-metadata. JetBrains Sans, JetBrains eget sans-typsnitt, bygger på Inter men är inte fritt licensierat.
-Båda typsnitten bäddas in i appen och hämtas inte från externa tjänster.
+Typsnittsfamiljen är **IBM Plex**: Plex Sans för text och Plex Mono för tidskoder, mått, siffror,
+filnamn, etiketter och metadata. Båda bäddas in i appen (SIL Open Font License) och hämtas inte från
+externa tjänster.
 
 ## Funktioner i editorn
+
+### Skapa: format
+
+**Skapa** öppnar ett val av format i full upplösning:
+
+| Format | Pixlar | Passar till |
+|---|---|---|
+| 1:1 Kvadrat | 1080 × 1080 | Instagram- och LinkedIn-flöde |
+| 3:4 Stående | 1080 × 1440 | Instagram-flöde, Pinterest |
+| 4:5 Porträtt | 1080 × 1350 | Instagram- och Facebook-flöde |
+| 9:16 Stående | 1080 × 1920 | Reels, Stories, TikTok, Shorts |
+| 16:9 Liggande | 1920 × 1080 | YouTube, webb, presentationer |
+| Anpassad storlek | egna mått | 128–4096 px per sida, avrundas till jämna pixlar (krav för H.264) |
+
+![Skapa](docs/skapa.jpg)
+
+Formatet kan bytas i efterhand i egenskapspanelen (när inget klipp är markerat). Placeringar sparas
+relativt bildrutan och följer därför med vid formatbyte.
+
+### Flytta, skala och rotera
+
+Filmer, bilder och mallar kan flyttas och skalas direkt i förhandsvisningen. Klicka på ett lager för
+att markera det, dra för att flytta och dra i hörnen för att skala. Filmer och bilder roteras med
+handtaget ovanför. Lager fäster mot bildens mitt och kanter, och skalan fäster vid *Anpassa* och
+*Fyll*; håll **Shift** för att stänga av fästningen. Exakta värden (X, Y i pixlar, skala i %,
+rotation i °) och knapparna **Anpassa**, **Fyll** och **Centrera** finns i egenskapspanelen.
+
+### Bilder
+
+PNG, JPEG och WebP kan importeras och läggas in i filmen som egna klipp, till exempel logotyper.
+Genomskinlighet bevaras. Bilder flyttas, skalas, roteras, tonas (opacitet) och trimmas som andra klipp.
+I kundprojekt sparas bilderna i projektets media och kan återanvändas.
+
+### Övrigt
 
 - **Import** av MP4 (H.264/AAC och det webbläsaren kan avkoda), bilder och egna `.riv`-mallar.
   Filer kan släppas var som helst i fönstret.

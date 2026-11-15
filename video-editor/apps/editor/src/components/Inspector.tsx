@@ -6,7 +6,11 @@ import {
   formatTimecode,
   framesToSeconds,
   microsToSeconds,
+  coverScale,
+  transformAt,
   updateSettings,
+  type Clip,
+  type ImageClip,
   type Project,
   type PropValue,
   type TemplateClip,
@@ -14,7 +18,9 @@ import {
   type VideoClip,
 } from '@ve/core';
 import { media } from '../services/media';
-import { setParam, setTemplateField, setTemplateImage } from '../state/actions';
+import { FormatPicker } from './FormatPicker';
+import { clipPlacement, sourceSize } from '../lib/placement';
+import { resetTransform, setParam, setTemplateField, setTemplateImage, setTransform } from '../state/actions';
 import { useEditor, useProject } from '../state/store';
 import { Image as ImageIcon, Trash } from './Icons';
 
@@ -34,6 +40,7 @@ export function Inspector() {
         {!found && <ProjectSettings project={project} />}
         {found?.clip.kind === 'template' && <TemplateInspector key={found.clip.id} clip={found.clip} project={project} />}
         {found?.clip.kind === 'video' && <VideoInspector key={found.clip.id} clip={found.clip} project={project} />}
+        {found?.clip.kind === 'image' && <ImageInspector key={found.clip.id} clip={found.clip} project={project} />}
       </div>
     </section>
   );
@@ -69,6 +76,7 @@ function TemplateInspector({ clip, project }: { clip: TemplateClip; project: Pro
         <FieldEditor key={f.key} clip={clip} field={f} value={clip.props[f.key]?.value ?? f.default} palette={palette} />
       ))}
       <div className="divider" />
+      <TransformFields clip={clip} project={project} />
       <RangeField
         label="Opacitet"
         value={evaluateParam(clip.opacity)}
@@ -308,6 +316,7 @@ function VideoInspector({ clip, project }: { clip: VideoClip; project: Project }
         format={(v) => `${Math.round(v * 100)} %`}
         onChange={(v) => setParam(clip.id, 'volume', v)}
       />
+      <TransformFields clip={clip} project={project} />
       <RangeField
         label="Opacitet"
         value={evaluateParam(clip.opacity)}
@@ -317,6 +326,107 @@ function VideoInspector({ clip, project }: { clip: VideoClip; project: Project }
         format={(v) => `${Math.round(v * 100)} %`}
         onChange={(v) => setParam(clip.id, 'opacity', v)}
       />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- image */
+
+function ImageInspector({ clip, project }: { clip: ImageClip; project: Project }) {
+  const asset = findAsset(project, clip.assetId);
+  const thumb = useEditor((s) => s.mediaThumbs[clip.assetId]);
+  const fps = project.settings.fps;
+  return (
+    <div className="inspector" data-testid="image-inspector">
+      <div className="insp-head">
+        <div className="thumb">{thumb && <img src={thumb} alt="" />}</div>
+        <div style={{ minWidth: 0 }}>
+          <div className="insp-title ellipsis">{asset?.name ?? 'Saknad fil'}</div>
+          <div className="insp-sub">
+            Bild{asset?.kind === 'image' ? ` · ${asset.width}×${asset.height}` : ''}
+          </div>
+        </div>
+      </div>
+      <dl className="kv">
+        <dt>Start</dt>
+        <dd>{formatTimecode(clip.start, fps)}</dd>
+        <dt>Längd</dt>
+        <dd>{formatTimecode(clip.duration, fps)}</dd>
+      </dl>
+      <div className="divider" />
+      <TransformFields clip={clip} project={project} />
+      <RangeField
+        label="Opacitet"
+        value={evaluateParam(clip.opacity)}
+        min={0}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)} %`}
+        onChange={(v) => setParam(clip.id, 'opacity', v)}
+      />
+      <p className="hint">Dra bilden i förhandsvisningen för att flytta den och i hörnen för att skala. Ändra längden genom att dra i klippets kanter.</p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- placement */
+
+/**
+ * Position (centre, in output pixels from the top-left), scale and rotation.
+ * Stored normalised in the project; shown in pixels here.
+ */
+function TransformFields({ clip, project }: { clip: Clip; project: Project }) {
+  const templates = useEditor((s) => s.templates);
+  const { width: W, height: H } = project.settings;
+  const t = transformAt(clip);
+  const pl = clipPlacement(project, clip, templates);
+  const src = sourceSize(project, clip, templates);
+  const isTemplate = clip.kind === 'template';
+  const cover = src && !isTemplate ? coverScale(src.w, src.h, W, H) : null;
+  const num = (label: string, value: number, unit: string, onChange: (v: number) => void, step = 1, testid?: string) => (
+    <label className="xf-field">
+      <span>{label}</span>
+      <input
+        className="input mono"
+        type="number"
+        step={step}
+        value={Number.isFinite(value) ? Math.round(value * 10) / 10 : 0}
+        data-testid={testid}
+        onChange={(e) => {
+          const v = e.target.valueAsNumber;
+          if (Number.isFinite(v)) onChange(v);
+        }}
+      />
+      <span className="mono dim">{unit}</span>
+    </label>
+  );
+  return (
+    <div className="field" data-testid="transform-fields">
+      <span className="field-label">Placering</span>
+      <div className="xf-grid">
+        {pl && num('X', pl.cx, 'px', (v) => setTransform(clip.id, { x: t.x + (v - pl.cx) / W }), 1, 'xf-x')}
+        {pl && num('Y', pl.cy, 'px', (v) => setTransform(clip.id, { y: t.y + (v - pl.cy) / H }), 1, 'xf-y')}
+        {num('Skala', t.scale * 100, '%', (v) => setTransform(clip.id, { scale: Math.max(2, v) / 100 }), 1, 'xf-scale')}
+        {!isTemplate && num('Rotation', t.rotation, '°', (v) => setTransform(clip.id, { rotation: v }), 1, 'xf-rot')}
+      </div>
+      {pl && (
+        <span className="mono dim xf-size">
+          {Math.round(pl.w)} × {Math.round(pl.h)} px i en bild på {W} × {H}
+        </span>
+      )}
+      <div className="xf-actions">
+        <button className="btn" onClick={() => resetTransform(clip.id)} title="Hela innehållet syns, centrerat">
+          Anpassa
+        </button>
+        {cover !== null && (
+          <button className="btn" onClick={() => setTransform(clip.id, { x: 0, y: 0, scale: cover }, 'Fyll bilden')} title="Täcker hela bilden">
+            Fyll
+          </button>
+        )}
+        <button className="btn" onClick={() => setTransform(clip.id, { x: 0, y: 0 }, 'Centrera')}>
+          Centrera
+        </button>
+      </div>
     </div>
   );
 }
@@ -351,43 +461,20 @@ function RangeField(props: {
 
 /* ------------------------------------------------------------- project */
 
-const RESOLUTIONS: Array<[string, number, number]> = [
-  ['1080p liggande', 1920, 1080],
-  ['1080p stående', 1080, 1920],
-  ['Kvadrat', 1080, 1080],
-  ['720p liggande', 1280, 720],
-  ['4K liggande', 3840, 2160],
-];
-
 function ProjectSettings({ project }: { project: Project }) {
   const { width, height, fps, background } = project.settings;
   const apply = useEditor((s) => s.apply);
-  const current = RESOLUTIONS.findIndex(([, w, h]) => w === width && h === height);
   return (
     <div className="inspector">
-      <p className="hint">Markera ett klipp på tidslinjen för att redigera det.</p>
+      <p className="hint">Markera ett klipp på tidslinjen eller i bilden för att redigera det.</p>
       <div className="field">
-        <label htmlFor="res">Upplösning</label>
-        <select
-          id="res"
-          className="select"
-          value={current}
-          onChange={(e) => {
-            const r = RESOLUTIONS[Number(e.target.value)];
-            if (r) apply((p) => updateSettings(p, { width: r[1], height: r[2] }), 'Ändra upplösning');
-          }}
-        >
-          {current < 0 && (
-            <option value={-1}>
-              Egen ({width}×{height})
-            </option>
-          )}
-          {RESOLUTIONS.map(([label, w, h], i) => (
-            <option key={label} value={i}>
-              {label} ({w}×{h})
-            </option>
-          ))}
-        </select>
+        <span className="field-label">Format</span>
+        <FormatPicker
+          compact
+          value={{ width, height }}
+          onChange={(sz) => apply((p) => updateSettings(p, { width: sz.width, height: sz.height, autoFormat: false }), 'Ändra format')}
+        />
+        <span className="mono dim fp-note">Placeringar följer med när formatet ändras.</span>
       </div>
       <dl className="kv">
         <dt>Bildfrekvens</dt>

@@ -1,22 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createProject, type CompositionSummaryDTO, type MediaDTO } from '@ve/core';
 import { ApiError, compositionUrl, customerApi } from '../services/api';
 import { templates } from '../services/templates';
 import { importTemplateFile } from '../state/actions';
 import { useEditor } from '../state/store';
 import { formatBytes } from '../components/LeftPanel';
+import { CreateDialog } from '../components/FormatPicker';
 import { Logo, Plus, Trash, Upload } from '../components/Icons';
 import '../admin/admin.css';
 import './pm.css';
-
-const FORMATS = [
-  { id: 'auto', label: 'Från första filmen', dims: 'anpassas automatiskt', width: 1920, height: 1080, auto: true },
-  { id: 'landscape', label: 'Liggande 16:9', dims: '1920×1080', width: 1920, height: 1080 },
-  { id: 'vertical', label: 'Stående 9:16', dims: '1080×1920', width: 1080, height: 1920 },
-  { id: 'square', label: 'Kvadrat 1:1', dims: '1080×1080', width: 1080, height: 1080 },
-  { id: 'portrait', label: 'Porträtt 4:5', dims: '1080×1350', width: 1080, height: 1350 },
-  { id: '4k', label: '4K 16:9', dims: '3840×2160', width: 3840, height: 2160 },
-] as const;
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -95,7 +87,7 @@ export function ProjectManager({ token }: { token: string }) {
           <div className="pm-head">
             <h1>Kompositioner</h1>
             <button className="btn primary" onClick={() => setCreating(true)}>
-              <Plus /> Ny komposition
+              <Plus /> Skapa
             </button>
           </div>
           {comps === null && <div className="empty">Laddar…</div>}
@@ -169,7 +161,22 @@ export function ProjectManager({ token }: { token: string }) {
         </div>
       </main>
 
-      {creating && <NewCompositionDialog token={token} onClose={() => setCreating(false)} />}
+      {creating && (
+        <CreateDialog
+          title="Skapa ny film"
+          confirmLabel="Skapa och öppna"
+          onClose={() => setCreating(false)}
+          onCreate={async (name, size) => {
+            try {
+              const project = createProject(name, { width: size.width, height: size.height, autoFormat: false });
+              const c = await customerApi.createComposition(token, name, project);
+              location.href = compositionUrl(token, c.id);
+            } catch (err) {
+              toast(errText(err), 'error');
+            }
+          }}
+        />
+      )}
       <div className="toasts" role="status" aria-live="polite">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`}>
@@ -302,65 +309,5 @@ function CompositionCard({ c, token, onChanged }: { c: CompositionSummaryDTO; to
         </div>
       </div>
     </article>
-  );
-}
-
-function NewCompositionDialog({ token, onClose }: { token: string; onClose: () => void }) {
-  const [name, setName] = useState('');
-  const [format, setFormat] = useState<(typeof FORMATS)[number]['id']>('auto');
-  const [busy, setBusy] = useState(false);
-  const toast = useEditor((s) => s.toast);
-  const f = useMemo(() => FORMATS.find((x) => x.id === format)!, [format]);
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    const n = name.trim() || 'Namnlös komposition';
-    setBusy(true);
-    try {
-      const project = createProject(n, { width: f.width, height: f.height, autoFormat: 'auto' in f && f.auto });
-      const c = await customerApi.createComposition(token, n, project);
-      location.href = compositionUrl(token, c.id);
-    } catch (err) {
-      toast(errText(err), 'error');
-      setBusy(false);
-    }
-  };
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
-  }, [onClose]);
-  return (
-    <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="modal" role="dialog" aria-modal="true" aria-labelledby="new-comp-h" onSubmit={submit}>
-        <h2 id="new-comp-h">Ny komposition</h2>
-        <div className="field">
-          <label htmlFor="comp-name">Namn</label>
-          <input id="comp-name" className="input" autoFocus placeholder="t.ex. Reklamfilm vår" value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div className="field">
-          <span className="field-label">Format</span>
-          <div className="format-grid" role="radiogroup" aria-label="Format">
-            {FORMATS.map((x) => (
-              <label key={x.id} className={`format-opt${format === x.id ? ' on' : ''}`}>
-                <input type="radio" name="format" value={x.id} checked={format === x.id} onChange={() => setFormat(x.id)} />
-                <span className="format-shape" style={{ aspectRatio: 'auto' in x ? '16 / 9' : `${x.width} / ${x.height}` }} />
-                <span className="format-text">
-                  <span>{x.label}</span>
-                  <span className="mono">{x.dims}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="btn" onClick={onClose}>
-            Avbryt
-          </button>
-          <button className="btn primary" disabled={busy}>
-            Skapa och öppna
-          </button>
-        </div>
-      </form>
-    </div>
   );
 }

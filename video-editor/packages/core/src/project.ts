@@ -2,6 +2,9 @@ import { framesToMicros, microsToFrames, type Frame, type Micros, type Rational 
 import {
   PROJECT_VERSION,
   type Clip,
+  type ClipTransform,
+  type ImageAsset,
+  type ImageClip,
   type MediaAsset,
   type Param,
   type Project,
@@ -101,10 +104,12 @@ export function maxVideoClipDuration(asset: VideoAsset, sourceStart: Micros, fps
   return Math.max(1, Math.floor(((asset.durationUs - sourceStart) * fps.num) / (fps.den * 1_000_000) + 1e-6));
 }
 
+/** Video clips need a video track and templates a graphics track; images go on either. */
 export function trackAcceptsClip(track: Track, clip: Pick<Clip, 'kind'>): boolean {
-  return trackKindFor(clip.kind) === track.kind;
+  return clip.kind === 'image' || trackKindFor(clip.kind) === track.kind;
 }
 
+/** The track kind a new clip of this kind is placed on by default. */
 export function trackKindFor(clipKind: Clip['kind']): TrackKind {
   return clipKind === 'video' ? 'video' : 'graphics';
 }
@@ -310,6 +315,28 @@ export function setClipParam(project: Project, clipId: string, param: 'volume' |
   });
 }
 
+/** Merge transform values into a visual clip (missing values keep their current value). */
+export function setClipTransform(
+  project: Project,
+  clipId: string,
+  patch: Partial<{ x: number; y: number; scale: number; rotation: number }>,
+): Project {
+  return updateClip(project, clipId, (c) => {
+    const cur = c.transform;
+    const v = (k: keyof ClipTransform, d: number) => ({ value: patch[k] ?? cur?.[k].value ?? d });
+    const transform: ClipTransform = { x: v('x', 0), y: v('y', 0), scale: v('scale', 1), rotation: v('rotation', 0) };
+    if (c.kind === 'template') transform.rotation = { value: 0 };
+    return { ...c, transform } as Clip;
+  });
+}
+
+export function resetClipTransform(project: Project, clipId: string): Project {
+  return updateClip(project, clipId, (c) => {
+    const { transform: _t, ...rest } = c;
+    return rest as Clip;
+  });
+}
+
 export function setTrackFlag(project: Project, trackId: string, flag: 'muted' | 'hidden', value: boolean): Project {
   return mapTrack(project, trackId, (t) => ({ ...t, [flag]: value }));
 }
@@ -325,6 +352,17 @@ export function createVideoClip(asset: VideoAsset, start: Frame, fps: Rational):
     duration: maxVideoClipDuration(asset, 0, fps),
     sourceStart: 0,
     volume: { value: 1 },
+    opacity: { value: 1 },
+  };
+}
+
+export function createImageClip(asset: ImageAsset, start: Frame, duration: Frame): ImageClip {
+  return {
+    id: createId('clp'),
+    kind: 'image',
+    assetId: asset.id,
+    start,
+    duration,
     opacity: { value: 1 },
   };
 }

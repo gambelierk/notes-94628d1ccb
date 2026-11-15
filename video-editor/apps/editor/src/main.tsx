@@ -3,8 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { lazy, Suspense, useMemo } from 'react';
 import { App } from './App';
 import { currentRoute } from './routes';
-import '@fontsource-variable/inter';
-import '@fontsource-variable/jetbrains-mono';
+import '@fontsource-variable/ibm-plex-sans';
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/500.css';
+import '@fontsource/ibm-plex-mono/600.css';
 import './styles.css';
 
 const AdminApp = lazy(() => import('./admin/AdminApp').then((m) => ({ default: m.AdminApp })));

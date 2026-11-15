@@ -4,6 +4,7 @@ import { preview } from '../services/preview';
 import { stepPlayhead } from '../state/actions';
 import { useEditor, useProject, useProjectDuration } from '../state/store';
 import { Pause, Play, SkipEnd, SkipStart, StepBack, StepFwd } from './Icons';
+import { TransformOverlay } from './TransformOverlay';
 
 export function Viewer() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -24,6 +25,7 @@ export function Viewer() {
     <section className="panel viewer" aria-label="Förhandsvisning">
       <div className="stage">
         <canvas ref={ref} data-testid="preview-canvas" style={{ aspectRatio: `${width} / ${height}` }} />
+        <TransformOverlay canvasRef={ref} />
         {duration === 0 && (
           <div className="stage-empty">
             <div>
@@ -64,6 +66,9 @@ export function Viewer() {
           <SkipEnd />
         </button>
         <div className="spacer" />
+        <span className="mono dim viewer-format" data-testid="viewer-format">
+          {width} × {height}
+        </span>
         <span className="timecode dim">{formatTimecode(duration, fps)}</span>
       </div>
     </section>

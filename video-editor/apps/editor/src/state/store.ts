@@ -28,7 +28,8 @@ export interface LibraryTemplate {
 
 export type DragPayload =
   | { type: 'template'; id: string; label: string; thumbnail: string | null }
-  | { type: 'media'; id: string; label: string; thumbnail: string | null };
+  | { type: 'media'; id: string; label: string; thumbnail: string | null }
+  | { type: 'image'; id: string; label: string; thumbnail: string | null };
 
 export interface DragState {
   payload: DragPayload;

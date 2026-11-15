@@ -1,4 +1,4 @@
-import { hexToArgb, layoutBox, resolveTemplateFrame, type PropValue, type TemplateDefinition, type TemplateFrameState } from '@ve/core';
+import { hexToArgb, resolveTemplateFrame, templatePlacement, type TransformValues, type PropValue, type TemplateDefinition, type TemplateFrameState } from '@ve/core';
 import type {
   Artboard,
   LinearAnimationInstance,
@@ -200,7 +200,7 @@ export class TemplateRenderer {
    * Draw the template at `local` seconds into a clip of `clipDuration`
    * seconds. The artboard is fitted (contain) into the canvas.
    */
-  render(local: number, clipDuration: number): void {
+  render(local: number, clipDuration: number, transform?: TransformValues): void {
     if (this.disposed) return;
     this.pose(resolveTemplateFrame(this.def.timing, local, clipDuration));
     const r = this.renderer;
@@ -208,7 +208,15 @@ export class TemplateRenderer {
     r.clear();
     r.save();
     const bounds = this.artboard.bounds;
-    const box = layoutBox(this.def.layout, width, height, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+    const p = templatePlacement(
+      this.def.layout,
+      bounds.maxX - bounds.minX,
+      bounds.maxY - bounds.minY,
+      width,
+      height,
+      transform ?? { x: 0, y: 0, scale: 1, rotation: 0 },
+    );
+    const box = { minX: p.cx - p.w / 2, minY: p.cy - p.h / 2, maxX: p.cx + p.w / 2, maxY: p.cy + p.h / 2 };
     r.align(this.rive.Fit.contain, this.rive.Alignment.center, box, bounds);
     this.artboard.draw(r);
     r.restore();
