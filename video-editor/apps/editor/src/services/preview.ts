@@ -78,7 +78,11 @@ class PreviewEngine {
       }
       if (s.templates !== prev.templates) this.version++; // a template finished loading
       // the playhead was moved (button, key, click) during playback: continue playing from there
-      if (s.playing && prev.playing && s.playhead !== prev.playhead && s.playhead !== this.clockFrame) void this.play(s.playhead);
+      if (s.playing && prev.playing && s.playhead !== prev.playhead && s.playhead !== this.clockFrame) {
+        // jumped to the very end (End key, "to end" button): stop there instead of starting over
+        if (s.playhead >= projectDuration(p) - 1) this.pause();
+        else void this.play(s.playhead);
+      }
       if (!s.playing && (p !== pp || s.playhead !== prev.playhead || s.templates !== prev.templates)) {
         this.request(s.playhead);
       }

@@ -1,5 +1,8 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type {
+  BrandFontFormat,
+  BrandFontPresetId,
+  BrandingDTO,
   CompositionDTO,
   CompositionSummaryDTO,
   FieldOverride,
@@ -30,6 +33,7 @@ interface WorkspaceRow {
   share_token: string;
   sharing_enabled: number;
   allow_customer_uploads: number;
+  brand_json: string | null;
   created_at: string;
   updated_at: string;
   template_count: number;
@@ -90,6 +94,65 @@ const WORKSPACE_SELECT = `
     (SELECT COALESCE(SUM(m.size), 0) FROM media m WHERE m.workspace_id = w.id) AS media_bytes
   FROM workspaces w`;
 
+/* ------------------------------------------------------------- branding */
+
+/** Same ids as BRAND_FONT_PRESETS in @ve/core (the server only imports types from it). */
+export const BRAND_FONT_PRESET_IDS = ['plex-sans', 'plex-mono', 'system', 'serif'] as const satisfies readonly BrandFontPresetId[];
+export function isBrandFontPreset(v: unknown): v is BrandFontPresetId {
+  return typeof v === 'string' && (BRAND_FONT_PRESET_IDS as readonly string[]).includes(v);
+}
+
+export interface StoredBrandFont {
+  preset: BrandFontPresetId;
+  custom: { key: string; name: string; format: BrandFontFormat } | null;
+}
+
+/** What is stored per workspace; files are blob keys. */
+export interface StoredBrand {
+  accent: string | null;
+  heading: StoredBrandFont;
+  body: StoredBrandFont;
+  logo: { key: string; mime: string } | null;
+}
+
+export function parseBrand(json: string | null): StoredBrand {
+  const d: StoredBrand = { accent: null, heading: { preset: 'plex-sans', custom: null }, body: { preset: 'plex-sans', custom: null }, logo: null };
+  if (!json) return d;
+  try {
+    const b = JSON.parse(json) as Partial<StoredBrand>;
+    const font = (f: StoredBrandFont | undefined): StoredBrandFont => ({
+      preset: isBrandFontPreset(f?.preset) ? f.preset : 'plex-sans',
+      custom: f?.custom && typeof f.custom.key === 'string' ? f.custom : null,
+    });
+    return {
+      accent: typeof b.accent === 'string' && /^#[0-9a-f]{6}$/i.test(b.accent) ? b.accent.toLowerCase() : null,
+      heading: font(b.heading),
+      body: font(b.body),
+      logo: b.logo && typeof b.logo.key === 'string' ? b.logo : null,
+    };
+  } catch {
+    return d;
+  }
+}
+
+export function brandKeys(b: StoredBrand): string[] {
+  return [b.logo?.key, b.heading.custom?.key, b.body.custom?.key].filter((k): k is string => !!k);
+}
+
+/** Branding with file URLs under `base` (`…/branding/logo`, `…/branding/fonts/heading`); `?v=` busts caches on change. */
+export function brandToDTO(b: StoredBrand, base: string): BrandingDTO {
+  const font = (f: StoredBrandFont, slot: string) => ({
+    preset: f.preset,
+    custom: f.custom ? { name: f.custom.name, format: f.custom.format, url: `${base}/branding/fonts/${slot}?v=${f.custom.key.slice(0, 12)}` } : null,
+  });
+  return {
+    accent: b.accent,
+    heading: font(b.heading, 'heading'),
+    body: font(b.body, 'body'),
+    logo: b.logo ? { url: `${base}/branding/logo?v=${b.logo.key.slice(0, 12)}`, mime: b.logo.mime } : null,
+  };
+}
+
 function toWorkspace(r: WorkspaceRow): WorkspaceDTO {
   return {
     id: r.id,
@@ -101,6 +164,7 @@ function toWorkspace(r: WorkspaceRow): WorkspaceDTO {
     compositionCount: r.composition_count ?? 0,
     mediaCount: r.media_count ?? 0,
     mediaBytes: r.media_bytes ?? 0,
+    branding: brandToDTO(parseBrand(r.brand_json), `/api/admin/workspaces/${r.id}`),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -234,6 +298,20 @@ export class Repo {
     return this.getWorkspace(id);
   }
 
+  getBrand(id: string): StoredBrand | null {
+    const r = this.db.prepare('SELECT brand_json FROM workspaces WHERE id = ?').get(id) as { brand_json: string | null } | undefined;
+    return r ? parseBrand(r.brand_json) : null;
+  }
+
+  /** Save branding; returns blob keys that are no longer referenced by it (to clean up). */
+  setBrand(id: string, brand: StoredBrand): { workspace: WorkspaceDTO; dropped: string[] } | null {
+    const before = this.getBrand(id);
+    if (!before) return null;
+    this.db.prepare('UPDATE workspaces SET brand_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(brand), now(), id);
+    const keep = new Set(brandKeys(brand));
+    return { workspace: this.getWorkspace(id)!, dropped: brandKeys(before).filter((k) => !keep.has(k)) };
+  }
+
   rotateShareToken(id: string): WorkspaceDTO | null {
     const r = this.db.prepare('UPDATE workspaces SET share_token = ?, updated_at = ? WHERE id = ?').run(newShareToken(), now(), id);
     return r.changes ? this.getWorkspace(id) : null;
@@ -248,6 +326,7 @@ export class Repo {
         k: string;
       }[]),
     ].map((r) => r.k);
+    keys.push(...brandKeys(this.getBrand(id) ?? parseBrand(null)));
     const r = this.db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
     return r.changes ? keys : null;
   }
@@ -258,7 +337,8 @@ export class Repo {
       .prepare(
         `SELECT 1 FROM templates WHERE blob_key = ?1
          UNION ALL SELECT 1 FROM media WHERE blob_key = ?1
-         UNION ALL SELECT 1 FROM compositions WHERE thumb_key = ?1 LIMIT 1`,
+         UNION ALL SELECT 1 FROM compositions WHERE thumb_key = ?1
+         UNION ALL SELECT 1 FROM workspaces WHERE instr(brand_json, ?1) > 0 LIMIT 1`,
       )
       .get(key);
   }

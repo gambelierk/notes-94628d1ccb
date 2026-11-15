@@ -115,6 +115,17 @@ export function sniffVector(head: Uint8Array): 'svg' | 'pdf' | 'postscript' | nu
   return null;
 }
 
+/** Web font formats, from the file's first bytes. */
+export function sniffFont(head: Uint8Array): { format: 'woff2' | 'woff' | 'truetype' | 'opentype'; mime: string } | null {
+  if (head.byteLength < 4) return null;
+  const tag = ascii(head, 0, 4);
+  if (tag === 'wOF2') return { format: 'woff2', mime: 'font/woff2' };
+  if (tag === 'wOFF') return { format: 'woff', mime: 'font/woff' };
+  if (tag === 'OTTO') return { format: 'opentype', mime: 'font/otf' };
+  if (tag === 'true' || (head[0] === 0 && head[1] === 1 && head[2] === 0 && head[3] === 0)) return { format: 'truetype', mime: 'font/ttf' };
+  return null;
+}
+
 export function sniffMedia(head: Uint8Array): { kind: 'video' | 'image' | 'audio'; mime: string } | null {
   const vector = sniffVector(head);
   if (vector === 'svg') return { kind: 'image', mime: 'image/svg+xml' };

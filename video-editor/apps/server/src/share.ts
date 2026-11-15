@@ -3,9 +3,10 @@ import { bodyLimit } from 'hono/body-limit';
 import type { CompositionSummaryDTO, MediaDTO, SharedLibraryDTO, SharedTemplateDTO, TemplateDTO, WorkspaceDTO } from '@ve/core';
 import { TooLargeError, type BlobStore, type StoredBlob } from './blobs.ts';
 import type { Config } from './config.ts';
+import { sendBrandFile } from './branding.ts';
 import { ConversionFailedError, ConversionUnavailableError, postscriptToPdf } from './convert.ts';
 import { cleanText, HttpError, isRiv, readJson, sendBlob, sniffMedia, uploadFileName } from './http.ts';
-import { RevisionConflict, type CompositionRecord, type MediaRecord, type ProjectMeta, type Repo } from './repo.ts';
+import { brandToDTO, RevisionConflict, type CompositionRecord, type MediaRecord, type ProjectMeta, type Repo } from './repo.ts';
 
 /** PostScript is converted in memory; larger files are refused. */
 const MAX_POSTSCRIPT_BYTES = 200 * 1024 * 1024;
@@ -114,7 +115,7 @@ export function shareRoutes(repo: Repo, blobs: BlobStore, config: ShareConfig) {
   r.get('/:token', (c) => {
     const w = workspace(c);
     const body: SharedLibraryDTO = {
-      workspace: { id: w.id, name: w.name, allowCustomerUploads: w.allowCustomerUploads },
+      workspace: { id: w.id, name: w.name, allowCustomerUploads: w.allowCustomerUploads, branding: brandToDTO(repo.getBrand(w.id)!, base(c)) },
       templates: repo.listTemplates(w.id).map((t) => templateDTO(c, t)),
     };
     c.header('Cache-Control', 'no-store');
@@ -161,6 +162,15 @@ export function shareRoutes(repo: Repo, blobs: BlobStore, config: ShareConfig) {
     const res = repo.deleteTemplate(t.id);
     if (res?.orphanedKey) await blobs.delete(res.orphanedKey);
     return c.json({ ok: true });
+  });
+
+  /* ------------------------------------------------------------ branding */
+
+  r.get('/:token/branding/logo', (c) => sendBrandFile(c, blobs, repo.getBrand(workspace(c).id)!, 'logo'));
+  r.get('/:token/branding/fonts/:slot', (c) => {
+    const slot = c.req.param('slot');
+    if (slot !== 'heading' && slot !== 'body') throw new HttpError(404, 'Okänt typsnitt');
+    return sendBrandFile(c, blobs, repo.getBrand(workspace(c).id)!, slot);
   });
 
   /* ------------------------------------------------------------ media */

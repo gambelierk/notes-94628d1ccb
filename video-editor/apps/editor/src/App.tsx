@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import { BrandMark } from './components/BrandMark';
 import { canRedo, canUndo, createProject, projectDuration } from '@ve/core';
 import { CreateDialog } from './components/FormatPicker';
 import { ExportDialog } from './components/ExportDialog';
-import { Download, Logo, Plus, Redo, Undo } from './components/Icons';
+import { Download, Plus, Redo, Undo } from './components/Icons';
 import { Inspector } from './components/Inspector';
 import { LeftPanel } from './components/LeftPanel';
 import { Timeline } from './components/Timeline';
@@ -79,6 +80,7 @@ function TopBar() {
   const comp = useEditor((s) => s.composition);
   return (
     <header className="topbar">
+      {comp && library.kind === 'share' && library.branding.logo && <BrandMark />}
       {comp ? (
         <a
           className="btn ghost back-link"
@@ -93,12 +95,7 @@ function TopBar() {
           ← Kompositioner
         </a>
       ) : (
-        <div className="brand">
-          <span className="brand-mark">
-            <Logo width={16} height={16} />
-          </span>
-          Klipp
-        </div>
+        <BrandMark />
       )}
       {library.kind === 'share' && (
         <span className="project-name" data-testid="customer-name">
@@ -275,6 +272,8 @@ function useKeyboard() {
         return;
       }
       if (isTyping(e) || s.exportOpen || inModal()) return;
+      // a focused slider (volume) keeps its own arrow keys
+      if ((e.target as HTMLInputElement | null)?.type === 'range' && /^(Arrow|Home$|End$|Page)/.test(e.key)) return;
       const fps = s.history.present.project.settings.fps;
       const second = Math.round(fps.num / fps.den);
       switch (e.key) {

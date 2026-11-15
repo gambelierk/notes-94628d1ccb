@@ -1,4 +1,5 @@
 import riveWasmUrl from '@rive-app/canvas-advanced/rive.wasm?url';
+import { applyBranding } from './branding';
 import type { SharedLibraryDTO, SharedTemplateDTO, TemplateDefinition, TemplateManifest, UploadedBy } from '@ve/core';
 import { loadRiveRuntime, renderTemplateThumbnail, TemplateRegistry, type RiveCanvas } from '@ve/rive';
 import { ApiError, api } from './api';
@@ -53,7 +54,14 @@ class TemplateService {
         store.setLibrary({ kind: 'error', message: msg });
         return;
       }
-      store.setLibrary({ kind: 'share', name: lib.workspace.name, token, allowUploads: lib.workspace.allowCustomerUploads });
+      store.setLibrary({
+        kind: 'share',
+        name: lib.workspace.name,
+        token,
+        allowUploads: lib.workspace.allowCustomerUploads,
+        branding: lib.workspace.branding,
+      });
+      applyBranding(lib.workspace.branding); // the customer's colour, fonts and logo
       const results = await Promise.allSettled(
         lib.templates.map(async (t, i) => {
           const r = await fetch(t.url);

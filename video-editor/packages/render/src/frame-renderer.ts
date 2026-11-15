@@ -96,6 +96,8 @@ const VECTOR_ENTRIES_PER_ASSET = 4;
 /** Preview renders vector graphics a bit beyond the visible part, so small moves don't re-render. */
 const VECTOR_PAD = 0.25;
 const VECTOR_GRID = 128;
+/** After a failed rendering, wait this long before the preview tries that graphic again. */
+const VECTOR_RETRY_MS = 5000;
 /** Decode video up to this multiple of the output size, so zooming in keeps detail. */
 const VIDEO_OVERSAMPLE = 2;
 
@@ -110,6 +112,7 @@ export class RenderResources {
   private texts = new Map<string, TextEntry>();
   private vectors = new Map<string, VectorEntry>();
   private vectorSeq = 0;
+  private vectorFailedAt = new Map<string, number>();
   private tick = 0;
   /** Still-texture keys released since the last frame; the compositor drops their textures. */
   readonly releasedImages: string[] = [];
@@ -185,7 +188,8 @@ export class RenderResources {
       (e) => e.assetId === asset.id && e.fullW === fullW && e.fullH === fullH && e.x0 <= nx0 && e.y0 <= ny0 && e.x1 >= nx1 && e.y1 >= ny1,
     );
     let entry = covering.find((e) => e.bitmap) ?? covering[0];
-    if (!entry) {
+    const failedRecently = Date.now() - (this.vectorFailedAt.get(asset.id) ?? -Infinity) < VECTOR_RETRY_MS;
+    if (!entry && !(failedRecently && !exact)) {
       let [x0, y0, x1, y1] = [nx0, ny0, nx1, ny1];
       if (!exact) {
         const pad = VECTOR_PAD * Math.max(this.width, this.height);
@@ -217,16 +221,28 @@ export class RenderResources {
           b?.close(); // released meanwhile
           return;
         }
+        if (!b) {
+          // forget the failed rendering so it can be retried (later, not on every frame)
+          this.vectorFailedAt.set(asset.id, Date.now());
+          this.vectors.delete(e.key);
+          return;
+        }
+        this.vectorFailedAt.delete(asset.id);
         e.bitmap = b;
-        if (!exact && b) this.opts.onAsyncReady?.();
+        if (!exact) this.opts.onAsyncReady?.();
       });
       this.vectors.set(e.key, e);
       this.trimVectors(asset.id, e.key);
       entry = e;
     }
-    entry.lastUsed = this.tick;
-    if (exact && !entry.bitmap) entry.bitmap = await entry.pending;
-    let use: VectorEntry | undefined = entry.bitmap ? entry : undefined;
+    if (entry) entry.lastUsed = this.tick;
+    if (exact && entry && !entry.bitmap) {
+      const b = await entry.pending;
+      // the export must not silently leave out a graphic
+      if (!b) throw new Error(`Grafiken ${asset.name} kunde inte ritas`);
+      entry.bitmap = b;
+    }
+    let use: VectorEntry | undefined = entry?.bitmap ? entry : undefined;
     if (!use) {
       // preview: draw the most recent finished rendering of this graphic until the sharp one is ready
       use = [...this.vectors.values()].filter((e) => e.assetId === asset.id && e.bitmap).sort((a, b) => b.lastUsed - a.lastUsed)[0];

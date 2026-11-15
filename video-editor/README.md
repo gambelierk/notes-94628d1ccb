@@ -37,6 +37,23 @@ kompositioner. Kunden kan inte se andra kunders mallar, media eller kompositione
 
 ![Editorn](docs/skarmbild.jpg)
 
+### Kundens utseende
+
+Under **Utseende för kunden** i admin får varje kundprojekt sin egen profil på kundens sidor, alltså
+projekthanteraren och editorn:
+
+- **Accentfärg** för knappar, markeringar och fokus. Texten på knapparna blir automatiskt svart
+  eller vit beroende på vad som är mest läsbart. Är färgen för mörk mot bakgrunden får knapparna
+  färgen, men markeringar och fokusramar behåller en ljus ton så att de syns. Admin får en varning.
+- **Typsnitt** för rubriker och för text: ett förval (IBM Plex Sans, IBM Plex Mono,
+  systemets typsnitt eller serif) eller kundens eget typsnitt som WOFF2, WOFF, TTF eller OTF.
+  Kontrollera att licensen tillåter webbanvändning.
+- **Logotyp** som SVG, PNG, JPEG eller WebP. Den ersätter Klipps märke uppe till vänster och
+  används som ikon i webbläsarfliken.
+
+En förhandsvisning i admin visar resultatet direkt. Adminsidorna och andra kunder påverkas inte.
+Filerna lagras i projektet och tas bort när de byts ut eller när kundprojektet tas bort.
+
 ## Gränssnitt
 
 Gränssnittet är helt i gråskala: hierarkin kommer från ljushet, vikt och typsnitt, inte färg.

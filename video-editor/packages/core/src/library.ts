@@ -18,6 +18,8 @@ export interface WorkspaceDTO {
   mediaCount: number;
   /** Bytes used by the customer's uploaded media. */
   mediaBytes: number;
+  /** Look of the customer's pages. File URLs point to the admin API. */
+  branding: BrandingDTO;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,7 +64,7 @@ export interface SharedTemplateDTO {
 }
 
 export interface SharedLibraryDTO {
-  workspace: { id: string; name: string; allowCustomerUploads: boolean };
+  workspace: { id: string; name: string; allowCustomerUploads: boolean; branding: BrandingDTO };
   templates: SharedTemplateDTO[];
 }
 
@@ -131,4 +133,68 @@ export function isValidLayout(v: unknown): v is TemplateLayout {
     l.marginPercent >= 0 &&
     l.marginPercent <= 50
   );
+}
+
+/* ------------------------------------------------------------- branding */
+
+/**
+ * How a customer's pages look (project manager and editor): an accent
+ * colour, typefaces and a logo, set by the admin per customer project.
+ */
+export const BRAND_FONT_PRESETS = [
+  { id: 'plex-sans', label: 'IBM Plex Sans (standard)', stack: "'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif" },
+  { id: 'plex-mono', label: 'IBM Plex Mono', stack: "'IBM Plex Mono', ui-monospace, monospace" },
+  { id: 'system', label: 'Systemets typsnitt', stack: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" },
+  { id: 'serif', label: 'Serif', stack: "Georgia, 'Times New Roman', serif" },
+] as const;
+
+export type BrandFontPresetId = (typeof BRAND_FONT_PRESETS)[number]['id'];
+export type BrandFontSlot = 'heading' | 'body';
+export type BrandFontFormat = 'woff2' | 'woff' | 'truetype' | 'opentype';
+
+export interface BrandFontDTO {
+  /** Used when no own font file is uploaded (and as fallback while it loads). */
+  preset: BrandFontPresetId;
+  /** The customer's own font file, e.g. their brand typeface. */
+  custom: { name: string; format: BrandFontFormat; url: string } | null;
+}
+
+export interface BrandingDTO {
+  /** #rrggbb for primary buttons, selection and focus; null keeps the grey default. */
+  accent: string | null;
+  heading: BrandFontDTO;
+  body: BrandFontDTO;
+  logo: { url: string; mime: string } | null;
+}
+
+export const DEFAULT_BRANDING: BrandingDTO = {
+  accent: null,
+  heading: { preset: 'plex-sans', custom: null },
+  body: { preset: 'plex-sans', custom: null },
+  logo: null,
+};
+
+export function isBrandFontPreset(v: unknown): v is BrandFontPresetId {
+  return typeof v === 'string' && BRAND_FONT_PRESETS.some((p) => p.id === v);
+}
+
+export function brandFontStack(preset: BrandFontPresetId): string {
+  return (BRAND_FONT_PRESETS.find((p) => p.id === preset) ?? BRAND_FONT_PRESETS[0]).stack;
+}
+
+/** Relative luminance (WCAG) of #rrggbb. */
+export function luminance(hex: string): number {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+}
+
+/** WCAG contrast ratio between two #rrggbb colours (1–21). */
+export function contrastRatio(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)].sort((m, n) => n - m) as [number, number];
+  return (x + 0.05) / (y + 0.05);
+}
+
+/** Black or white text on an accent colour, whichever reads better. */
+export function textOn(hex: string): '#0c0c0c' | '#ffffff' {
+  return contrastRatio(hex, '#0c0c0c') >= contrastRatio(hex, '#ffffff') ? '#0c0c0c' : '#ffffff';
 }

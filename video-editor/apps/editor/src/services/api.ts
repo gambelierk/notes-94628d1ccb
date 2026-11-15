@@ -1,4 +1,6 @@
 import type {
+  BrandFontPresetId,
+  BrandFontSlot,
   CompositionDTO,
   CompositionSummaryDTO,
   MediaDTO,
@@ -127,6 +129,22 @@ export const api = {
   updateTemplate: (id: string, patch: Partial<TemplateSettings>) => call<TemplateDTO>('PATCH', `/api/admin/templates/${id}`, patch),
   deleteTemplate: (id: string) => call<{ ok: true }>('DELETE', `/api/admin/templates/${id}`),
   templateFileUrl: (id: string) => `/api/admin/templates/${id}/file`,
+
+  /* branding: the look of a customer's pages */
+  setBranding: (id: string, patch: { accent?: string | null; headingPreset?: BrandFontPresetId; bodyPreset?: BrandFontPresetId }) =>
+    call<WorkspaceDTO>('PUT', `/api/admin/workspaces/${id}/branding`, patch),
+  uploadBrandLogo: (id: string, file: File) =>
+    call<WorkspaceDTO>('POST', `/api/admin/workspaces/${id}/branding/logo`, file, {
+      'content-type': 'application/octet-stream',
+      'x-file-name': encodeURIComponent(file.name),
+    }),
+  deleteBrandLogo: (id: string) => call<WorkspaceDTO>('DELETE', `/api/admin/workspaces/${id}/branding/logo`),
+  uploadBrandFont: (id: string, slot: BrandFontSlot, file: File) =>
+    call<WorkspaceDTO>('POST', `/api/admin/workspaces/${id}/branding/fonts/${slot}`, file, {
+      'content-type': 'application/octet-stream',
+      'x-file-name': encodeURIComponent(file.name),
+    }),
+  deleteBrandFont: (id: string, slot: BrandFontSlot) => call<WorkspaceDTO>('DELETE', `/api/admin/workspaces/${id}/branding/fonts/${slot}`),
 };
 
 export function shareUrl(token: string): string {

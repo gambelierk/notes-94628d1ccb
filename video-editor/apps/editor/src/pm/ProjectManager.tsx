@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { BrandMark } from '../components/BrandMark';
 import { createProject, type CompositionSummaryDTO, type MediaDTO } from '@ve/core';
 import { ApiError, compositionUrl, customerApi } from '../services/api';
 import { templates } from '../services/templates';
@@ -6,7 +7,7 @@ import { importTemplateFile } from '../state/actions';
 import { useEditor } from '../state/store';
 import { formatBytes } from '../components/LeftPanel';
 import { CreateDialog } from '../components/FormatPicker';
-import { Logo, Plus, Trash, Upload } from '../components/Icons';
+import { Plus, Trash, Upload } from '../components/Icons';
 import '../admin/admin.css';
 import './pm.css';
 
@@ -70,12 +71,7 @@ export function ProjectManager({ token }: { token: string }) {
   return (
     <div className="admin pm-shell" data-testid="project-manager">
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark">
-            <Logo width={16} height={16} />
-          </span>
-          Klipp
-        </div>
+        <BrandMark />
         <span className="project-name" data-testid="customer-name">
           {library.kind === 'share' ? library.name : ' '}
         </span>

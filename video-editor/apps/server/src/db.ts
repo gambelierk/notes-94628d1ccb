@@ -65,6 +65,8 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX compositions_workspace ON compositions(workspace_id, updated_at);
   `,
+  // look of the customer's pages: accent colour, fonts, logo (JSON, see StoredBrand)
+  `ALTER TABLE workspaces ADD COLUMN brand_json TEXT;`,
 ];
 
 export type DB = DatabaseSync;

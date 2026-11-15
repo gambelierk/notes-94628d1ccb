@@ -8,6 +8,7 @@ import {
   projectDuration,
   redo as redoHistory,
   undo as undoHistory,
+  type BrandingDTO,
   type Frame,
   type History,
   type Project,
@@ -50,7 +51,7 @@ export interface DropTarget {
 export type LibraryInfo =
   | { kind: 'loading' }
   | { kind: 'demo' }
-  | { kind: 'share'; name: string; token: string; allowUploads: boolean }
+  | { kind: 'share'; name: string; token: string; allowUploads: boolean; branding: BrandingDTO }
   | { kind: 'error'; message: string };
 
 export interface Toast {

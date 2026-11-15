@@ -392,3 +392,76 @@ describe('media sniffing', () => {
     expect(sniffMedia(new TextEncoder().encode('<html><body>no svg here</body></html>'))).toBeNull();
   });
 });
+
+import { BRAND_FONT_PRESETS } from '@ve/core';
+import { BRAND_FONT_PRESET_IDS } from '../src/repo.ts';
+
+const WOFF2 = new Uint8Array([0x77, 0x4f, 0x46, 0x32, 0, 1, 0, 0, 1, 2, 3, 4]);
+
+describe('branding', () => {
+  it('server and editor agree on the font presets', () => {
+    expect([...BRAND_FONT_PRESET_IDS]).toEqual(BRAND_FONT_PRESETS.map((p) => p.id));
+  });
+
+  it('admin sets colour, fonts and logo; the customer link gets them', async () => {
+    await login();
+    const w = await rj(req('POST', '/api/admin/workspaces', { name: 'Märkeskund' }));
+    expect(w.branding).toMatchObject({ accent: null, logo: null, heading: { preset: 'plex-sans', custom: null } });
+
+    expect((await req('PUT', `/api/admin/workspaces/${w.id}/branding`, { accent: 'red' })).status).toBe(400);
+    expect((await req('PUT', `/api/admin/workspaces/${w.id}/branding`, { headingPreset: 'comic' })).status).toBe(400);
+    let ws = await rj(req('PUT', `/api/admin/workspaces/${w.id}/branding`, { accent: '#FF5500', headingPreset: 'serif' }));
+    expect(ws.branding).toMatchObject({ accent: '#ff5500', heading: { preset: 'serif' }, body: { preset: 'plex-sans' } });
+
+    expect((await req('POST', `/api/admin/workspaces/${w.id}/branding/logo`, new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]))).status).toBe(415);
+    ws = await rj(req('POST', `/api/admin/workspaces/${w.id}/branding/logo`, SVG, { 'x-file-name': 'logo.svg' }));
+    expect(ws.branding.logo.mime).toBe('image/svg+xml');
+    expect((await req('POST', `/api/admin/workspaces/${w.id}/branding/fonts/heading`, PNG)).status).toBe(415);
+    ws = await rj(req('POST', `/api/admin/workspaces/${w.id}/branding/fonts/heading`, WOFF2, { 'x-file-name': encodeURIComponent('Brand_Sans-Bold.woff2') }));
+    expect(ws.branding.heading.custom).toMatchObject({ name: 'Brand Sans Bold', format: 'woff2' });
+    expect((await req('GET', ws.branding.logo.url)).status).toBe(200);
+
+    // the customer: branding with its own (share) URLs, no admin session needed
+    cookie = '';
+    expect((await req('PUT', `/api/admin/workspaces/${w.id}/branding`, { accent: '#000000' })).status).toBe(401);
+    const lib = await rj(req('GET', `/api/share/${w.shareToken}`));
+    const b = lib.workspace.branding;
+    expect(b.accent).toBe('#ff5500');
+    expect(b.logo.url).toMatch(new RegExp(`^/api/share/${w.shareToken}/branding/logo\\?v=`));
+    const logo = await req('GET', b.logo.url);
+    expect(logo.headers.get('content-type')).toBe('image/svg+xml');
+    expect(logo.headers.get('content-security-policy')).toContain('sandbox');
+    const font = await req('GET', b.heading.custom.url);
+    expect(font.headers.get('content-type')).toBe('font/woff2');
+    expect(new Uint8Array(await font.arrayBuffer())).toEqual(WOFF2);
+    expect((await req('GET', `/api/share/${w.shareToken}/branding/fonts/body`)).status).toBe(404);
+  });
+
+  it('changes made at the same time do not overwrite each other', async () => {
+    await login();
+    const w = await rj(req('POST', '/api/admin/workspaces', { name: 'Samtidigt' }));
+    await Promise.all([
+      req('POST', `/api/admin/workspaces/${w.id}/branding/logo`, SVG),
+      req('PUT', `/api/admin/workspaces/${w.id}/branding`, { accent: '#123456' }),
+      req('POST', `/api/admin/workspaces/${w.id}/branding/fonts/body`, WOFF2),
+    ]);
+    const b = (await rj(req('GET', `/api/admin/workspaces/${w.id}`))).workspace.branding;
+    expect(b.accent).toBe('#123456');
+    expect(b.logo).not.toBeNull();
+    expect(b.body.custom).not.toBeNull();
+  });
+
+  it('replaced or removed files are cleaned up, other customers are not affected', async () => {
+    await login();
+    const a = await rj(req('POST', '/api/admin/workspaces', { name: 'A' }));
+    const b = await rj(req('POST', '/api/admin/workspaces', { name: 'B' }));
+    await req('POST', `/api/admin/workspaces/${a.id}/branding/logo`, PNG);
+    await req('POST', `/api/admin/workspaces/${b.id}/branding/logo`, PNG); // same file, stored once
+    const wa = await rj(req('DELETE', `/api/admin/workspaces/${a.id}/branding/logo`));
+    expect(wa.branding.logo).toBeNull();
+    const wb = await rj(req('GET', `/api/admin/workspaces/${b.id}`));
+    expect((await req('GET', wb.workspace.branding.logo.url)).status).toBe(200); // still there for B
+    await req('DELETE', `/api/admin/workspaces/${b.id}`);
+    expect((await req('GET', `/api/admin/workspaces/${b.id}/branding/logo`)).status).toBe(404);
+  });
+});

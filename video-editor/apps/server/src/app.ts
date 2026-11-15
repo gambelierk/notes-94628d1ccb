@@ -7,6 +7,7 @@ import type { Config } from './config.ts';
 import { cleanText, HttpError, isRiv, parseTemplatePatch, readJson, sendBlob, uploadFileName } from './http.ts';
 import type { Repo } from './repo.ts';
 import { shareRoutes } from './share.ts';
+import { brandingAdminRoutes } from './branding.ts';
 
 const COOKIE = 've_admin';
 
@@ -193,6 +194,8 @@ export function createApp({ repo, blobs, config }: AppDeps) {
     if (!t) throw new HttpError(404, 'Mallen finns inte');
     return sendBlob(c, blobs, t.blobKey, 'application/octet-stream', 'private, no-cache');
   });
+
+  admin.route('/', brandingAdminRoutes(repo, blobs));
 
   app.route('/api/admin', admin);
 

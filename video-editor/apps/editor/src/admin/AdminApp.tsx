@@ -4,6 +4,7 @@ import { formatBytes } from '../components/LeftPanel';
 import { ApiError, api, shareUrl } from '../services/api';
 import { Logo, Plus, Trash, Upload } from '../components/Icons';
 import { inspectForAdmin, type AdminInspection } from './rive-inspect';
+import { BrandingCard } from './BrandingCard';
 import './admin.css';
 
 type Toast = { id: number; kind: 'info' | 'error'; text: string };
@@ -335,6 +336,15 @@ function WorkspaceView(props: { id: string; toast: (t: string, k?: 'info' | 'err
           Kunden kan alltid skapa kompositioner och ladda upp egna filmer.
         </p>
       </section>
+
+      <BrandingCard
+        ws={ws}
+        toast={toast}
+        onChange={(w) => {
+          setWs(w);
+          onChanged();
+        }}
+      />
 
       <section className="card" aria-labelledby="tpl-h">
         <div className="card-head">

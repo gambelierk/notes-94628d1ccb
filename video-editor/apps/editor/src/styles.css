@@ -24,6 +24,8 @@
   --radius: 8px;
   --font: 'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* headings: a customer's brand may set its own (see services/branding.ts) */
+  --font-heading: var(--font);
   --image: #6a6a6a;
   --image-2: #8a8a8a;
 }
@@ -108,6 +110,25 @@ textarea {
   font-weight: 650;
   letter-spacing: 0.01em;
 }
+/* the customer's logo instead of Klipp's (branding) */
+.brand-logo {
+  display: block;
+  height: 26px;
+  max-width: 160px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+/* headings use the brand's heading typeface (monospace labels stay mono) */
+h1,
+h2,
+h3,
+.project-name,
+.insp-title,
+.brand {
+  font-family: var(--font-heading);
+}
+
 .brand-mark {
   width: 22px;
   height: 22px;
