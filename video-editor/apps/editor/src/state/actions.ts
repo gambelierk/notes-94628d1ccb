@@ -45,6 +45,10 @@ export async function importFiles(files: Iterable<File>): Promise<void> {
     const name = file.name.toLowerCase();
     try {
       if (name.endsWith('.riv')) {
+        if (store.library.kind === 'share') {
+          store.toast('Mallar läggs till av administratören för det här projektet', 'error');
+          continue;
+        }
         const def = await templates.importFile(file);
         store.toast(`Mallen "${def.name}" har lagts till`);
       } else if (file.type.startsWith('image/')) {

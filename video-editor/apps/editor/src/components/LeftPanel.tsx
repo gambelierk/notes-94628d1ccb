@@ -52,6 +52,7 @@ function FilePicker({ accept, label, multiple = true }: { accept: string; label:
 function TemplateLibrary() {
   const items = useEditor((s) => s.templates);
   const loading = useEditor((s) => s.templatesLoading);
+  const library = useEditor((s) => s.library);
   const grouped = useMemo(() => {
     const m = new Map<string, LibraryTemplate[]>();
     for (const t of items) {
@@ -64,14 +65,21 @@ function TemplateLibrary() {
   return (
     <>
       <div className="panel-head">
-        <span className="panel-title">Rive-mallar</span>
-        <FilePicker accept=".riv" label="Importera .riv" />
+        <span className="panel-title">{library.kind === 'share' ? `Mallar · ${library.name}` : 'Rive-mallar'}</span>
+        {library.kind !== 'share' && <FilePicker accept=".riv" label="Importera .riv" />}
       </div>
       <div className="scroll" data-testid="template-library">
         {loading && items.length === 0 && (
           <div className="empty">
             <div className="spinner" style={{ margin: '0 auto 10px' }} />
             Laddar mallar…
+          </div>
+        )}
+        {!loading && items.length === 0 && (
+          <div className="empty">
+            <strong>Inga mallar än</strong>
+            <br />
+            {library.kind === 'share' ? 'Mallarna för det här projektet har inte lagts upp ännu.' : 'Importera en .riv-fil.'}
           </div>
         )}
         <div className="lib-grid">

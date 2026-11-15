@@ -6,7 +6,23 @@ webbläsaren. Ingen server och inget konto behövs.
 
 ![Editorn](docs/skarmbild.jpg)
 
-## Funktioner (fas 0–2)
+## Kundprojekt och delningslänkar
+
+Som admin skapar du ett **kundprojekt** per kund på `/admin`, laddar upp kundens `.riv`-filer och
+skickar delningslänken (`/p/<nyckel>`) till kunden. Kunden öppnar länken och får editorn med
+**bara det projektets mallar** i panelen. Inget konto behövs.
+
+![Admin](docs/admin.jpg)
+
+Per mall kan du ställa in namn, kategori, artboard (om filen har flera), placering i bilden,
+standardlängd och **vilka fält kunden ser och vad de heter** (t.ex. Rive-egenskapen `name` → "Namn").
+Tumnaglar och fältlistor tas fram i webbläsaren med samma Rive-kod som editorn använder.
+
+Delningslänken kan stängas av och slås på igen, eller ersättas med en ny (då slutar den gamla
+fungera direkt). Kunden kan inte se andra kunders mallar, inte nå admin-API:t och inte importera
+egna `.riv`-filer.
+
+## Funktioner i editorn
 
 - **Import** av MP4 (H.264/AAC och det webbläsaren kan avkoda), bilder och egna `.riv`-mallar.
   Filer kan släppas var som helst i fönstret.
@@ -23,22 +39,50 @@ webbläsaren. Ingen server och inget konto behövs.
 
 ## Kom igång
 
+Kräver Node 22.18 eller senare (kör TypeScript och SQLite inbyggt) och pnpm.
+
 ```bash
 cd video-editor
 pnpm install
-pnpm dev          # http://localhost:5173
+pnpm dev          # editor på http://localhost:5173, API på :8787 (lösenord "admin" i utveckling)
 ```
+
+| Adress | Vad |
+|---|---|
+| `/` | Demo-editorn med exempelmallar |
+| `/admin` | Admin: kundprojekt, uppladdning och delningslänkar |
+| `/p/<nyckel>` | Editorn för en kund, med kundprojektets mallar |
 
 Övriga kommandon:
 
 | Kommando | Vad |
 |---|---|
-| `pnpm build` | Produktionsbygge till `apps/editor/dist` |
-| `pnpm test` | Enhetstester (Vitest) för datamodell, tid och mallar |
+| `pnpm build` | Produktionsbygge av gränssnittet till `apps/editor/dist` |
+| `pnpm start` | Servern: API och det byggda gränssnittet i en process |
+| `pnpm test` | Enhetstester (Vitest): datamodell, mallar och API |
 | `pnpm typecheck` | TypeScript, strikt läge |
-| `pnpm e2e` | End-to-end i Chromium (kräver `pnpm build`, Playwright och ffmpeg) |
+| `pnpm e2e` | End-to-end i Chromium för editorn och admin→kund (kräver `pnpm build`, Playwright och ffmpeg) |
 
-Krav: en Chromium-baserad webbläsare (Chrome/Edge) med WebCodecs, OffscreenCanvas och WebGL2.
+Webbläsare: Chromium-baserad (Chrome/Edge) med WebCodecs, OffscreenCanvas och WebGL2.
+
+## Drift
+
+```bash
+pnpm install --frozen-lockfile && pnpm build
+NODE_ENV=production ADMIN_PASSWORD='…minst 12 tecken…' DATA_DIR=/var/lib/klipp pnpm start
+```
+
+| Variabel | Standard | Beskrivning |
+|---|---|---|
+| `ADMIN_PASSWORD` | – (krävs i produktion) | Lösenordet till `/admin` |
+| `PORT` | `8787` | |
+| `DATA_DIR` | `video-editor/.data` | SQLite-databas och uppladdade filer. Måste ligga på en beständig disk |
+| `COOKIE_SECURE` | `true` i produktion | Sätt `false` bara om du kör utan HTTPS lokalt |
+| `TRUST_PROXY` | `false` | `true` bakom en proxy, så att inloggningsspärren ser rätt IP |
+| `MAX_UPLOAD_MB` | `25` | Största tillåtna .riv-fil |
+| `SESSION_DAYS` | `7` | Hur länge en admininloggning gäller |
+
+Kör bakom HTTPS. Säkerhetskopiera `DATA_DIR`.
 
 ## Arkitektur
 
@@ -50,7 +94,8 @@ packages/
   render/   WebGL2-kompositor och renderFrame(projekt, bildruta), gemensam för förhandsvisning och export
   export/   Export-worker (rendera → H.264, mixa → AAC, muxa → MP4) och klient-API
 apps/
-  editor/   React + Zustand (bibliotek, viewer, egenskapspanel, tidslinje, export)
+  editor/   React + Zustand (bibliotek, viewer, egenskapspanel, tidslinje, export) och admin (/admin)
+  server/   Hono + node:sqlite: kundprojekt, mallar, delningslänkar, admininloggning, filer på disk
 ```
 
 Principer:
@@ -74,8 +119,11 @@ manifest). Demomallarna i `apps/editor/public/templates` är testfiler från Riv
 
 ## Kända begränsningar och nästa steg
 
-- **Ingen sparning än:** projekt och media försvinner vid omladdning. Nästa steg är OPFS för
-  mediefiler och IndexedDB för projekt (fas 4).
+- **Kundens redigeringar sparas inte än:** tidslinjen och videofilerna försvinner vid omladdning.
+  Nästa steg är OPFS för mediefiler och IndexedDB för projekt (fas 4).
+- En enda admin (ett lösenord). Flera administratörer med egna konton kan läggas till senare.
+- Delningslänken fungerar som en nyckel: alla som har den kommer åt mallarna. Byt länk om den sprids.
+- Tar admin bort en mall som kunden har lagt på tidslinjen visas klippet som saknat.
 - Rive-mallar med **ljud** stöds inte i exporten.
 - Endast MP4 in och ut. Fler format kan läggas till senare i `media`-paketet; mediabunny stöder
   redan WebM, MOV med flera.

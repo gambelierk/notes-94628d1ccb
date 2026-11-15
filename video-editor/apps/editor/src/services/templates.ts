@@ -1,7 +1,10 @@
 import riveWasmUrl from '@rive-app/canvas-advanced/rive.wasm?url';
-import type { TemplateDefinition, TemplateManifest } from '@ve/core';
+import type { SharedLibraryDTO, TemplateDefinition, TemplateManifest } from '@ve/core';
 import { loadRiveRuntime, renderTemplateThumbnail, TemplateRegistry, type RiveCanvas } from '@ve/rive';
+import { ApiError, api } from './api';
 import { useEditor, type LibraryTemplate } from '../state/store';
+
+export type LibrarySource = { kind: 'demo' } | { kind: 'share'; token: string };
 
 export const RIVE_WASM_URL = new URL(riveWasmUrl, location.href).href;
 
@@ -28,10 +31,51 @@ class TemplateService {
     return (await this.init()).registry;
   }
 
-  /** Load the templates listed in /templates/index.json. */
-  async loadBuiltIns(): Promise<void> {
+  /** Load the template library for the current page (demo templates or a customer's shared project). */
+  async loadLibrary(source: LibrarySource): Promise<void> {
+    if (source.kind === 'demo') return this.loadBuiltIns();
+    return this.loadShared(source.token);
+  }
+
+  /** Templates of a customer project, via its share link. */
+  private async loadShared(token: string): Promise<void> {
     const store = useEditor.getState();
     store.setTemplatesLoading(true);
+    try {
+      let lib: SharedLibraryDTO;
+      try {
+        lib = await api.shared(token);
+      } catch (e) {
+        const msg =
+          e instanceof ApiError && e.status === 404
+            ? 'Länken är ogiltig eller har stängts av. Be om en ny länk.'
+            : 'Kunde inte hämta mallarna. Kontrollera anslutningen och ladda om sidan.';
+        store.setLibrary({ kind: 'error', message: msg });
+        return;
+      }
+      store.setLibrary({ kind: 'share', name: lib.workspace.name, token });
+      const results = await Promise.allSettled(
+        lib.templates.map(async (t, i) => {
+          const r = await fetch(t.url);
+          if (!r.ok) throw new Error(`${t.manifest.name}: ${r.status}`);
+          return this.add(new Uint8Array(await r.arrayBuffer()), t.manifest, t.id, true, i);
+        }),
+      );
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length) {
+        store.toast(`${failed.length} mall(ar) kunde inte läsas`, 'error');
+        console.warn(failed.map((f) => String((f as PromiseRejectedResult).reason)));
+      }
+    } finally {
+      useEditor.getState().setTemplatesLoading(false);
+    }
+  }
+
+  /** Load the demo templates listed in /templates/index.json. */
+  private async loadBuiltIns(): Promise<void> {
+    const store = useEditor.getState();
+    store.setTemplatesLoading(true);
+    store.setLibrary({ kind: 'demo' });
     try {
       const base = new URL('templates/', new URL(import.meta.env.BASE_URL, location.href));
       const index = (await (await fetch(new URL('index.json', base))).json()) as { templates: TemplateManifest[] };

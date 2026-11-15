@@ -38,6 +38,13 @@ export interface DropTarget {
   duration: Frame;
 }
 
+/** Where the template library comes from on this page. */
+export type LibraryInfo =
+  | { kind: 'loading' }
+  | { kind: 'demo' }
+  | { kind: 'share'; name: string; token: string }
+  | { kind: 'error'; message: string };
+
 export interface Toast {
   id: number;
   kind: 'info' | 'error';
@@ -55,6 +62,7 @@ interface EditorState {
   zoom: number;
   templates: LibraryTemplate[];
   templatesLoading: boolean;
+  library: LibraryInfo;
   mediaThumbs: Record<string, string>;
   drag: DragState | null;
   dropTarget: DropTarget | null;
@@ -73,6 +81,7 @@ interface EditorState {
   setTemplates: (t: LibraryTemplate[]) => void;
   addTemplate: (t: LibraryTemplate) => void;
   setTemplatesLoading: (v: boolean) => void;
+  setLibrary: (l: LibraryInfo) => void;
   setMediaThumb: (assetId: string, url: string) => void;
   setDrag: (d: DragState | null) => void;
   setDropTarget: (t: DropTarget | null) => void;
@@ -94,6 +103,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   zoom: 60,
   templates: [],
   templatesLoading: true,
+  library: { kind: 'loading' },
   mediaThumbs: {},
   drag: null,
   dropTarget: null,
@@ -133,6 +143,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   addTemplate: (t) =>
     set({ templates: [...get().templates.filter((x) => x.def.id !== t.def.id), t].sort((a, b) => a.order - b.order) }),
   setTemplatesLoading: (v) => set({ templatesLoading: v }),
+  setLibrary: (l) => set({ library: l }),
   setMediaThumb: (assetId, url) => set({ mediaThumbs: { ...get().mediaThumbs, [assetId]: url } }),
   setDrag: (d) => set({ drag: d }),
   setDropTarget: (t) => set({ dropTarget: t }),

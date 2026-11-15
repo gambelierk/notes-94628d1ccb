@@ -1,7 +1,24 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { lazy, Suspense, useMemo } from 'react';
 import { App } from './App';
+import { currentRoute } from './routes';
 import './styles.css';
+
+const AdminApp = lazy(() => import('./admin/AdminApp').then((m) => ({ default: m.AdminApp })));
+
+function Root() {
+  const route = useMemo(() => currentRoute(), []);
+  if (route.kind === 'admin') {
+    return (
+      <Suspense fallback={null}>
+        <AdminApp />
+      </Suspense>
+    );
+  }
+  const source = route.kind === 'share' ? ({ kind: 'share', token: route.token } as const) : ({ kind: 'demo' } as const);
+  return <App source={source} />;
+}
 
 function supported(): string | null {
   if (typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') return 'WebCodecs saknas';
@@ -24,7 +41,7 @@ if (missing) {
 } else {
   root.render(
     <StrictMode>
-      <App />
+      <Root />
     </StrictMode>,
   );
 }

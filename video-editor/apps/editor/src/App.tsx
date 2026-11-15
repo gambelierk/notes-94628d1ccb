@@ -7,16 +7,26 @@ import { LeftPanel } from './components/LeftPanel';
 import { Timeline } from './components/Timeline';
 import { Viewer } from './components/Viewer';
 import { preview } from './services/preview';
-import { templates } from './services/templates';
+import { templates, type LibrarySource } from './services/templates';
 import { deleteSelection, importFiles, splitAtPlayhead, stepPlayhead } from './state/actions';
 import { useEditor, useProjectDuration } from './state/store';
 
-export function App() {
+export function App({ source }: { source: LibrarySource }) {
   useEffect(() => {
-    void templates.loadBuiltIns();
-  }, []);
+    void templates.loadLibrary(source);
+  }, [source]);
   useKeyboard();
   const fileDrag = useWindowFileDrop();
+  const library = useEditor((s) => s.library);
+
+  if (library.kind === 'error') {
+    return (
+      <div className="unsupported" role="alert">
+        <h1>Länken fungerar inte</h1>
+        <p>{library.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -39,6 +49,7 @@ function TopBar() {
   const redo = useEditor((s) => s.redo);
   const duration = useProjectDuration();
   const name = useEditor((s) => s.history.present.project.name);
+  const library = useEditor((s) => s.library);
   return (
     <header className="topbar">
       <div className="brand">
@@ -47,7 +58,13 @@ function TopBar() {
         </span>
         Klipp
       </div>
-      <span className="project-name">{name}</span>
+      {library.kind === 'share' ? (
+        <span className="project-name" data-testid="customer-name">
+          {library.name}
+        </span>
+      ) : (
+        <span className="project-name">{name}</span>
+      )}
       <div className="spacer" />
       <button className="btn ghost icon-btn" aria-label="Ångra" title={`Ångra ${history.present.label}`} disabled={!canUndo(history)} onClick={undo}>
         <Undo />
