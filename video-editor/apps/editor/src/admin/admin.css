@@ -442,3 +442,10 @@ a.btn {
 .bp-tile.selected {
   border: 2px solid var(--focus);
 }
+
+.brand-logo-box.plate-light {
+  background: #ffffff;
+}
+.brand-logo-box.plate-accent {
+  background: var(--accent);
+}

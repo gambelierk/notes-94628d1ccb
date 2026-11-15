@@ -46,6 +46,17 @@ export function brandVariables(b: BrandingDTO, scope: string): Record<string, st
 
 const loaded = new Map<string, { face: FontFace; url: string }>();
 
+/** Does a loaded font really change with font-weight (a variable font with a weight axis)? */
+function hasWeightAxis(family: string): boolean {
+  const ctx = new OffscreenCanvas(1, 1).getContext('2d');
+  if (!ctx) return false;
+  const width = (weight: number) => {
+    ctx.font = `${weight} 64px '${family}'`;
+    return ctx.measureText('Hamburgefonstiv 0123456789').width;
+  };
+  return Math.abs(width(700) - width(400)) > 0.5;
+}
+
 /** Register the uploaded fonts (if any) so the stacks above can use them. */
 export async function loadBrandFonts(b: BrandingDTO, scope: string): Promise<void> {
   await Promise.all(
@@ -59,11 +70,21 @@ export async function loadBrandFonts(b: BrandingDTO, scope: string): Promise<voi
         loaded.delete(family);
       }
       if (!f) return;
-      const face = new FontFace(family, `url(${JSON.stringify(f.url)}) format('${f.format}')`, { display: 'swap' });
+      const src = `url(${JSON.stringify(f.url)}) format('${f.format}')`;
+      // Assume a variable font first: declaring the whole weight range makes the browser use the font's own weights.
+      let face = new FontFace(family, src, { display: 'swap', weight: '1 1000' });
       loaded.set(family, { face, url: f.url });
       document.fonts.add(face);
       try {
         await face.load();
+        if (loaded.get(family)?.face === face && !hasWeightAxis(family)) {
+          // An ordinary one-weight font: register it plainly, so bold text is thickened by the browser instead.
+          document.fonts.delete(face);
+          face = new FontFace(family, src, { display: 'swap' });
+          loaded.set(family, { face, url: f.url });
+          document.fonts.add(face);
+          await face.load();
+        }
       } catch {
         console.warn(`Typsnittet ${f.name} kunde inte läsas`);
       }

@@ -2,8 +2,8 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { BlobStore } from './blobs.ts';
 import { cleanText, HttpError, readJson, sendBlob, sniffFont, sniffMedia, uploadFileName } from './http.ts';
-import type { BrandFontPresetId } from '@ve/core';
-import { isBrandFontPreset, type Repo, type StoredBrand } from './repo.ts';
+import type { BrandFontPresetId, BrandLogoPlate } from '@ve/core';
+import { isBrandFontPreset, isBrandLogoPlate, type Repo, type StoredBrand } from './repo.ts';
 
 /** Logos and font files are small; anything bigger is a mistake. */
 export const MAX_BRAND_FILE_BYTES = 5 * 1024 * 1024;
@@ -76,8 +76,14 @@ export function brandingAdminRoutes(repo: Repo, blobs: BlobStore) {
       if (!isBrandFontPreset(body[key])) throw new HttpError(400, 'Okänt typsnitt');
       presets[slot] = body[key];
     }
+    let logoPlate: BrandLogoPlate | undefined;
+    if ('logoPlate' in body) {
+      if (!isBrandLogoPlate(body.logoPlate)) throw new HttpError(400, 'Okänd platta för logotypen');
+      logoPlate = body.logoPlate;
+    }
     return save(c, (b) => ({
       ...b,
+      logoPlate: logoPlate ?? b.logoPlate,
       accent: accent === undefined ? b.accent : accent,
       heading: { ...b.heading, preset: presets.heading ?? b.heading.preset },
       body: { ...b.body, preset: presets.body ?? b.body.preset },

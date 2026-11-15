@@ -9,6 +9,7 @@
     "start": "pnpm --filter @ve/server start",
     "typecheck": "tsc -p tsconfig.json && tsc -p apps/server/tsconfig.json",
     "test": "vitest run",
+    "customer": "node scripts/customer-profile.mjs",
     "e2e": "node scripts/e2e.mjs && node scripts/e2e-admin.mjs && node scripts/e2e-layout.mjs && node scripts/e2e-audio.mjs && node scripts/e2e-transitions.mjs && node scripts/e2e-vector.mjs && node scripts/e2e-branding.mjs"
   },
   "devDependencies": {

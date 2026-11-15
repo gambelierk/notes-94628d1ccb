@@ -51,8 +51,29 @@ projekthanteraren och editorn:
 - **Logotyp** som SVG, PNG, JPEG eller WebP. Den ersätter Klipps märke uppe till vänster och
   används som ikon i webbläsarfliken.
 
+- **Platta bakom logotypen**: ingen, accentfärg eller vit. Används när logotypen är mörk och
+  annars inte skulle synas mot det mörka gränssnittet.
+
+Kundens egna typsnitt får sina riktiga vikter om filen är ett variabelt typsnitt. Annars gör
+webbläsaren fet stil själv.
+
 En förhandsvisning i admin visar resultatet direkt. Adminsidorna och andra kunder påverkas inte.
 Filerna lagras i projektet och tas bort när de byts ut eller när kundprojektet tas bort.
+
+### Kundprofiler i repot
+
+En kundprofil kan sparas som en mapp under `customers/` och läggas in på en server med ett kommando.
+Mappen innehåller `profile.json` (namn, accentfärg, logotyp, platta och typsnitt) och filerna den
+pekar på. `customers/kid-collective/` är ett exempel:
+
+```bash
+ADMIN_PASSWORD='…' pnpm customer customers/kid-collective --url https://din-server
+```
+
+Kommandot skapar kundprojektet om det inte finns, annars uppdateras det (det känns igen på namnet).
+Sist skrivs kundens delningslänk ut. Standardadressen är `http://localhost:8787`.
+
+![Kundprofil](docs/kundprofil.jpg)
 
 ## Gränssnitt
 

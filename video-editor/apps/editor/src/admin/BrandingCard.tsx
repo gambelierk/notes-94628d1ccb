@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { BRAND_FONT_PRESETS, contrastRatio, type BrandFontPresetId, type BrandFontSlot, type BrandingDTO, type WorkspaceDTO } from '@ve/core';
+import {
+  BRAND_FONT_PRESETS,
+  BRAND_LOGO_PLATES,
+  contrastRatio,
+  type BrandFontPresetId,
+  type BrandFontSlot,
+  type BrandingDTO,
+  type BrandLogoPlate,
+  type WorkspaceDTO,
+} from '@ve/core';
 import { api } from '../services/api';
 import { brandVariables, loadBrandFonts, MIN_ACCENT_CONTRAST } from '../services/branding';
 import { Logo, Plus, Trash, Upload } from '../components/Icons';
@@ -120,7 +129,9 @@ export function BrandingCard(props: { ws: WorkspaceDTO; onChange: (w: WorkspaceD
           <div className="brand-field">
             <span className="field-label">Logotyp</span>
             <div className="brand-row">
-              <div className="brand-logo-box">{b.logo ? <img src={b.logo.url} alt="Kundens logotyp" /> : <span className="dim">Ingen logotyp</span>}</div>
+              <div className={`brand-logo-box plate-${b.logo ? b.logoPlate : 'none'}`} style={b.logoPlate === 'accent' && accent ? { background: accent } : undefined}>
+                {b.logo ? <img src={b.logo.url} alt="Kundens logotyp" /> : <span className="dim">Ingen logotyp</span>}
+              </div>
               <button className="btn" onClick={() => logoRef.current?.click()} disabled={busy === 'logo'}>
                 <Upload /> {b.logo ? 'Byt' : 'Ladda upp'}
               </button>
@@ -143,6 +154,23 @@ export function BrandingCard(props: { ws: WorkspaceDTO; onChange: (w: WorkspaceD
               />
             </div>
             <p className="hint">SVG (helst) eller PNG med genomskinlig bakgrund. Visas uppe till vänster och som ikon i webbläsarfliken.</p>
+            {b.logo && (
+              <label className="brand-row">
+                <span>Platta bakom logotypen</span>
+                <select
+                  className="input"
+                  value={b.logoPlate}
+                  data-testid="brand-logo-plate"
+                  onChange={(e) => void run('logo', () => api.setBranding(ws.id, { logoPlate: e.target.value as BrandLogoPlate }))}
+                >
+                  {BRAND_LOGO_PLATES.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         </div>
 
@@ -217,7 +245,9 @@ function BrandPreview({ branding, scope, name }: { branding: BrandingDTO; scope:
     <div className="brand-preview" style={style} aria-label="Förhandsvisning av kundens sida" data-testid="brand-preview">
       <div className="bp-top">
         {branding.logo ? (
-          <img className="brand-logo" src={branding.logo.url} alt="" />
+          <span className={`brand brand-custom plate-${branding.logoPlate}`}>
+            <img className="brand-logo" src={branding.logo.url} alt="" />
+          </span>
         ) : (
           <span className="bp-klipp">
             <span className="brand-mark">

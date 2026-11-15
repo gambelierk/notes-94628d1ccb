@@ -3,6 +3,7 @@ import type {
   BrandFontFormat,
   BrandFontPresetId,
   BrandingDTO,
+  BrandLogoPlate,
   CompositionDTO,
   CompositionSummaryDTO,
   FieldOverride,
@@ -113,10 +114,17 @@ export interface StoredBrand {
   heading: StoredBrandFont;
   body: StoredBrandFont;
   logo: { key: string; mime: string } | null;
+  logoPlate: BrandLogoPlate;
+}
+
+/** Same ids as BRAND_LOGO_PLATES in @ve/core. */
+export const BRAND_LOGO_PLATE_IDS = ['none', 'accent', 'light'] as const satisfies readonly BrandLogoPlate[];
+export function isBrandLogoPlate(v: unknown): v is BrandLogoPlate {
+  return typeof v === 'string' && (BRAND_LOGO_PLATE_IDS as readonly string[]).includes(v);
 }
 
 export function parseBrand(json: string | null): StoredBrand {
-  const d: StoredBrand = { accent: null, heading: { preset: 'plex-sans', custom: null }, body: { preset: 'plex-sans', custom: null }, logo: null };
+  const d: StoredBrand = { accent: null, heading: { preset: 'plex-sans', custom: null }, body: { preset: 'plex-sans', custom: null }, logo: null, logoPlate: 'none' };
   if (!json) return d;
   try {
     const b = JSON.parse(json) as Partial<StoredBrand>;
@@ -129,6 +137,7 @@ export function parseBrand(json: string | null): StoredBrand {
       heading: font(b.heading),
       body: font(b.body),
       logo: b.logo && typeof b.logo.key === 'string' ? b.logo : null,
+      logoPlate: isBrandLogoPlate(b.logoPlate) ? b.logoPlate : 'none',
     };
   } catch {
     return d;
@@ -150,6 +159,7 @@ export function brandToDTO(b: StoredBrand, base: string): BrandingDTO {
     heading: font(b.heading, 'heading'),
     body: font(b.body, 'body'),
     logo: b.logo ? { url: `${base}/branding/logo?v=${b.logo.key.slice(0, 12)}`, mime: b.logo.mime } : null,
+    logoPlate: b.logoPlate,
   };
 }
 

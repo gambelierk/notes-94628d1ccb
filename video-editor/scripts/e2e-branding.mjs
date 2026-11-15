@@ -97,6 +97,8 @@ try {
   await admin.waitForTimeout(900); // saved after a short pause
   await card.getByTestId('brand-logo-upload').setInputFiles(logo);
   await card.locator('.brand-logo-box img').waitFor();
+  await card.getByTestId('brand-logo-plate').selectOption('accent');
+  await admin.waitForFunction(() => document.querySelector('[data-testid=brand-preview] .brand-custom.plate-accent'));
   await card.getByTestId('brand-font-upload-heading').setInputFiles(font);
   await card.getByTestId('brand-font-heading').waitFor();
   check((await card.getByTestId('brand-font-heading').textContent()).includes('Acme Display Bold'), 'admin: eget rubriktypsnitt uppladdat ("Acme Display Bold", WOFF2)');
@@ -121,6 +123,8 @@ try {
   check(l.accent === '#ff5a1f' && l.button === 'rgb(255, 90, 31)', `kund: knappar i kundens accentfärg (${l.button})`);
   check(l.buttonText === 'rgb(12, 12, 12)', 'kund: texten på knapparna får läsbar kontrast (mörk på orange)');
   check(l.logo?.loaded && l.icon === l.logo.src, 'kund: kundens logotyp uppe till vänster och som flikikon');
+  const plate = await cust.getByTestId('brand-mark').evaluate((e) => getComputedStyle(e).backgroundColor);
+  check(plate === 'rgb(255, 90, 31)', `kund: logotypen ligger på en platta i accentfärgen (${plate})`);
   check(l.heading?.includes('KlippBrand-page-heading') && l.brandFontReady, 'kund: rubrikerna i kundens eget typsnitt');
   const bodyFont = await cust.evaluate(() => getComputedStyle(document.body).fontFamily);
   check(bodyFont.includes('Georgia'), 'kund: brödtexten i valt förval (Serif)');

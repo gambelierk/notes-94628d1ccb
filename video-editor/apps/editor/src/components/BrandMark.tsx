@@ -8,9 +8,10 @@ import { useEditor } from '../state/store';
 export function BrandMark() {
   const library = useEditor((s) => s.library);
   const logo = library.kind === 'share' ? library.branding.logo : null;
+  const plate = library.kind === 'share' ? library.branding.logoPlate : 'none';
   if (logo)
     return (
-      <div className="brand brand-custom">
+      <div className={`brand brand-custom plate-${plate}`} data-testid="brand-mark">
         <img className="brand-logo" src={logo.url} alt={library.kind === 'share' ? library.name : ''} data-testid="brand-logo" />
       </div>
     );

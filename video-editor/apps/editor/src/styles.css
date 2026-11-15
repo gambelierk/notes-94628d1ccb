@@ -119,6 +119,21 @@ textarea {
   object-position: left center;
 }
 
+/* a plate behind the logo, for dark logos on the dark interface */
+.brand-custom.plate-accent,
+.brand-custom.plate-light {
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--accent);
+}
+.brand-custom.plate-light {
+  background: #ffffff;
+}
+.brand-custom.plate-accent .brand-logo,
+.brand-custom.plate-light .brand-logo {
+  height: 20px;
+}
+
 /* headings use the brand's heading typeface (monospace labels stay mono) */
 h1,
 h2,

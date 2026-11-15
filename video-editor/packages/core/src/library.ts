@@ -165,13 +165,23 @@ export interface BrandingDTO {
   heading: BrandFontDTO;
   body: BrandFontDTO;
   logo: { url: string; mime: string } | null;
+  /** A plate behind the logo, so a dark logo is visible on the dark interface. */
+  logoPlate: BrandLogoPlate;
 }
+
+export const BRAND_LOGO_PLATES = [
+  { id: 'none', label: 'Ingen (för ljusa logotyper)' },
+  { id: 'accent', label: 'Accentfärg' },
+  { id: 'light', label: 'Vit' },
+] as const;
+export type BrandLogoPlate = (typeof BRAND_LOGO_PLATES)[number]['id'];
 
 export const DEFAULT_BRANDING: BrandingDTO = {
   accent: null,
   heading: { preset: 'plex-sans', custom: null },
   body: { preset: 'plex-sans', custom: null },
   logo: null,
+  logoPlate: 'none',
 };
 
 export function isBrandFontPreset(v: unknown): v is BrandFontPresetId {
