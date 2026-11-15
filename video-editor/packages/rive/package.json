@@ -1,0 +1,13 @@
+{
+  "name": "@ve/rive",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@ve/core": "workspace:*",
+    "@rive-app/canvas-advanced": "2.49.4"
+  }
+}

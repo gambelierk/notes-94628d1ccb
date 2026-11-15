@@ -1,0 +1,84 @@
+{
+  "templates": [
+    {
+      "id": "demo-lower-third",
+      "name": "Namnskylt",
+      "category": "Lower thirds",
+      "file": "inventory_demo_test_v2.riv",
+      "artboard": "Data content",
+      "defaultDuration": 5,
+      "layout": { "anchor": "bottom-left", "widthPercent": 38, "marginPercent": 8 },
+      "fields": [
+        { "key": "name", "label": "Namn" },
+        { "key": "value", "label": "Titel" }
+      ]
+    },
+    {
+      "id": "demo-progress",
+      "name": "Förloppsmätare",
+      "category": "Grafik",
+      "file": "rewards_demo.riv",
+      "artboard": "Lives 2",
+      "defaultDuration": 5,
+      "layout": { "anchor": "top-right", "widthPercent": 28, "marginPercent": 6 },
+      "fields": [
+        { "key": "Bar_Color", "label": "Färg" },
+        { "key": "Lives", "label": "Siffra" },
+        { "key": "Energy_Bar", "label": "Nivå (0–100)" }
+      ]
+    },
+    {
+      "id": "demo-compass",
+      "name": "Kompass",
+      "category": "Grafik",
+      "file": "car_widgets_v01.riv",
+      "artboard": "COMPASS",
+      "defaultDuration": 5,
+      "layout": { "anchor": "bottom-right", "widthPercent": 20, "marginPercent": 6 },
+      "fields": [
+        { "key": "Compass_Text", "label": "Text" },
+        { "key": "Rotation", "label": "Riktning (grader)" }
+      ]
+    },
+    {
+      "id": "demo-image-frame",
+      "name": "Bildram",
+      "category": "Grafik",
+      "file": "inventory_demo_test_v2.riv",
+      "artboard": "Item Imagen",
+      "defaultDuration": 5,
+      "layout": { "anchor": "right", "widthPercent": 30, "marginPercent": 6 },
+      "fields": [{ "key": "itemImage", "label": "Bild" }]
+    },
+    {
+      "id": "demo-card",
+      "name": "Kort (helbild)",
+      "category": "Helbild",
+      "file": "bankcard.riv",
+      "artboard": "main",
+      "defaultDuration": 6,
+      "fields": [
+        { "key": "Name", "label": "Namn" },
+        { "key": "Bank", "label": "Rubrik" },
+        { "key": "Number", "label": "Nummer" },
+        { "key": "Date", "label": "Datum" },
+        { "key": "Color property", "label": "Kortfärg" }
+      ]
+    },
+    {
+      "id": "demo-text-color",
+      "name": "Text och färg",
+      "category": "Helbild",
+      "file": "data_binding_test.riv",
+      "artboard": "artboard-1",
+      "defaultDuration": 4,
+      "fields": [
+        { "key": "text", "label": "Text" },
+        { "key": "color", "label": "Färg" },
+        { "key": "orient", "hidden": true },
+        { "key": "rotation", "hidden": true },
+        { "key": "width", "hidden": true }
+      ]
+    }
+  ]
+}

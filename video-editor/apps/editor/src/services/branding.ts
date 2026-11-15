@@ -1,0 +1,183 @@
+import { BRAND_TEXT_FAMILY, brandFontStack, contrastRatio, textOn, type BrandFontDTO, type BrandingDTO, type BrandTextFonts } from '@ve/core';
+import type { FontSource } from '@ve/render';
+
+/**
+ * A customer project's look on its pages (project manager and editor):
+ * accent colour, heading and body typefaces and logo. The admin sets it per
+ * customer; the default is the grey Klipp look.
+ */
+
+/** Background the accent must stand out against (the dark panels). */
+const PANEL = '#151515';
+/** Below this the accent would be hard to see as an outline or marker on the dark UI. */
+export const MIN_ACCENT_CONTRAST = 3;
+
+/** Mix a #rrggbb colour towards white (amount > 0) or black (amount < 0). */
+function shade(hex: string, amount: number): string {
+  const target = amount > 0 ? 255 : 0;
+  const a = Math.abs(amount);
+  const ch = [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - a) + target * a));
+  return `#${ch.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Mix two #rrggbb colours: `t` = 0 gives `a`, 1 gives `b`. */
+function mix(a: string, b: string, t: number): string {
+  const ch = [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t));
+  return `#${ch.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Font family name for an uploaded font, unique per page/preview so two
+ * customers never clash. On the customer's own page they are the families
+ * text clips use (BRAND_TEXT_FAMILY), so the same font files serve both.
+ */
+const familyName = (scope: string, slot: 'heading' | 'body') => (scope === PAGE ? BRAND_TEXT_FAMILY[slot] : `KlippBrand-${scope}-${slot}`);
+const PAGE = 'page';
+
+function fontStack(f: BrandFontDTO, scope: string, slot: 'heading' | 'body'): string {
+  const preset = brandFontStack(f.preset);
+  return f.custom ? `'${familyName(scope, slot)}', ${preset}` : preset;
+}
+
+/** CSS custom properties for a branding (apply on :root or on a preview container). */
+export function brandVariables(b: BrandingDTO, scope: string): Record<string, string> {
+  const vars: Record<string, string> = {
+    '--font': fontStack(b.body, scope, 'body'),
+    '--font-heading': fontStack(b.heading, scope, 'heading'),
+  };
+  vars['--brand-accent'] = b.accent ?? '#ececec'; // stays the accent inside the top section, whatever its buttons use
+  if (b.accent) {
+    const visible = contrastRatio(b.accent, PANEL) >= MIN_ACCENT_CONTRAST;
+    vars['--accent'] = b.accent;
+    vars['--accent-2'] = shade(b.accent, textOn(b.accent) === '#ffffff' ? 0.15 : -0.12);
+    vars['--on-accent'] = textOn(b.accent);
+    // a dark brand colour still fills buttons, but outlines and focus rings stay light so they remain visible
+    vars['--focus'] = visible ? b.accent : '#d4d4d4';
+  }
+  return vars;
+}
+
+/**
+ * CSS custom properties for the top section (set on the bar itself). The
+ * interface's colour tokens are redefined inside it, so everything in the bar
+ * – logo plate, names, icons, buttons – follows the chosen colours.
+ * Anything left on "automatic" is derived: text in black or white, whichever
+ * reads best on the background; buttons in the accent colour.
+ */
+export function topbarVariables(b: BrandingDTO): Record<string, string> {
+  const t = b.topbar;
+  const vars: Record<string, string> = {};
+  const base = t.background ?? PANEL;
+  const text = t.text ?? (t.background ? textOn(t.background) : null);
+  if (t.background) vars['--panel'] = t.background;
+  if (t.background || text) {
+    const fg = text ?? '#ececec';
+    vars['--text'] = fg;
+    vars['--text-2'] = mix(fg, base, 0.22);
+    vars['--muted'] = mix(fg, base, 0.32);
+    vars['--line'] = mix(base, fg, 0.16);
+    vars['--line-2'] = mix(base, fg, 0.3);
+    vars['--panel-2'] = mix(base, fg, 0.08);
+    vars['--panel-3'] = mix(base, fg, 0.16);
+    vars['--focus'] = fg;
+  }
+  // without a colour of their own, buttons keep the accent – unless it would vanish against the bar
+  const button = t.button ?? (t.background && contrastRatio(b.accent ?? '#ececec', t.background) < 1.5 ? (text ?? textOn(t.background)) : null);
+  const buttonText = t.buttonText ?? (button ? textOn(button) : null);
+  if (button) {
+    vars['--accent'] = button;
+    vars['--accent-2'] = shade(button, textOn(button) === '#ffffff' ? 0.15 : -0.12);
+  }
+  if (buttonText) vars['--on-accent'] = buttonText;
+  return vars;
+}
+
+const loaded = new Map<string, { face: FontFace; url: string; variable: boolean }>();
+
+/** Which of the customer's own typefaces the current page has (for text clips). */
+export function brandTextFonts(b: BrandingDTO | null): BrandTextFonts & { names: { heading: string | null; body: string | null } } {
+  return {
+    heading: !!b?.heading.custom,
+    body: !!b?.body.custom,
+    names: { heading: b?.heading.custom?.name ?? null, body: b?.body.custom?.name ?? null },
+  };
+}
+
+/** The customer's font files for the exporter (workers don't see fonts registered on the page). */
+export function brandTextFontSources(): FontSource[] {
+  return (['heading', 'body'] as const).flatMap((slot) => {
+    const e = loaded.get(BRAND_TEXT_FAMILY[slot]);
+    return e ? [{ family: BRAND_TEXT_FAMILY[slot], url: new URL(e.url, location.href).href, weight: e.variable ? '1 1000' : '400' }] : [];
+  });
+}
+
+/** Fired on `window` when the customer's fonts have (un)loaded, so text clips are drawn again. */
+export const BRAND_FONTS_EVENT = 'klipp-brand-fonts';
+
+/** Does a loaded font really change with font-weight (a variable font with a weight axis)? */
+function hasWeightAxis(family: string): boolean {
+  const ctx = new OffscreenCanvas(1, 1).getContext('2d');
+  if (!ctx) return false;
+  const width = (weight: number) => {
+    ctx.font = `${weight} 64px '${family}'`;
+    return ctx.measureText('Hamburgefonstiv 0123456789').width;
+  };
+  return Math.abs(width(700) - width(400)) > 0.5;
+}
+
+/** Register the uploaded fonts (if any) so the stacks above can use them. */
+export async function loadBrandFonts(b: BrandingDTO, scope: string): Promise<void> {
+  await Promise.all(
+    (['heading', 'body'] as const).map(async (slot) => {
+      const f = b[slot].custom;
+      const family = familyName(scope, slot);
+      const prev = loaded.get(family);
+      if (prev && prev.url === f?.url) return; // already there
+      if (prev) {
+        document.fonts.delete(prev.face);
+        loaded.delete(family);
+      }
+      if (!f) return;
+      const src = `url(${JSON.stringify(f.url)}) format('${f.format}')`;
+      // Assume a variable font first: declaring the whole weight range makes the browser use the font's own weights.
+      let face = new FontFace(family, src, { display: 'swap', weight: '1 1000' });
+      loaded.set(family, { face, url: f.url, variable: true });
+      document.fonts.add(face);
+      try {
+        await face.load();
+        if (loaded.get(family)?.face === face && !hasWeightAxis(family)) {
+          // An ordinary one-weight font: register it plainly, so bold text is thickened by the browser instead.
+          document.fonts.delete(face);
+          face = new FontFace(family, src, { display: 'swap' });
+          loaded.set(family, { face, url: f.url, variable: false });
+          document.fonts.add(face);
+          await face.load();
+        }
+      } catch {
+        console.warn(`Typsnittet ${f.name} kunde inte läsas`);
+      }
+    }),
+  );
+  if (scope === PAGE) window.dispatchEvent(new Event(BRAND_FONTS_EVENT));
+}
+
+let applied: string[] = [];
+let defaultIcon: string | null = null;
+
+/** Apply a customer's branding to the whole page (null restores the default look). */
+export function applyBranding(b: BrandingDTO | null): void {
+  const root = document.documentElement;
+  for (const k of applied) root.style.removeProperty(k);
+  applied = [];
+  const icon = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+  if (icon && defaultIcon === null) defaultIcon = icon.href;
+  if (!b) {
+    if (icon && defaultIcon) icon.href = defaultIcon;
+    return;
+  }
+  const vars = brandVariables(b, PAGE);
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  applied = Object.keys(vars);
+  if (icon && b.logo) icon.href = b.logo.url; // the customer's logo in the browser tab
+  void loadBrandFonts(b, PAGE);
+}

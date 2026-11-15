@@ -1,0 +1,17 @@
+{
+  "name": "@ve/export",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@ve/core": "workspace:*",
+    "@ve/media": "workspace:*",
+    "@ve/rive": "workspace:*",
+    "@ve/render": "workspace:*",
+    "mediabunny": "1.65.2",
+    "@mediabunny/aac-encoder": "1.65.2"
+  }
+}

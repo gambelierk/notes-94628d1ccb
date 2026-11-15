@@ -1,0 +1,22 @@
+{
+  "name": "Kid Collective",
+  "accent": "#05bd00",
+  "topbar": {
+    "background": "#05bd00",
+    "text": "#000000",
+    "button": "#000000",
+    "buttonText": "#ffffff"
+  },
+  "logo": "logo.png",
+  "logoPlate": "none",
+  "fonts": {
+    "heading": "Familjen_Grotesk.woff2",
+    "body": "Familjen_Grotesk.woff2"
+  },
+  "notes": {
+    "accent": "Den gröna färgen från kidcollective.se (#05BD00).",
+    "logo": "Kid_collective_logo_svart_RGB.png från kidcollective.se. Svart ordbild, som syns direkt mot den gröna övre sektionen (ingen platta behövs).",
+    "fonts": "Familjen Grotesk (variabelt typsnitt, vikt 400–700, latinska tecken) från Google Fonts. Licens: SIL Open Font License, se Familjen_Grotesk-OFL.txt.",
+    "topbar": "Övre sektionen i den gröna färgen med svart text och svarta knappar med vit text, som i byråns profilbild (svart på grönt)."
+  }
+}
