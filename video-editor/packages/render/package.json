@@ -1,0 +1,14 @@
+{
+  "name": "@ve/render",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@ve/core": "workspace:*",
+    "@ve/media": "workspace:*",
+    "@ve/rive": "workspace:*"
+  }
+}
