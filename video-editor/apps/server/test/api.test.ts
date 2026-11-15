@@ -48,6 +48,7 @@ beforeEach(() => {
       maxMediaBytes: 4096,
       workspaceQuotaBytes: 6000,
       sessionDays: 1,
+      ghostscript: 'gs',
     },
   });
 });
@@ -317,7 +318,54 @@ describe('compositions', () => {
   });
 });
 
+import { execFileSync } from 'node:child_process';
 import { sniffMedia } from '../src/http.ts';
+
+const hasGs = (() => {
+  try {
+    execFileSync('gs', ['--version']);
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+const SVG = new TextEncoder().encode('<?xml version="1.0"?>\n<!-- Generator: Adobe Illustrator -->\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><script>alert(1)</script></svg>');
+const PDF = new TextEncoder().encode('%PDF-1.7\n%âãÏÓ\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF');
+const EPS = new TextEncoder().encode(
+  '%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 100 50\n%%EndComments\n0 0 1 setrgbcolor 10 10 moveto 90 10 lineto 50 45 lineto closepath fill\nshowpage\n%%EOF\n',
+);
+
+describe('vector graphics', () => {
+  it('accepts SVG and PDF/Illustrator as images and serves them so they can never run as a page', async () => {
+    const { s } = await setupShared();
+    const svg = await rj(req('POST', `${s}/media`, SVG, { 'x-file-name': 'logo.svg' }));
+    expect(svg).toMatchObject({ kind: 'image', mime: 'image/svg+xml' });
+    const r = await req('GET', svg.url);
+    expect(r.headers.get('content-security-policy')).toContain('sandbox');
+    expect(r.headers.get('content-security-policy')).toContain("default-src 'none'");
+    expect(r.headers.get('x-content-type-options')).toBe('nosniff');
+    const ai = await rj(req('POST', `${s}/media`, PDF, { 'x-file-name': 'logo.ai' }));
+    expect(ai).toMatchObject({ kind: 'image', mime: 'application/pdf', name: 'logo.ai' });
+  });
+
+  it.skipIf(!hasGs)('converts EPS to PDF on upload', async () => {
+    const { s } = await setupShared();
+    const m = await rj(req('POST', `${s}/media`, EPS, { 'x-file-name': 'logo.eps' }));
+    expect(m).toMatchObject({ kind: 'image', mime: 'application/pdf', name: 'logo.eps' });
+    const bytes = new Uint8Array(await (await req('GET', m.url)).arrayBuffer());
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe('%PDF-');
+    expect(m.size).toBe(bytes.byteLength);
+  });
+
+  it('refuses PostScript that cannot be read', async () => {
+    const { s } = await setupShared();
+    const bad = new TextEncoder().encode('%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 10 10\n this is not postscript }}} \n');
+    const r = await req('POST', `${s}/media`, bad, { 'x-file-name': 'trasig.eps' });
+    expect(r.status).toBe(415);
+    expect(await rj(req('GET', `${s}/media`))).toHaveLength(0);
+  });
+});
 describe('media sniffing', () => {
   const b = (...xs: (number | string)[]) => {
     const out: number[] = [];
@@ -334,5 +382,13 @@ describe('media sniffing', () => {
     expect(sniffMedia(b('fLaC', 0))?.mime).toBe('audio/flac');
     expect(sniffMedia(b(0, 0, 0, 0x20, 'ftypM4A '))?.kind).toBe('audio');
     expect(sniffMedia(b(0, 0, 0, 0x20, 'ftypisom'))?.kind).toBe('video');
+  });
+  it('recognises vector graphics', () => {
+    expect(sniffMedia(SVG)?.mime).toBe('image/svg+xml');
+    expect(sniffMedia(new TextEncoder().encode('\uFEFF  <svg width="1" height="1"></svg>'))?.mime).toBe('image/svg+xml');
+    expect(sniffMedia(PDF)?.mime).toBe('application/pdf');
+    expect(sniffMedia(EPS)?.mime).toBe('application/postscript');
+    expect(sniffMedia(b(0xc5, 0xd0, 0xd3, 0xc6, 0, 0))?.mime).toBe('application/postscript');
+    expect(sniffMedia(new TextEncoder().encode('<html><body>no svg here</body></html>'))).toBeNull();
   });
 });

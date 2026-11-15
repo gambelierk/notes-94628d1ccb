@@ -78,6 +78,20 @@ PNG, JPEG och WebP kan importeras och läggas in i filmen som egna klipp, till e
 Genomskinlighet bevaras. Bilder flyttas, skalas, roteras, tonas (opacitet) och trimmas som andra klipp.
 I kundprojekt sparas bilderna i projektets media och kan återanvändas.
 
+### Vektorgrafik
+
+**SVG, PDF, Illustrator (.ai) och EPS** kan importeras som grafik. Genomskinliga ytor i filen
+förblir genomskinliga, så filmen syns igenom. Grafiken blir aldrig en bild med fast upplösning:
+varje gång den visas större eller mindre ritas den om i exakt den storleken, och bara den del som
+syns i bilden ritas. Kanterna är därför skarpa vid alla skalor, både i förhandsvisningen och i
+exporten. I förhandsvisningen visas närmaste rendering direkt medan den skarpa tas fram.
+
+- SVG ritas med webbläsarens egen SVG-motor. Skript och `<foreignObject>` tas bort.
+- PDF och Illustrator ritas med pdf.js (första sidan). Illustrator-filer måste vara sparade med
+  "Skapa PDF-kompatibel fil", vilket är standard. Annars får användaren ett tydligt felmeddelande.
+- EPS (PostScript) kan webbläsare inte läsa. Servern konverterar filen till PDF med Ghostscript
+  när den laddas upp till ett kundprojekt, så den förblir vektorgrafik.
+
 ### Ljud
 
 - **Egna ljudfiler:** MP3, WAV, M4A/AAC, Ogg/Opus och FLAC importeras som filmer och bilder
@@ -145,7 +159,9 @@ luckan efter ett borttaget klipp. **⌘/Ctrl+Z** ångrar.
   Mallar dras in på tidslinjen eller läggs vid spelhuvudet med `+`.
 - **Egenskapspanel** som byggs automatiskt från mallens View Model (data binding): text, färg
   (med projektets palett), bild, tal, av/på och val.
-- **Förhandsvisning** med ljud, där ljudklockan styr uppspelningen.
+- **Förhandsvisning** med ljud, där ljudklockan styr uppspelningen. **Mellanslag** spelar upp från
+  tidsmarkören och pausar där den står. Nästa tryck fortsätter därifrån. Flyttas markören under
+  uppspelning fortsätter uppspelningen från den nya platsen.
 - **Ångra och gör om** för allt (`⌘/Ctrl+Z`, `⌘/Ctrl+Shift+Z`). Skrivande i ett fält blir ett enda steg.
 - **Export** till MP4 (H.264 + AAC 48 kHz stereo) i en Web Worker, med förlopp och möjlighet att
   avbryta. Exporten använder exakt samma renderingsfunktion som förhandsvisningen.
@@ -197,6 +213,10 @@ NODE_ENV=production ADMIN_PASSWORD='…minst 12 tecken…' DATA_DIR=/var/lib/kli
 | `MAX_MEDIA_MB` | `2048` | Största film/bild en kund kan ladda upp |
 | `WORKSPACE_QUOTA_MB` | `20480` | Total lagring för media per kundprojekt |
 | `SESSION_DAYS` | `7` | Hur länge en admininloggning gäller |
+| `GHOSTSCRIPT` | `gs` | Ghostscript för att konvertera EPS till PDF. Tom sträng stänger av EPS |
+
+EPS-stöd kräver Ghostscript på servern (`apt-get install ghostscript`). Uppladdade filer skickas
+med en Content-Security-Policy som gör att de aldrig kan köras som webbsidor.
 
 Kör bakom HTTPS. Säkerhetskopiera `DATA_DIR`.
 

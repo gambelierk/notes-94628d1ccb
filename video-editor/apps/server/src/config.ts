@@ -14,6 +14,8 @@ export interface Config {
   /** Total media storage per customer project. */
   workspaceQuotaBytes: number;
   sessionDays: number;
+  /** Ghostscript executable for converting EPS to PDF (null: EPS not accepted). */
+  ghostscript: string | null;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -37,5 +39,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     maxMediaBytes: Number(env.MAX_MEDIA_MB ?? 2048) * 1024 * 1024,
     workspaceQuotaBytes: Number(env.WORKSPACE_QUOTA_MB ?? 20480) * 1024 * 1024,
     sessionDays: Number(env.SESSION_DAYS ?? 7),
+    ghostscript: env.GHOSTSCRIPT === '' ? null : (env.GHOSTSCRIPT ?? 'gs'),
   };
 }

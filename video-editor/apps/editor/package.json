@@ -9,18 +9,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/ibm-plex-sans": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@rive-app/canvas-advanced": "2.49.4",
     "@ve/core": "workspace:*",
-    "@ve/media": "workspace:*",
-    "@ve/rive": "workspace:*",
-    "@ve/render": "workspace:*",
     "@ve/export": "workspace:*",
+    "@ve/media": "workspace:*",
+    "@ve/render": "workspace:*",
+    "@ve/rive": "workspace:*",
+    "mediabunny": "1.65.2",
+    "pdfjs-dist": "6.4.299",
     "react": "19.1.10",
     "react-dom": "19.1.10",
-    "zustand": "5.0.16",
-    "mediabunny": "1.65.2",
-    "@rive-app/canvas-advanced": "2.49.4",
-    "@fontsource-variable/ibm-plex-sans": "5.3.0",
-    "@fontsource/ibm-plex-mono": "5.3.0"
+    "zustand": "5.0.16"
   },
   "devDependencies": {
     "@types/react": "19.1.17",

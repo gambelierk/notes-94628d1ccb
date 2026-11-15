@@ -6,9 +6,13 @@ import {
   framesToSeconds,
   mediaPlacement,
   sourceTimeAt,
+  subPlacement,
+  visibleRegion,
   transformAt,
   type Frame,
+  type ImageAsset,
   type ImageClip,
+  type Placement,
   type Project,
   type PropValue,
   type TemplateClip,
@@ -27,6 +31,43 @@ export interface RenderResourcesOptions {
   templates: TemplateRegistry;
   imageBytes: ImageBytesResolver;
   createCanvas: (width: number, height: number) => HTMLCanvasElement | OffscreenCanvas;
+  /**
+   * Render part of a vector graphic: the graphic drawn at `fullWidth` ×
+   * `fullHeight` pixels, of which only the rectangle `x, y, width, height`
+   * is returned. Without it vector graphics are not drawn.
+   */
+  rasterizeVector?: (asset: ImageAsset, req: VectorRequest) => Promise<ImageBitmap | null>;
+  /**
+   * 'exact' (export, default): wait for a rendering at exactly the shown size.
+   * 'progressive' (preview): show the closest rendering at once and call
+   * `onAsyncReady` when a sharper one is ready.
+   */
+  vectorMode?: 'exact' | 'progressive';
+  onAsyncReady?: () => void;
+}
+
+export interface VectorRequest {
+  fullWidth: number;
+  fullHeight: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface VectorEntry {
+  key: string;
+  assetId: string;
+  fullW: number;
+  fullH: number;
+  /** Rendered rectangle, in pixels of the full-size rendering. */
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  bitmap: ImageBitmap | null;
+  pending: Promise<ImageBitmap | null>;
+  lastUsed: number;
 }
 
 interface ReaderEntry {
@@ -50,6 +91,11 @@ interface TextEntry {
 }
 
 const IDLE_FRAMES_BEFORE_RELEASE = 300;
+/** Renderings kept per vector graphic (older ones are released first). */
+const VECTOR_ENTRIES_PER_ASSET = 4;
+/** Preview renders vector graphics a bit beyond the visible part, so small moves don't re-render. */
+const VECTOR_PAD = 0.25;
+const VECTOR_GRID = 128;
 /** Decode video up to this multiple of the output size, so zooming in keeps detail. */
 const VIDEO_OVERSAMPLE = 2;
 
@@ -62,6 +108,8 @@ export class RenderResources {
   private templates = new Map<string, TemplateEntry>();
   private images = new Map<string, ImageEntry>();
   private texts = new Map<string, TextEntry>();
+  private vectors = new Map<string, VectorEntry>();
+  private vectorSeq = 0;
   private tick = 0;
   /** Still-texture keys released since the last frame; the compositor drops their textures. */
   readonly releasedImages: string[] = [];
@@ -106,6 +154,101 @@ export class RenderResources {
     }
     e.lastUsed = this.tick;
     return e.bitmap;
+  }
+
+  /**
+   * A sharp rendering of the visible part of a vector graphic placed at `pl`
+   * (output pixels), with the placement to draw it at.
+   */
+  async vector(asset: ImageAsset, pl: Placement): Promise<{ key: string; bitmap: ImageBitmap; placement: Placement } | null> {
+    const rasterize = this.opts.rasterizeVector;
+    const vis = visibleRegion(pl, this.width, this.height);
+    if (!rasterize || !vis) return null;
+    const exact = this.opts.vectorMode !== 'progressive';
+    let fullW = pl.w;
+    let fullH = pl.h;
+    if (!exact) {
+      // sizes in steps of 1/8 octave: scaling with the mouse re-renders now and then, not on every move
+      const s = 2 ** (Math.ceil(Math.log2(Math.max(1, fullW)) * 8) / 8);
+      fullH *= s / fullW;
+      fullW = s;
+    }
+    fullW = Math.max(1, Math.round(fullW));
+    fullH = Math.max(1, Math.round(fullH));
+    const nx0 = Math.max(0, Math.floor(vis.u0 * fullW));
+    const ny0 = Math.max(0, Math.floor(vis.v0 * fullH));
+    const nx1 = Math.min(fullW, Math.ceil(vis.u1 * fullW));
+    const ny1 = Math.min(fullH, Math.ceil(vis.v1 * fullH));
+    if (nx1 <= nx0 || ny1 <= ny0) return null;
+
+    const covering = [...this.vectors.values()].filter(
+      (e) => e.assetId === asset.id && e.fullW === fullW && e.fullH === fullH && e.x0 <= nx0 && e.y0 <= ny0 && e.x1 >= nx1 && e.y1 >= ny1,
+    );
+    let entry = covering.find((e) => e.bitmap) ?? covering[0];
+    if (!entry) {
+      let [x0, y0, x1, y1] = [nx0, ny0, nx1, ny1];
+      if (!exact) {
+        const pad = VECTOR_PAD * Math.max(this.width, this.height);
+        const snap = (v: number, up: boolean) => (up ? Math.ceil(v / VECTOR_GRID) : Math.floor(v / VECTOR_GRID)) * VECTOR_GRID;
+        x0 = Math.max(0, snap(nx0 - pad, false));
+        y0 = Math.max(0, snap(ny0 - pad, false));
+        x1 = Math.min(fullW, snap(nx1 + pad, true));
+        y1 = Math.min(fullH, snap(ny1 + pad, true));
+      }
+      const req: VectorRequest = { fullWidth: fullW, fullHeight: fullH, x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+      const e: VectorEntry = {
+        key: `vec:${asset.id}:${++this.vectorSeq}`,
+        assetId: asset.id,
+        fullW,
+        fullH,
+        x0,
+        y0,
+        x1,
+        y1,
+        bitmap: null,
+        pending: rasterize(asset, req).catch((err) => {
+          console.warn('Vektorgrafiken kunde inte ritas', err);
+          return null;
+        }),
+        lastUsed: this.tick,
+      };
+      void e.pending.then((b) => {
+        if (this.vectors.get(e.key) !== e) {
+          b?.close(); // released meanwhile
+          return;
+        }
+        e.bitmap = b;
+        if (!exact && b) this.opts.onAsyncReady?.();
+      });
+      this.vectors.set(e.key, e);
+      this.trimVectors(asset.id, e.key);
+      entry = e;
+    }
+    entry.lastUsed = this.tick;
+    if (exact && !entry.bitmap) entry.bitmap = await entry.pending;
+    let use: VectorEntry | undefined = entry.bitmap ? entry : undefined;
+    if (!use) {
+      // preview: draw the most recent finished rendering of this graphic until the sharp one is ready
+      use = [...this.vectors.values()].filter((e) => e.assetId === asset.id && e.bitmap).sort((a, b) => b.lastUsed - a.lastUsed)[0];
+      if (use) use.lastUsed = this.tick;
+    }
+    if (!use?.bitmap) return null;
+    const region = { u0: use.x0 / use.fullW, v0: use.y0 / use.fullH, u1: use.x1 / use.fullW, v1: use.y1 / use.fullH };
+    return { key: use.key, bitmap: use.bitmap, placement: subPlacement(pl, region) };
+  }
+
+  private trimVectors(assetId: string, keep: string) {
+    // never one drawn in the current frame (another clip may be using it right now)
+    const list = [...this.vectors.values()]
+      .filter((e) => e.assetId === assetId && e.key !== keep && e.lastUsed !== this.tick)
+      .sort((a, b) => b.lastUsed - a.lastUsed);
+    for (const e of list.slice(VECTOR_ENTRIES_PER_ASSET - 1)) this.releaseVector(e);
+  }
+
+  private releaseVector(e: VectorEntry) {
+    this.vectors.delete(e.key);
+    e.bitmap?.close();
+    this.releasedImages.push(e.key);
   }
 
   /** Rendered text for a clip; re-rendered only when text, style or size change. */
@@ -164,6 +307,7 @@ export class RenderResources {
         this.texts.delete(id);
         this.releasedImages.push(e.key);
       }
+    for (const e of [...this.vectors.values()]) if (idle(e.lastUsed)) this.releaseVector(e);
   }
 
   disposeAll() {
@@ -174,6 +318,7 @@ export class RenderResources {
       this.releasedImages.push(id);
     }
     for (const e of this.texts.values()) this.releasedImages.push(e.key);
+    for (const e of [...this.vectors.values()]) this.releaseVector(e);
     this.readers.clear();
     this.templates.clear();
     this.images.clear();
@@ -190,6 +335,7 @@ function propValues(clip: TemplateClip, frame: Frame): Record<string, PropValue>
 type Prepared =
   | { kind: 'video'; clip: VideoClip; asset: VideoAsset; frame: CanvasImageSource | null }
   | { kind: 'image'; clip: ImageClip; bitmap: ImageBitmap | null }
+  | { kind: 'vector'; clip: ImageClip; key: string; bitmap: ImageBitmap; placement: Placement }
   | { kind: 'text'; clip: TextClip; key: string; canvas: OffscreenCanvas }
   | { kind: 'template'; clip: TemplateClip; renderer: TemplateRenderer | null; props: Record<string, PropValue> };
 
@@ -212,7 +358,15 @@ export async function renderFrame(project: Project, frame: Frame, compositor: Co
       const f = await res.videoFrame(clip, sourceTimeAt(clip, frame, fps) / 1_000_000);
       return { kind: 'video', clip, asset, frame: f?.canvas ?? null };
     }
-    if (clip.kind === 'image') return { kind: 'image', clip, bitmap: await res.image(clip.assetId) };
+    if (clip.kind === 'image') {
+      const asset = findAsset(project, clip.assetId);
+      if (asset?.kind === 'image' && asset.vector) {
+        const pl = mediaPlacement(asset.width, asset.height, W, H, transformAt(clip, frame));
+        const v = await res.vector(asset, pl);
+        return v ? { kind: 'vector', clip, ...v } : null;
+      }
+      return { kind: 'image', clip, bitmap: await res.image(clip.assetId) };
+    }
     if (clip.kind === 'text') {
       const t = await res.text(clip);
       return { kind: 'text', clip, key: t.key, canvas: t.canvas };
@@ -243,6 +397,8 @@ export async function renderFrame(project: Project, frame: Frame, compositor: Co
       if (layer.frame) compositor.draw(layer.frame as TexImageSource, opacity, mediaPlacement(layer.asset.width, layer.asset.height, W, H, t));
     } else if (layer.kind === 'text') {
       compositor.drawStill(layer.key, layer.canvas, opacity, textPlacement(layer.canvas.width, layer.canvas.height, W, H, t));
+    } else if (layer.kind === 'vector') {
+      compositor.drawStill(layer.key, layer.bitmap, opacity, layer.placement);
     } else if (layer.kind === 'image') {
       const b = layer.bitmap;
       if (b) compositor.drawStill(layer.clip.assetId, b, opacity, mediaPlacement(b.width, b.height, W, H, t));

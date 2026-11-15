@@ -11,6 +11,7 @@ import {
 } from '@ve/export';
 import { TEXT_FONT_SOURCES } from '../services/fonts';
 import { media } from '../services/media';
+import { vectors } from '../services/vector';
 import { RIVE_WASM_URL, templates } from '../services/templates';
 import { committedProject, useEditor } from '../state/store';
 import { Download } from './Icons';
@@ -78,7 +79,7 @@ function Dialog() {
     abort.current = new AbortController();
     try {
       const job = await buildJob(project, preset);
-      const res = await exportProject(job, (p) => setPhase({ kind: 'running', progress: p }), abort.current.signal);
+      const res = await exportProject(job, (p) => setPhase({ kind: 'running', progress: p }), abort.current.signal, vectors.rasterize);
       const url = URL.createObjectURL(res.blob);
       const file = `${(name.trim() || 'export').replace(/[\\/:*?"<>|]+/g, '-')}.mp4`;
       setPhase({ kind: 'done', url, size: res.blob.size, elapsedMs: res.elapsedMs, name: file });

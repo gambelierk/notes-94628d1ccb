@@ -1,6 +1,7 @@
 import { CanvasSink } from 'mediabunny';
 import { createId, type AudioAsset, type ImageAsset, type VideoAsset } from '@ve/core';
 import { computePeaks, MediaSource, probeAudio, probeVideo, type Peaks } from '@ve/media';
+import { vectorFromMime, vectors } from './vector';
 
 type Kind = 'video' | 'image' | 'audio';
 
@@ -12,6 +13,8 @@ interface Entry {
   url?: string;
   name?: string;
   size?: number;
+  /** Vector graphics are rendered by `vectors`, never decoded as pictures. */
+  vector?: 'svg' | 'pdf';
 }
 
 /**
@@ -25,9 +28,16 @@ class MediaLibrary {
   private thumbs = new Map<string, Promise<string | null>>();
 
   /** Make a server-stored file available under `id`. */
-  registerRemote(id: string, url: string, name?: string, size?: number, kind?: Kind) {
+  registerRemote(id: string, url: string, name?: string, size?: number, kind?: Kind, mime?: string) {
     const e = this.entries.get(id) ?? {};
-    this.entries.set(id, { ...e, url: new URL(url, location.href).href, name: name ?? e.name, size: size ?? e.size, kind: kind ?? e.kind });
+    this.entries.set(id, {
+      ...e,
+      url: new URL(url, location.href).href,
+      name: name ?? e.name,
+      size: size ?? e.size,
+      kind: kind ?? e.kind,
+      vector: vectorFromMime(mime) ?? e.vector,
+    });
   }
 
   registerLocal(id: string, blob: Blob) {
@@ -102,8 +112,13 @@ class MediaLibrary {
   async probeImage(id: string): Promise<ImageAsset> {
     const blob = await this.bytesBlob(id);
     if (!blob) throw new Error('Bilden finns inte');
-    const bmp = await createImageBitmap(blob);
     const e = this.entries.get(id);
+    if (e?.vector) {
+      const { width, height } = await vectors.probe(blob, e.vector);
+      const mime = e.vector === 'svg' ? 'image/svg+xml' : 'application/pdf';
+      return { kind: 'image', id, name: e.name ?? 'grafik', width, height, size: blob.size, mime, vector: e.vector };
+    }
+    const bmp = await createImageBitmap(blob);
     const asset: ImageAsset = {
       kind: 'image',
       id,
@@ -162,6 +177,19 @@ class MediaLibrary {
     return asset;
   }
 
+  /**
+   * A vector graphic (SVG, or PDF/Illustrator) picked by the user. EPS files
+   * arrive here already converted to PDF by the server.
+   */
+  async importVector(file: Blob, name: string, format: 'svg' | 'pdf', id: string = createId('img')): Promise<ImageAsset> {
+    const { width, height } = await vectors.probe(file, format);
+    const e = this.entries.get(id) ?? {};
+    this.entries.set(id, { ...e, kind: 'image', vector: format, name });
+    this.registerLocal(id, file);
+    const mime = format === 'svg' ? 'image/svg+xml' : 'application/pdf';
+    return { kind: 'image', id, name, width, height, size: file.size, mime, vector: format };
+  }
+
   /** A small poster frame (object URL) for bins and clips; cached. */
   thumbnail(id: string): Promise<string | null> {
     let p = this.thumbs.get(id);
@@ -176,7 +204,9 @@ class MediaLibrary {
   }
 
   private async posterFrame(id: string): Promise<string | null> {
-    if (this.entries.get(id)?.kind === 'audio') return null;
+    const entry = this.entries.get(id);
+    if (entry?.kind === 'audio') return null;
+    if (entry?.vector) return URL.createObjectURL(await vectors.thumbnail(id, entry.vector));
     if (this.isImage(id)) {
       const blob = await this.bytesBlob(id);
       if (!blob) return null;
@@ -243,3 +273,4 @@ class MediaLibrary {
 }
 
 export const media = new MediaLibrary();
+vectors.setSource(media.imageBytes);

@@ -193,7 +193,7 @@ function RivUpload() {
   return (
     <>
       <button className="btn" onClick={() => ref.current?.click()}>
-        <Upload /> Ladda upp .riv
+        <Upload /> Ladda upp mall
       </button>
       <input
         ref={ref}

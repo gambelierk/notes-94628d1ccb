@@ -54,7 +54,7 @@ export class TemplateRenderer {
 
   private createArtboard(): Artboard {
     const ab = this.def.artboard ? this.file.artboardByName(this.def.artboard) : this.file.defaultArtboard();
-    if (!ab) throw new Error(`Artboard saknas: ${this.def.artboard}`);
+    if (!ab) throw new Error(`Mallen saknar sin bildyta (${this.def.artboard})`);
     return ab;
   }
 

@@ -12,6 +12,7 @@ import { Compositor, RenderResources, renderFrame } from '@ve/render';
 import { currentProject, useEditor } from '../state/store';
 import { media } from './media';
 import { templates } from './templates';
+import { vectors } from './vector';
 
 /** Preview renders at most this wide; export always renders full size. */
 const MAX_PREVIEW_WIDTH = 1280;
@@ -36,6 +37,10 @@ class PreviewEngine {
   private lastFrame = -1;
   private lastProject: Project | null = null;
   private unsub: (() => void) | null = null;
+  /** Bumped by every play/pause/seek; async work from an older session is discarded. */
+  private session = 0;
+  /** The last playhead the playback loop set itself (anything else is a seek by the user). */
+  private clockFrame: Frame | null = null;
   /** Bumped whenever the project changes so a frame is redrawn. */
   private version = 0;
   private renderedVersion = -1;
@@ -52,6 +57,14 @@ class PreviewEngine {
         templates: registry,
         imageBytes: media.imageBytes,
         createCanvas: (cw, ch) => new OffscreenCanvas(cw, ch),
+        // vector graphics: show the nearest rendering at once, redraw when the sharp one is ready
+        rasterizeVector: vectors.rasterize,
+        vectorMode: 'progressive',
+        onAsyncReady: () => {
+          this.version++;
+          const s = useEditor.getState();
+          if (!s.playing) this.request(s.playhead);
+        },
       },
       w,
       h,
@@ -64,6 +77,8 @@ class PreviewEngine {
         if (s.playing) this.restartAudio();
       }
       if (s.templates !== prev.templates) this.version++; // a template finished loading
+      // the playhead was moved (button, key, click) during playback: continue playing from there
+      if (s.playing && prev.playing && s.playhead !== prev.playhead && s.playhead !== this.clockFrame) void this.play(s.playhead);
       if (!s.playing && (p !== pp || s.playhead !== prev.playhead || s.templates !== prev.templates)) {
         this.request(s.playhead);
       }
@@ -135,36 +150,58 @@ class PreviewEngine {
     ).then((xs) => xs.filter((x): x is PreviewAudioClip => !!x));
   }
 
+  /** The project changed during playback: rebuild the sound from where we are. */
   private async restartAudio() {
-    if (!this.audio) return;
-    const project = currentProject();
-    const from = this.audio.time;
-    await this.audio.start(await this.audioClips(project), from);
+    const audio = this.audio;
+    if (!audio) return;
+    const session = this.session;
+    const from = audio.time;
+    const clips = await this.audioClips(currentProject());
+    if (session !== this.session) return; // paused or seeked meanwhile
+    await audio.start(clips, from);
+    if (session !== this.session) audio.stop();
   }
 
-  async play() {
+  /**
+   * Play from `from` (default: the playhead). From the very end it starts
+   * over from the beginning. Pausing leaves the playhead where it stopped.
+   */
+  async play(from: Frame = useEditor.getState().playhead) {
     const store = useEditor.getState();
     const project = currentProject();
     const end = projectDuration(project);
     if (end === 0) return;
-    let from = store.playhead;
     if (from >= end - 1) from = 0;
-    this.audio ??= new PreviewAudio(new AudioContext({ latencyHint: 'playback' }));
-    store.setPlaying(true);
-    await this.audio.start(await this.audioClips(project), framesToSeconds(from, project.settings.fps));
+    const session = ++this.session;
     cancelAnimationFrame(this.raf);
+    this.audio ??= new PreviewAudio(new AudioContext({ latencyHint: 'playback' }));
+    const audio = this.audio;
+    audio.stop();
+    this.clockFrame = from;
+    if (store.playhead !== from) store.setPlayhead(from);
+    store.setPlaying(true);
+    const clips = await this.audioClips(project);
+    if (session !== this.session) return; // paused (or restarted) while the sound was loading
+    await audio.start(clips, framesToSeconds(from, project.settings.fps));
+    if (session !== this.session) {
+      audio.stop();
+      return;
+    }
     const tick = () => {
       const s = useEditor.getState();
-      if (!s.playing || !this.audio) return;
+      if (session !== this.session || !s.playing) return;
       const p = currentProject();
-      const f = secondsToFrameFloor(this.audio.time, p.settings.fps);
+      const f = secondsToFrameFloor(audio.time, p.settings.fps);
       const stop = projectDuration(p);
       if (f >= stop) {
         this.pause();
         useEditor.getState().setPlayhead(Math.max(0, stop - 1));
         return;
       }
-      if (f !== s.playhead) s.setPlayhead(f);
+      if (f !== s.playhead) {
+        this.clockFrame = f;
+        s.setPlayhead(f);
+      }
       if (!this.rendering) this.request(f);
       this.raf = requestAnimationFrame(tick);
     };
@@ -172,6 +209,8 @@ class PreviewEngine {
   }
 
   pause() {
+    this.session++;
+    this.clockFrame = null;
     cancelAnimationFrame(this.raf);
     this.audio?.stop();
     const s = useEditor.getState();

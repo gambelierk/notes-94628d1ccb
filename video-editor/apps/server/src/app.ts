@@ -16,7 +16,8 @@ export interface AppDeps {
   config: Pick<
     Config,
     'adminPassword' | 'cookieSecure' | 'trustProxy' | 'maxUploadBytes' | 'maxMediaBytes' | 'workspaceQuotaBytes' | 'sessionDays'
-  >;
+  > &
+    Partial<Pick<Config, 'ghostscript'>>;
 }
 
 /* ------------------------------------------------------------- app */

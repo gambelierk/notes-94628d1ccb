@@ -30,7 +30,8 @@ export interface BlobStore {
   delete(key: string): Promise<void>;
 }
 
-const HEAD_BYTES = 64;
+/** Enough to recognise formats that start with text (an SVG's XML prolog and comments). */
+const HEAD_BYTES = 4096;
 
 export class DiskBlobStore implements BlobStore {
   private readonly dir: string;

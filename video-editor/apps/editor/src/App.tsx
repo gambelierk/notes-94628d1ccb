@@ -242,11 +242,19 @@ function Toasts() {
   );
 }
 
+/** Inputs where keys type text (or open a list); sliders, checkboxes and buttons don't count. */
+const NON_TEXT_INPUTS = new Set(['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file']);
 function isTyping(e: KeyboardEvent): boolean {
   const el = e.target as HTMLElement | null;
   if (!el) return false;
   const tag = el.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  if (tag === 'INPUT') return !NON_TEXT_INPUTS.has((el as HTMLInputElement).type);
+  return tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
+
+/** Editor shortcuts are off while a dialog (export, create) is open. */
+function inModal(): boolean {
+  return !!document.querySelector('[aria-modal="true"]');
 }
 
 function useKeyboard() {
@@ -266,13 +274,14 @@ function useKeyboard() {
         s.redo();
         return;
       }
-      if (isTyping(e) || s.exportOpen) return;
+      if (isTyping(e) || s.exportOpen || inModal()) return;
       const fps = s.history.present.project.settings.fps;
       const second = Math.round(fps.num / fps.den);
       switch (e.key) {
         case ' ':
+          // Space always plays/pauses, also when a button or slider has focus (it must not click it too)
           e.preventDefault();
-          preview.toggle();
+          if (!e.repeat) preview.toggle();
           break;
         case 's':
         case 'S':
@@ -318,8 +327,16 @@ function useKeyboard() {
           break;
       }
     };
+    // a focused button/checkbox is activated by Space on key-up: suppress that, keydown already toggled playback
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ' && !isTyping(e) && !useEditor.getState().exportOpen && !inModal()) e.preventDefault();
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKeyUp);
+    };
   }, []);
 }
 

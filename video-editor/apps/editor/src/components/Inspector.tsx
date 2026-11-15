@@ -402,6 +402,8 @@ function TransformFields({ clip, project }: { clip: Clip; project: Project }) {
   const pl = clipPlacement(project, clip, templates);
   const src = sourceSize(project, clip, templates);
   const isTemplate = clip.kind === 'template';
+  const asset = clip.kind === 'image' ? findAsset(project, clip.assetId) : undefined;
+  const isVector = asset?.kind === 'image' && !!asset.vector;
   const cover = src && !isTemplate && clip.kind !== 'text' ? coverScale(src.w, src.h, W, H) : null;
   const num = (label: string, value: number, unit: string, onChange: (v: number) => void, step = 1, testid?: string) => (
     <label className="xf-field">
@@ -432,6 +434,11 @@ function TransformFields({ clip, project }: { clip: Clip; project: Project }) {
       {pl && (
         <span className="mono dim xf-size">
           {Math.round(pl.w)} × {Math.round(pl.h)} px i en bild på {W} × {H}
+        </span>
+      )}
+      {isVector && (
+        <span className="mono dim xf-size" data-testid="vector-note">
+          Vektorgrafik · ritas om skarpt i varje storlek
         </span>
       )}
       <div className="xf-actions">

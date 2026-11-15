@@ -170,3 +170,66 @@ export function textPlacement(textW: number, textH: number, frameW: number, fram
     rotation: t.rotation,
   };
 }
+
+/* ------------------------------------------------------------- partial rendering */
+
+/** A part of a layer in its own coordinates: 0..1 from its left/top edge to its right/bottom edge. */
+export interface Region {
+  u0: number;
+  v0: number;
+  u1: number;
+  v1: number;
+}
+
+/**
+ * The part of a placed layer that falls inside the frame (null if none).
+ * Lets vector graphics be rendered sharply at any zoom without rendering
+ * the parts that are off screen.
+ */
+export function visibleRegion(p: Placement, frameW: number, frameH: number): Region | null {
+  if (p.w <= 0 || p.h <= 0) return null;
+  const rad = (p.rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  // the frame's corners in the layer's own (unrotated) coordinates
+  for (const [fx, fy] of [
+    [0, 0],
+    [frameW, 0],
+    [0, frameH],
+    [frameW, frameH],
+  ] as const) {
+    const dx = fx - p.cx;
+    const dy = fy - p.cy;
+    const lx = dx * cos + dy * sin;
+    const ly = -dx * sin + dy * cos;
+    x0 = Math.min(x0, lx);
+    y0 = Math.min(y0, ly);
+    x1 = Math.max(x1, lx);
+    y1 = Math.max(y1, ly);
+  }
+  const r: Region = {
+    u0: Math.max(0, x0 / p.w + 0.5),
+    v0: Math.max(0, y0 / p.h + 0.5),
+    u1: Math.min(1, x1 / p.w + 0.5),
+    v1: Math.min(1, y1 / p.h + 0.5),
+  };
+  return r.u1 > r.u0 && r.v1 > r.v0 ? r : null;
+}
+
+/** Placement of a part of a placed layer (same rotation, its own centre and size). */
+export function subPlacement(p: Placement, r: Region): Placement {
+  const rad = (p.rotation * Math.PI) / 180;
+  const ox = ((r.u0 + r.u1) / 2 - 0.5) * p.w;
+  const oy = ((r.v0 + r.v1) / 2 - 0.5) * p.h;
+  return {
+    cx: p.cx + ox * Math.cos(rad) - oy * Math.sin(rad),
+    cy: p.cy + ox * Math.sin(rad) + oy * Math.cos(rad),
+    w: (r.u1 - r.u0) * p.w,
+    h: (r.v1 - r.v0) * p.h,
+    rotation: p.rotation,
+  };
+}

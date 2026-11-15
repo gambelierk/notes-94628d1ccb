@@ -20,7 +20,7 @@ export function loadRiveRuntime(wasmUrl: string): Promise<RiveCanvas> {
 export async function loadRiveFile(rive: RiveCanvas, bytes: Uint8Array): Promise<RiveFile> {
   // Copy: the runtime may keep a reference and callers may transfer/reuse buffers.
   const file = await rive.load(new Uint8Array(bytes));
-  if (!file) throw new Error('Kunde inte läsa Rive-filen');
+  if (!file) throw new Error('Mallen kunde inte läsas');
   // Embedded images decode asynchronously; wait so the first render is complete.
   await imagesSettled();
   return file;

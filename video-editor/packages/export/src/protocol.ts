@@ -1,6 +1,6 @@
-import type { Project } from '@ve/core';
+import type { ImageAsset, Project } from '@ve/core';
 import type { TemplateSource } from '@ve/rive';
-import type { FontSource } from '@ve/render';
+import type { FontSource, VectorRequest } from '@ve/render';
 
 export interface ExportOptions {
   /** Bits per second for H.264. */
@@ -22,12 +22,18 @@ export interface ExportJob {
   options: ExportOptions;
 }
 
-export type ExportRequest = { type: 'start'; job: ExportJob } | { type: 'cancel' };
+export type ExportRequest =
+  | { type: 'start'; job: ExportJob }
+  | { type: 'cancel' }
+  /** Answer to a 'rasterize' event (null if the graphic could not be rendered). */
+  | { type: 'raster'; id: number; bitmap: ImageBitmap | null };
 
 export type ExportEvent =
   | { type: 'progress'; frame: number; total: number; framesPerSecond: number }
   | { type: 'done'; data: ArrayBuffer; mimeType: string; elapsedMs: number }
   | { type: 'cancelled' }
+  /** The worker needs a vector graphic rendered (only the main thread has SVG and PDF renderers). */
+  | { type: 'rasterize'; id: number; asset: ImageAsset; req: VectorRequest }
   | { type: 'error'; message: string };
 
 export const QUALITY_PRESETS = {

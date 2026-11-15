@@ -54,6 +54,7 @@ import { UnsupportedMediaError } from '@ve/media';
 import { customerApi } from '../services/api';
 import { media } from '../services/media';
 import { templates } from '../services/templates';
+import { sniffVector, VECTOR_FILE, vectors } from '../services/vector';
 import { committedProject, useEditor } from './store';
 
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
@@ -71,15 +72,15 @@ function ensureTrack(p: Project, kind: TrackKind, preferred: string | null): [Pr
  * Upload a file to the customer project with progress shown in the media bin.
  * The local file is kept, so playback does not have to fetch it back.
  */
-async function uploadToProject(file: File): Promise<MediaDTO> {
+async function uploadToProject(file: File, keepLocal = true): Promise<MediaDTO> {
   const store = useEditor.getState();
   const token = store.composition!.token;
   const uploadId = createId('up');
   store.setUpload({ id: uploadId, name: file.name, progress: 0 });
   try {
     const m = await customerApi.uploadMedia(token, file, (f) => useEditor.getState().setUpload({ id: uploadId, name: file.name, progress: f }));
-    media.registerRemote(m.id, m.url, m.name, m.size, m.kind);
-    media.registerLocal(m.id, file);
+    media.registerRemote(m.id, m.url, m.name, m.size, m.kind, m.mime);
+    if (keepLocal) media.registerLocal(m.id, file);
     useEditor.getState().setServerMedia([...useEditor.getState().serverMedia.filter((x) => x.id !== m.id), m]);
     return m;
   } finally {
@@ -88,6 +89,30 @@ async function uploadToProject(file: File): Promise<MediaDTO> {
 }
 
 const AUDIO_FILE = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac)$/;
+const VECTOR_MIME = new Set(['image/svg+xml', 'application/pdf', 'application/postscript', 'application/illustrator', 'image/x-eps', 'application/eps']);
+
+/**
+ * Vector graphics: SVG and PDF/Illustrator are read here; EPS (PostScript)
+ * is converted to PDF by the server when it is uploaded to a customer project.
+ */
+async function importVectorFile(file: File, saved: boolean): Promise<void> {
+  const store = useEditor.getState();
+  const format = sniffVector(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
+  if (!format) throw new Error('filen innehåller ingen vektorgrafik som kan läsas (SVG, PDF, Illustrator eller EPS)');
+  let asset: ImageAsset;
+  if (format === 'postscript') {
+    if (!saved) throw new Error('EPS-filer konverteras när de laddas upp till ett projekt. Öppna en komposition i ett kundprojekt, eller spara filen som PDF eller SVG.');
+    const m = await uploadToProject(file, false); // the server stores it converted to PDF
+    asset = await media.probeImage(m.id);
+  } else {
+    // check locally first, so a broken file never gets uploaded
+    await vectors.probe(file, format);
+    const id = saved ? (await uploadToProject(file)).id : createId('img');
+    asset = await media.importVector(file, file.name, format, id);
+  }
+  store.apply((p) => addAsset(p, asset), 'Importera grafik');
+  void media.thumbnail(asset.id).then((u) => u && useEditor.getState().setMediaThumb(asset.id, u));
+}
 
 /** Import files picked or dropped by the user: video, images, sound files, subtitles and .riv templates. */
 export async function importFiles(files: Iterable<File>): Promise<void> {
@@ -107,6 +132,8 @@ export async function importFiles(files: Iterable<File>): Promise<void> {
         const asset = await media.importAudio(file, id);
         store.apply((p) => addAsset(p, asset), 'Importera ljud');
         void media.peaks(asset.id);
+      } else if (VECTOR_FILE.test(name) || VECTOR_MIME.has(file.type)) {
+        await importVectorFile(file, saved);
       } else if (file.type.startsWith('image/')) {
         const id = saved ? (await uploadToProject(file)).id : createId('img');
         const asset = await media.importImage(file, id);
@@ -120,7 +147,7 @@ export async function importFiles(files: Iterable<File>): Promise<void> {
         if (thumbnail) store.setMediaThumb(asset.id, thumbnail);
         store.apply((p) => addAsset(p, asset), 'Importera video');
       } else {
-        store.toast(`${file.name}: filtypen stöds inte (film: MP4/MOV, bild: PNG/JPEG/WebP, ljud: MP3/WAV/M4A/Ogg/FLAC, text: SRT/VTT, mallar: .riv)`, 'error');
+        store.toast(`${file.name}: filtypen stöds inte (film: MP4/MOV, bild: PNG/JPEG/WebP, grafik: SVG/PDF/AI/EPS, ljud: MP3/WAV/M4A/Ogg/FLAC, text: SRT/VTT)`, 'error');
       }
     } catch (e) {
       const msg = e instanceof UnsupportedMediaError || e instanceof Error ? e.message : String(e);
@@ -128,6 +155,11 @@ export async function importFiles(files: Iterable<File>): Promise<void> {
       console.error(e);
     }
   }
+}
+
+/** What the user sees for a template file: its name, never the file format. */
+function templateLabel(fileName: string): string {
+  return fileName.replace(/\.riv$/i, '').replace(/[_-]+/g, ' ').trim() || 'Mall';
 }
 
 /** A .riv file from the user: local in demo mode, uploaded to the project for customers (if allowed). */
@@ -140,9 +172,10 @@ export async function importTemplateFile(file: File): Promise<void> {
       return;
     }
     const uploadId = createId('up');
-    store.setUpload({ id: uploadId, name: file.name, progress: 0 });
+    const label = templateLabel(file.name);
+    store.setUpload({ id: uploadId, name: label, progress: 0 });
     try {
-      const t = await customerApi.uploadTemplate(lib.token, file, (f) => useEditor.getState().setUpload({ id: uploadId, name: file.name, progress: f }));
+      const t = await customerApi.uploadTemplate(lib.token, file, (f) => useEditor.getState().setUpload({ id: uploadId, name: label, progress: f }));
       const def = await templates.addShared(t);
       store.toast(`Mallen "${def.name}" har lagts till i projektet`);
     } finally {

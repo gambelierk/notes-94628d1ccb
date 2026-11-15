@@ -75,3 +75,51 @@ describe('clip transforms', () => {
     expect(p.tracks[0]!.clips[0]!.kind).toBe('image');
   });
 });
+
+import { subPlacement, visibleRegion } from '../src';
+
+describe('partial rendering of vector graphics', () => {
+  const W = 1920;
+  const H = 1080;
+  it('a layer inside the frame is fully visible', () => {
+    expect(visibleRegion({ cx: 960, cy: 540, w: 400, h: 200, rotation: 0 }, W, H)).toEqual({ u0: 0, v0: 0, u1: 1, v1: 1 });
+  });
+
+  it('zoomed in 10×: only the part inside the frame is rendered, and it is drawn exactly where it belongs', () => {
+    const p = { cx: 960, cy: 540, w: 19200, h: 10800, rotation: 0 };
+    const r = visibleRegion(p, W, H)!;
+    expect(r.u0).toBeCloseTo(0.45);
+    expect(r.u1).toBeCloseTo(0.55);
+    expect(r.v0).toBeCloseTo(0.45);
+    const sub = subPlacement(p, r);
+    expect(sub.cx).toBeCloseTo(960);
+    expect(sub.w).toBeCloseTo(1920);
+    expect(sub.h).toBeCloseTo(1080);
+  });
+
+  it('a layer half outside the frame renders its visible half', () => {
+    const p = { cx: 0, cy: 540, w: 400, h: 400, rotation: 0 };
+    const r = visibleRegion(p, W, H)!;
+    expect(r).toMatchObject({ u0: 0.5, u1: 1, v0: 0, v1: 1 });
+    expect(subPlacement(p, r)).toMatchObject({ cx: 100, cy: 540, w: 200, h: 400 });
+  });
+
+  it('nothing to render when the layer is off screen', () => {
+    expect(visibleRegion({ cx: -500, cy: 540, w: 400, h: 400, rotation: 0 }, W, H)).toBeNull();
+  });
+
+  it('rotated layers: the visible part keeps its place on screen', () => {
+    const p = { cx: 960, cy: 540, w: 8000, h: 8000, rotation: 30 };
+    const r = visibleRegion(p, W, H)!;
+    expect(r.u1 - r.u0).toBeLessThan(0.5);
+    const sub = subPlacement(p, r);
+    // the centre of the visible part lies on the layer's centre here (symmetric case)
+    expect(sub.cx).toBeCloseTo(960);
+    expect(sub.cy).toBeCloseTo(540);
+    expect(sub.rotation).toBe(30);
+    // a corner of the frame maps to a point inside the rendered part
+    const rad = (30 * Math.PI) / 180;
+    const lx = (0 - 960) * Math.cos(rad) + (0 - 540) * Math.sin(rad);
+    expect(lx / 8000 + 0.5).toBeGreaterThanOrEqual(r.u0 - 1e-9);
+  });
+});

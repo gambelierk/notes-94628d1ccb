@@ -127,7 +127,7 @@ const TYPE_MAP: Record<string, TemplateField['type'] | undefined> = {
  */
 export function inspectTemplate(file: RiveFile, manifest: TemplateManifest, fallbackId: string): TemplateDefinition {
   const artboard = manifest.artboard ? file.artboardByName(manifest.artboard) : file.defaultArtboard();
-  if (!artboard) throw new Error(`Hittar inte artboard ${manifest.artboard ?? '(standard)'}`);
+  if (!artboard) throw new Error(`Mallen saknar sin bildyta (${manifest.artboard ?? 'standard'})`);
   try {
     const vm = defaultViewModel(file, artboard);
     const vmi = vm ? createViewModelInstance(vm) : null;

@@ -41,10 +41,16 @@ export interface ImageAsset {
   kind: 'image';
   id: string;
   name: string;
+  /** Pixel size, or for vector graphics the intrinsic size (only the aspect ratio matters). */
   width: number;
   height: number;
   size: number;
   mime: string;
+  /**
+   * Vector graphics (SVG, or PDF which also covers Illustrator and converted
+   * EPS files) are re-rendered at the size they are shown, so edges stay sharp.
+   */
+  vector?: 'svg' | 'pdf';
 }
 
 export interface AudioAsset {

@@ -10,10 +10,10 @@ import {
   Output,
 } from 'mediabunny';
 import { registerAacEncoder } from '@mediabunny/aac-encoder';
-import { fpsValue, framesToSeconds, projectDuration, soundSpans } from '@ve/core';
+import { fpsValue, framesToSeconds, projectDuration, soundSpans, type ImageAsset } from '@ve/core';
 import { AudioMixer, MediaSource, type AudioClipSpec } from '@ve/media';
 import { loadRiveRuntime, TemplateRegistry } from '@ve/rive';
-import { Compositor, registerFonts, RenderResources, renderFrame } from '@ve/render';
+import { Compositor, registerFonts, RenderResources, renderFrame, type VectorRequest } from '@ve/render';
 import type { ExportEvent, ExportJob, ExportRequest } from './protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -25,8 +25,24 @@ function post(ev: ExportEvent, transfer: Transferable[] = []) {
   self.postMessage(ev, transfer);
 }
 
+/** Vector renderings requested from the main thread, by request id. */
+const rasterRequests = new Map<number, (b: ImageBitmap | null) => void>();
+let rasterSeq = 0;
+function rasterizeVector(asset: ImageAsset, req: VectorRequest): Promise<ImageBitmap | null> {
+  return new Promise((resolve) => {
+    const id = ++rasterSeq;
+    rasterRequests.set(id, resolve);
+    post({ type: 'rasterize', id, asset, req });
+  });
+}
+
 self.onmessage = (e: MessageEvent<ExportRequest>) => {
   const msg = e.data;
+  if (msg.type === 'raster') {
+    rasterRequests.get(msg.id)?.(msg.bitmap);
+    rasterRequests.delete(msg.id);
+    return;
+  }
   if (msg.type === 'cancel') {
     cancelled = true;
     return;
@@ -91,6 +107,9 @@ async function run(job: ExportJob) {
         return new Uint8Array(await blob.arrayBuffer());
       },
       createCanvas: (w, h) => new OffscreenCanvas(w, h),
+      // exact size for every frame: vector edges are rendered sharp at the export resolution
+      rasterizeVector,
+      vectorMode: 'exact',
     },
     width,
     height,

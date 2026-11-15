@@ -78,9 +78,9 @@ function TemplateLibrary() {
   return (
     <>
       <div className="panel-head">
-        <span className="panel-title">{library.kind === 'share' ? `Mallar · ${library.name}` : 'Rive-mallar'}</span>
-        {library.kind !== 'share' && <FilePicker accept=".riv" label="Importera .riv" />}
-        {library.kind === 'share' && library.allowUploads && <FilePicker accept=".riv" label="Ladda upp .riv" />}
+        <span className="panel-title">{library.kind === 'share' ? `Mallar · ${library.name}` : 'Mallar'}</span>
+        {library.kind !== 'share' && <FilePicker accept=".riv" label="Importera mall" />}
+        {library.kind === 'share' && library.allowUploads && <FilePicker accept=".riv" label="Ladda upp mall" />}
       </div>
       <div className="scroll" data-testid="template-library">
         {loading && items.length === 0 && (
@@ -93,7 +93,7 @@ function TemplateLibrary() {
           <div className="empty">
             <strong>Inga mallar än</strong>
             <br />
-            {library.kind === 'share' ? 'Mallarna för det här projektet har inte lagts upp ännu.' : 'Importera en .riv-fil.'}
+            {library.kind === 'share' ? 'Mallarna för det här projektet har inte lagts upp ännu.' : 'Importera en mall för att komma igång.'}
           </div>
         )}
         <div className="lib-grid">
@@ -225,7 +225,7 @@ function MediaBin() {
       <div className="panel-head">
         <span className="panel-title">{saved ? 'Projektets media' : 'Media'}</span>
         <FilePicker
-          accept="video/mp4,video/quicktime,.mp4,.m4v,.mov,image/png,image/jpeg,image/webp,audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac"
+          accept="video/mp4,video/quicktime,.mp4,.m4v,.mov,image/png,image/jpeg,image/webp,image/svg+xml,.svg,.pdf,.ai,.eps,audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac"
           label="Importera"
         />
       </div>
@@ -247,7 +247,7 @@ function MediaBin() {
           <div className="empty">
             <strong>Inga filer än</strong>
             <br />
-            Importera filmer (MP4, MOV), bilder (PNG, JPEG, WebP) och ljud (MP3, WAV, M4A, Ogg, FLAC), eller släpp dem var som helst i fönstret.
+            Importera filmer (MP4, MOV), bilder (PNG, JPEG, WebP), grafik (SVG, PDF, AI, EPS) och ljud (MP3, WAV, M4A, Ogg, FLAC), eller släpp dem var som helst i fönstret.
             {saved && (
               <>
                 <br />
@@ -261,7 +261,7 @@ function MediaBin() {
           if (!list.length) return null;
           return (
             <div className="lib-grid" key={kind}>
-              <div className="lib-cat">{kind === 'video' ? 'Filmer' : kind === 'image' ? 'Bilder' : 'Ljud'}</div>
+              <div className="lib-cat">{kind === 'video' ? 'Filmer' : kind === 'image' ? 'Bilder och grafik' : 'Ljud'}</div>
               {list.map((it) => (
                 <BinTile key={it.id} it={it} thumb={thumbs[it.id] ?? null} />
               ))}
@@ -282,7 +282,7 @@ function MediaBin() {
             void importFiles([...e.dataTransfer.files]);
           }}
         >
-          Släpp filmer, bilder och ljud här
+          Släpp filmer, bilder, grafik och ljud här
         </div>
       </div>
     </>
@@ -301,7 +301,9 @@ function BinTile({ it, thumb }: { it: BinItem; thumb: string | null }) {
     ? a.kind === 'video'
       ? `${a.width}×${a.height} · ${Math.round(a.fps)} fps${a.hasAudio ? '' : ' · utan ljud'}`
       : a.kind === 'image'
-        ? `${a.width}×${a.height} · ${a.mime.replace('image/', '').toUpperCase()}`
+        ? a.vector
+          ? `Vektorgrafik · ${(/\.([a-z0-9]+)$/i.exec(a.name)?.[1] ?? a.vector).toUpperCase()}`
+          : `${a.width}×${a.height} · ${a.mime.replace('image/', '').toUpperCase()}`
         : `${Math.round(a.sampleRate / 100) / 10} kHz · ${a.channels === 1 ? 'mono' : 'stereo'}`
     : it.size
       ? formatBytes(it.size)

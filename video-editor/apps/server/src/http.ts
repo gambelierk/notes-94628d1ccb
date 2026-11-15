@@ -105,7 +105,21 @@ export function isRiv(head: Uint8Array): boolean {
 const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
 
 /** Identify uploaded media from its first bytes; never trust the client's type. */
+/** Vector graphics: SVG, PDF (also Illustrator files with PDF content) and PostScript (EPS, old Illustrator), which needs converting. */
+export function sniffVector(head: Uint8Array): 'svg' | 'pdf' | 'postscript' | null {
+  if (head[0] === 0xc5 && head[1] === 0xd0 && head[2] === 0xd3 && head[3] === 0xc6) return 'postscript'; // DOS EPS binary header
+  const text = new TextDecoder('utf-8', { fatal: false }).decode(head).replace(/^\uFEFF/, '').trimStart();
+  if (text.startsWith('%PDF-')) return 'pdf';
+  if (text.startsWith('%!PS')) return 'postscript';
+  if (text.startsWith('<') && /<svg[\s>]/i.test(text)) return 'svg';
+  return null;
+}
+
 export function sniffMedia(head: Uint8Array): { kind: 'video' | 'image' | 'audio'; mime: string } | null {
+  const vector = sniffVector(head);
+  if (vector === 'svg') return { kind: 'image', mime: 'image/svg+xml' };
+  if (vector === 'pdf') return { kind: 'image', mime: 'application/pdf' };
+  if (vector === 'postscript') return { kind: 'image', mime: 'application/postscript' };
   if (head.byteLength < 12) return null;
   const box = ascii(head, 4, 8);
   if (box === 'ftyp') {
@@ -144,6 +158,9 @@ export async function sendBlob(c: Context, blobs: BlobStore, key: string, mime: 
     'Cache-Control': cache,
     'Accept-Ranges': 'bytes',
     'Content-Type': mime,
+    // Uploaded files are data, never pages: an SVG or PDF opened directly can't run scripts on this site.
+    'Content-Security-Policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; sandbox",
+    'X-Content-Type-Options': 'nosniff',
   };
   if (c.req.header('if-none-match') === etag) return new Response(null, { status: 304, headers: base });
 

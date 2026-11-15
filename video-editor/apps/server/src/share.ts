@@ -3,10 +3,14 @@ import { bodyLimit } from 'hono/body-limit';
 import type { CompositionSummaryDTO, MediaDTO, SharedLibraryDTO, SharedTemplateDTO, TemplateDTO, WorkspaceDTO } from '@ve/core';
 import { TooLargeError, type BlobStore, type StoredBlob } from './blobs.ts';
 import type { Config } from './config.ts';
+import { ConversionFailedError, ConversionUnavailableError, postscriptToPdf } from './convert.ts';
 import { cleanText, HttpError, isRiv, readJson, sendBlob, sniffMedia, uploadFileName } from './http.ts';
 import { RevisionConflict, type CompositionRecord, type MediaRecord, type ProjectMeta, type Repo } from './repo.ts';
 
-type ShareConfig = Pick<Config, 'maxUploadBytes' | 'maxMediaBytes' | 'workspaceQuotaBytes'>;
+/** PostScript is converted in memory; larger files are refused. */
+const MAX_POSTSCRIPT_BYTES = 200 * 1024 * 1024;
+
+type ShareConfig = Pick<Config, 'maxUploadBytes' | 'maxMediaBytes' | 'workspaceQuotaBytes'> & Partial<Pick<Config, 'ghostscript'>>;
 
 const MAX_PROJECT_BYTES = 5 * 1024 * 1024;
 const MAX_THUMB_BYTES = 1024 * 1024;
@@ -90,6 +94,21 @@ export function shareRoutes(repo: Repo, blobs: BlobStore, config: ShareConfig) {
     if (!repo.blobInUse(key)) await blobs.delete(key);
   }
 
+  async function convertPostscript(stored: StoredBlob, fileName: string): Promise<StoredBlob> {
+    try {
+      if (stored.size > MAX_POSTSCRIPT_BYTES) throw new HttpError(413, `${fileName}: EPS-filer kan vara högst ${mb(MAX_POSTSCRIPT_BYTES)}`);
+      const bytes = await blobs.get(stored.key);
+      if (!bytes) throw new ConversionFailedError('Filen saknas');
+      return await blobs.put(await postscriptToPdf(bytes, config.ghostscript ?? null));
+    } catch (e) {
+      if (e instanceof ConversionUnavailableError) throw new HttpError(415, `${fileName}: ${e.message}. Spara filen som PDF eller SVG.`);
+      if (e instanceof ConversionFailedError) throw new HttpError(415, `${fileName}: ${e.message}`);
+      throw e;
+    } finally {
+      await discard(stored.key); // only the converted PDF is kept
+    }
+  }
+
   /* ------------------------------------------------------------ library */
 
   r.get('/:token', (c) => {
@@ -113,11 +132,13 @@ export function shareRoutes(repo: Repo, blobs: BlobStore, config: ShareConfig) {
     const w = workspace(c);
     if (!w.allowCustomerUploads) throw new HttpError(403, 'Uppladdning av egna mallar är inte aktiverad för det här projektet');
     const fileName = uploadFileName(c, 'mall.riv');
-    if (!/\.riv$/i.test(fileName)) throw new HttpError(400, 'Endast .riv-filer kan laddas upp');
+    // customers never see the file format: messages talk about templates ("mallar")
+    const label = fileName.replace(/\.riv$/i, '');
+    if (!/\.riv$/i.test(fileName)) throw new HttpError(400, `${label} är inte en mall`);
     const stored = await storeUpload(c, config.maxUploadBytes);
     if (!isRiv(stored.head)) {
       await discard(stored.key);
-      throw new HttpError(415, `${fileName} är inte en giltig Rive-fil`);
+      throw new HttpError(415, `${label} är inte en giltig mall`);
     }
     const t = repo.createTemplate({
       workspaceId: w.id,
@@ -155,12 +176,18 @@ export function shareRoutes(repo: Repo, blobs: BlobStore, config: ShareConfig) {
     if (left <= 0) throw new HttpError(413, `Projektets lagringsutrymme är fullt (${mb(config.workspaceQuotaBytes)})`);
     const fileName = uploadFileName(c, 'media');
     const stored = await storeUpload(c, Math.min(config.maxMediaBytes, left));
-    const kind = sniffMedia(stored.head);
+    let kind = sniffMedia(stored.head);
     if (!kind) {
       await discard(stored.key);
-      throw new HttpError(415, `${fileName}: filtypen stöds inte (film: MP4/MOV, bild: PNG/JPEG/WebP, ljud: MP3/WAV/M4A/Ogg/FLAC)`);
+      throw new HttpError(415, `${fileName}: filtypen stöds inte (film: MP4/MOV, bild: PNG/JPEG/WebP, grafik: SVG/PDF/AI/EPS, ljud: MP3/WAV/M4A/Ogg/FLAC)`);
     }
-    const m = repo.createMedia({ workspaceId: w.id, kind: kind.kind, name: fileName, mime: kind.mime, size: stored.size, blobKey: stored.key });
+    let file = stored;
+    if (kind.mime === 'application/postscript') {
+      // EPS / PostScript Illustrator: browsers can't read it, so it is stored as PDF (still vectors, still transparent)
+      file = await convertPostscript(stored, fileName);
+      kind = { kind: 'image', mime: 'application/pdf' };
+    }
+    const m = repo.createMedia({ workspaceId: w.id, kind: kind.kind, name: fileName, mime: kind.mime, size: file.size, blobKey: file.key });
     return c.json(mediaDTO(c, m), 201);
   });
 
