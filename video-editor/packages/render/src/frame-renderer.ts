@@ -267,6 +267,12 @@ export class RenderResources {
     this.releasedImages.push(e.key);
   }
 
+  /** Fonts became available (or changed): draw all text again. */
+  invalidateText() {
+    for (const e of this.texts.values()) this.releasedImages.push(e.key);
+    this.texts.clear();
+  }
+
   /** Rendered text for a clip; re-rendered only when text, style or size change. */
   async text(clip: TextClip): Promise<{ key: string; canvas: OffscreenCanvas }> {
     const key = `text:${clip.id}:${this.width}x${this.height}:${clip.text}:${JSON.stringify(clip.style)}`;

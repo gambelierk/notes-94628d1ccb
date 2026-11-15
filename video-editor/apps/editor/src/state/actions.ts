@@ -35,6 +35,7 @@ import {
   setTextContent,
   setTrackVolume,
   SUBTITLE_STYLE,
+  brandTextStyle,
   SUBTITLE_Y,
   TEXT_PRESETS,
   toSrt,
@@ -55,6 +56,7 @@ import { customerApi } from '../services/api';
 import { media } from '../services/media';
 import { templates } from '../services/templates';
 import { sniffVector, VECTOR_FILE, vectors } from '../services/vector';
+import { brandTextFonts } from '../services/branding';
 import { committedProject, useEditor } from './store';
 
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
@@ -248,6 +250,12 @@ export async function addAudioToTimeline(assetId: string, trackId: string | null
 
 export const TEXT_DEFAULT_SECONDS = 4;
 
+/** The customer's own typefaces on this page, if any (text presets and subtitles use them). */
+export function currentBrandFonts() {
+  const lib = useEditor.getState().library;
+  return brandTextFonts(lib.kind === 'share' ? lib.branding : null);
+}
+
 /** Add a text clip from a preset on a graphics track at the playhead. */
 export function addTextToTimeline(presetId: string, trackId: string | null, frame: Frame | null) {
   const store = useEditor.getState();
@@ -255,7 +263,8 @@ export function addTextToTimeline(presetId: string, trackId: string | null, fram
   let newClipId: string | null = null;
   store.apply((p0) => {
     const [p, tid] = ensureTrack(p0, 'graphics', trackId);
-    const clip = createTextClip(preset.sample, preset.style, frame ?? store.playhead, secondsToFrames(TEXT_DEFAULT_SECONDS, p.settings.fps), preset.y);
+    const style = brandTextStyle(preset.style, preset.role, currentBrandFonts());
+    const clip = createTextClip(preset.sample, style, frame ?? store.playhead, secondsToFrames(TEXT_DEFAULT_SECONDS, p.settings.fps), preset.y);
     newClipId = clip.id;
     return insertClip(p, tid, clip);
   }, `Lägg till ${preset.label.toLowerCase()}`);
@@ -283,6 +292,7 @@ export async function importSubtitles(file: File): Promise<void> {
     store.toast(`${file.name}: hittade inga undertexter`, 'error');
     return;
   }
+  const subtitleStyle = brandTextStyle(SUBTITLE_STYLE, 'body', currentBrandFonts());
   store.apply((p0) => {
     let p = addTrack(p0, 'graphics');
     const tid = p.tracks[p.tracks.length - 1]!.id;
@@ -292,7 +302,7 @@ export async function importSubtitles(file: File): Promise<void> {
     for (const cue of cues) {
       const start = secondsToFrames(cue.start, fps);
       const end = Math.max(start + 1, secondsToFrames(cue.end, fps));
-      p = insertClip(p, tid, createTextClip(cue.text, SUBTITLE_STYLE, start, end - start, SUBTITLE_Y));
+      p = insertClip(p, tid, createTextClip(cue.text, subtitleStyle, start, end - start, SUBTITLE_Y));
     }
     return p;
   }, 'Importera undertexter');

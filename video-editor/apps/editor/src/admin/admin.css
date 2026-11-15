@@ -396,7 +396,9 @@ a.btn {
   gap: 10px;
   height: 42px;
   padding: 0 12px;
+  grid-area: auto;
   background: var(--panel);
+  color: var(--text);
   border-bottom: 1px solid var(--line);
   font-family: var(--font-heading);
 }
@@ -448,4 +450,38 @@ a.btn {
 }
 .brand-logo-box.plate-accent {
   background: var(--accent);
+}
+
+/* colour fields */
+.brand-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.brand-color-field.compact {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.brand-color-label {
+  color: var(--text-2);
+}
+.brand-color-hint {
+  font-size: 12px;
+}
+.bp-top .btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.bp-top .brand-logo {
+  height: 18px;
+  max-width: 120px;
+}
+.bp-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }

@@ -12,6 +12,7 @@ import {
 import { TEXT_FONT_SOURCES } from '../services/fonts';
 import { media } from '../services/media';
 import { vectors } from '../services/vector';
+import { brandTextFontSources } from '../services/branding';
 import { RIVE_WASM_URL, templates } from '../services/templates';
 import { committedProject, useEditor } from '../state/store';
 import { Download } from './Icons';
@@ -47,7 +48,7 @@ async function buildJob(project: Project, preset: QualityPreset): Promise<Export
     media: mediaBlobs,
     templates: registry.sources(usedTemplates),
     riveWasmUrl: RIVE_WASM_URL,
-    fonts: TEXT_FONT_SOURCES,
+    fonts: [...TEXT_FONT_SOURCES, ...brandTextFontSources()], // incl. the customer's own typefaces
     options: { videoBitrate: videoBitrateFor(width, height, fpsValue(fps), preset), audioBitrate: 192_000 },
   };
 }

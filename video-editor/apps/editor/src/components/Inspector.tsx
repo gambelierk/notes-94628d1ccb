@@ -41,6 +41,7 @@ import {
 import { Waveform } from './Waveform';
 import { useEditor, useProject } from '../state/store';
 import { clipName } from '../lib/names';
+import { brandTextFonts } from '../services/branding';
 import { Dissolve, FadeIn, FadeOut, Image as ImageIcon, Trash } from './Icons';
 
 const BASE_PALETTE = ['#ffffff', '#111111', '#ff6a3d', '#ffd84d', '#2ec27e', '#3b82f6', '#a855f7', '#ef4444'];
@@ -595,6 +596,17 @@ function TextInspector({ clip, project }: { clip: TextClip; project: Project }) 
   const st = clip.style;
   const H = project.settings.height;
   const setStyle = (patch: Partial<TextStyle>) => setText(clip.id, { style: patch });
+  const library = useEditor((s) => s.library);
+  const brand = brandTextFonts(library.kind === 'share' ? library.branding : null);
+  // the customer's own typefaces are offered when uploaded (and stay listed if a clip already uses one)
+  const fonts = (Object.keys(TEXT_FONTS) as TextStyle['font'][]).flatMap((k): { id: TextStyle['font']; label: string }[] => {
+    if (k === 'brand-heading' || k === 'brand-body') {
+      const slot = k === 'brand-heading' ? 'heading' : 'body';
+      if (!brand[slot]) return st.font === k ? [{ id: k, label: `${TEXT_FONTS[k].label} (saknas)` }] : [];
+      return [{ id: k, label: `${brand.names[slot]} · ${slot === 'heading' ? 'rubriker' : 'text'}` }];
+    }
+    return [{ id: k, label: TEXT_FONTS[k].label }];
+  });
   return (
     <div className="inspector" data-testid="text-inspector">
       <div className="field">
@@ -605,8 +617,8 @@ function TextInspector({ clip, project }: { clip: TextClip; project: Project }) 
         <div className="field">
           <label htmlFor={`tf-${clip.id}`}>Typsnitt</label>
           <select id={`tf-${clip.id}`} className="select" value={st.font} onChange={(e) => setStyle({ font: e.target.value as TextStyle['font'] })}>
-            {Object.entries(TEXT_FONTS).map(([k, f]) => (
-              <option key={k} value={k}>
+            {fonts.map((f) => (
+              <option key={f.id} value={f.id}>
                 {f.label}
               </option>
             ))}

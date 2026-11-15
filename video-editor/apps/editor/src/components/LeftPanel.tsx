@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { microsToSeconds, TEXT_PRESETS, TEXT_FONTS, type MediaAsset, type TemplateDefinition } from '@ve/core';
+import { brandTextStyle, microsToSeconds, TEXT_PRESETS, TEXT_FONTS, type MediaAsset, type TemplateDefinition } from '@ve/core';
+import { brandTextFonts } from '../services/branding';
 import type { TemplateRenderer } from '@ve/rive';
 import { startLibraryDrag } from '../lib/drag';
 import {
@@ -349,6 +350,9 @@ function BinTile({ it, thumb }: { it: BinItem; thumb: string | null }) {
 
 function TextPanel() {
   const project = useProject();
+  const library = useEditor((s) => s.library);
+  // the customer's own typefaces, when the project has them
+  const brand = brandTextFonts(library.kind === 'share' ? library.branding : null);
   const subs = project.tracks.filter((t) => t.role === 'subtitles').flatMap((t) => t.clips).length;
   const exportSrt = () => {
     const { srt, count } = subtitlesAsSrt(project);
@@ -384,7 +388,7 @@ function TextPanel() {
               <span
                 className="text-preset-sample"
                 style={{
-                  fontFamily: TEXT_FONTS[p.style.font].family,
+                  fontFamily: TEXT_FONTS[brandTextStyle(p.style, p.role, brand).font].family,
                   fontWeight: p.style.weight,
                   fontSize: Math.max(11, Math.min(26, p.style.size * 300)),
                   color: p.style.background ? p.style.color : 'var(--text)',

@@ -151,7 +151,8 @@ export interface AudioClip extends ClipBase {
 }
 
 export type TextAlign = 'left' | 'center' | 'right';
-export type TextFont = 'sans' | 'mono';
+/** 'brand-heading' / 'brand-body' are the customer's own typefaces (see branding); they fall back to IBM Plex Sans. */
+export type TextFont = 'sans' | 'mono' | 'brand-heading' | 'brand-body';
 
 export interface TextStyle {
   font: TextFont;

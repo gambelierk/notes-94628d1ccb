@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrandMark } from './components/BrandMark';
+import { BrandMark, useTopbarStyle } from './components/BrandMark';
 import { canRedo, canUndo, createProject, projectDuration } from '@ve/core';
 import { CreateDialog } from './components/FormatPicker';
 import { ExportDialog } from './components/ExportDialog';
@@ -78,8 +78,9 @@ function TopBar() {
   const name = useEditor((s) => s.history.present.project.name);
   const library = useEditor((s) => s.library);
   const comp = useEditor((s) => s.composition);
+  const topbarStyle = useTopbarStyle();
   return (
-    <header className="topbar">
+    <header className="topbar" style={topbarStyle} data-testid="topbar">
       {comp && library.kind === 'share' && library.branding.logo && <BrandMark />}
       {comp ? (
         <a

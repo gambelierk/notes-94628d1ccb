@@ -2,7 +2,7 @@
 //
 //   ADMIN_PASSWORD=… node scripts/customer-profile.mjs customers/kid-collective [--url http://localhost:8787]
 //
-// The folder holds profile.json (name, accent colour, logo, logo plate, fonts)
+// The folder holds profile.json (name, accent colour, top section colours, logo, logo plate, fonts)
 // and the files it names. Running it again updates the same customer project
 // (matched by name) instead of creating a second one. Prints the share link.
 import { readFileSync } from 'node:fs';
@@ -57,6 +57,7 @@ const b = `/api/admin/workspaces/${ws.id}/branding`;
 const patch = {};
 if ('accent' in profile) patch.accent = profile.accent;
 if (profile.logoPlate) patch.logoPlate = profile.logoPlate;
+if (profile.topbar) patch.topbar = profile.topbar;
 if (profile.fontPresets?.heading) patch.headingPreset = profile.fontPresets.heading;
 if (profile.fontPresets?.body) patch.bodyPreset = profile.fontPresets.body;
 if (Object.keys(patch).length) await call('PUT', b, patch);
@@ -68,6 +69,8 @@ await call('POST', '/api/admin/logout').catch(() => undefined);
 
 console.log(`${created ? 'Skapade' : 'Uppdaterade'} kundprojektet "${ws.name}"`);
 console.log(`  accentfärg: ${ws.branding.accent ?? 'standard'}`);
+const tb = ws.branding.topbar;
+console.log(`  övre sektionen: bakgrund ${tb.background ?? 'auto'}, text ${tb.text ?? 'auto'}, knappar ${tb.button ?? 'auto'}, knapptext ${tb.buttonText ?? 'auto'}`);
 console.log(`  rubriker:   ${ws.branding.heading.custom?.name ?? ws.branding.heading.preset}`);
 console.log(`  text:       ${ws.branding.body.custom?.name ?? ws.branding.body.preset}`);
 console.log(`  logotyp:    ${ws.branding.logo ? `ja (platta: ${ws.branding.logoPlate})` : 'nej'}`);

@@ -395,7 +395,8 @@ describe('media sniffing', () => {
 
 import { BRAND_FONT_PRESETS } from '@ve/core';
 import { BRAND_FONT_PRESET_IDS, BRAND_LOGO_PLATE_IDS } from '../src/repo.ts';
-import { BRAND_LOGO_PLATES } from '@ve/core';
+import { BRAND_LOGO_PLATES, BRAND_TOPBAR_KEYS } from '@ve/core';
+import { BRAND_TOPBAR_KEY_LIST } from '../src/repo.ts';
 
 const WOFF2 = new Uint8Array([0x77, 0x4f, 0x46, 0x32, 0, 1, 0, 0, 1, 2, 3, 4]);
 
@@ -403,6 +404,7 @@ describe('branding', () => {
   it('server and editor agree on the font presets', () => {
     expect([...BRAND_FONT_PRESET_IDS]).toEqual(BRAND_FONT_PRESETS.map((p) => p.id));
     expect([...BRAND_LOGO_PLATE_IDS]).toEqual(BRAND_LOGO_PLATES.map((p) => p.id));
+    expect([...BRAND_TOPBAR_KEY_LIST]).toEqual([...BRAND_TOPBAR_KEYS]);
   });
 
   it('admin sets colour, fonts and logo; the customer link gets them', async () => {
@@ -413,6 +415,11 @@ describe('branding', () => {
     expect((await req('PUT', `/api/admin/workspaces/${w.id}/branding`, { accent: 'red' })).status).toBe(400);
     expect((await req('PUT', `/api/admin/workspaces/${w.id}/branding`, { headingPreset: 'comic' })).status).toBe(400);
     expect((await req('PUT', `/api/admin/workspaces/${w.id}/branding`, { logoPlate: 'pink' })).status).toBe(400);
+    // top section colours: each one separately, null = automatic
+    expect((await req('PUT', `/api/admin/workspaces/${w.id}/branding`, { topbar: { background: 'green' } })).status).toBe(400);
+    await req('PUT', `/api/admin/workspaces/${w.id}/branding`, { topbar: { background: '#05BD00', button: '#000000' } });
+    const tb = await rj(req('PUT', `/api/admin/workspaces/${w.id}/branding`, { topbar: { buttonText: '#ffffff', button: null } }));
+    expect(tb.branding.topbar).toEqual({ background: '#05bd00', text: null, button: null, buttonText: '#ffffff' });
     expect((await rj(req('PUT', `/api/admin/workspaces/${w.id}/branding`, { logoPlate: 'accent' }))).branding.logoPlate).toBe('accent');
     let ws = await rj(req('PUT', `/api/admin/workspaces/${w.id}/branding`, { accent: '#FF5500', headingPreset: 'serif' }));
     expect(ws.branding).toMatchObject({ accent: '#ff5500', heading: { preset: 'serif' }, body: { preset: 'plex-sans' } });

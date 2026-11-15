@@ -167,7 +167,23 @@ export interface BrandingDTO {
   logo: { url: string; mime: string } | null;
   /** A plate behind the logo, so a dark logo is visible on the dark interface. */
   logoPlate: BrandLogoPlate;
+  /** Colours of the top section (where the logo and the export button are). */
+  topbar: BrandTopbarDTO;
 }
+
+/**
+ * #rrggbb or null. Null means automatic: the default dark bar, text in black
+ * or white (whichever reads best on the background), buttons in the accent
+ * colour and button text in black or white.
+ */
+export interface BrandTopbarDTO {
+  background: string | null;
+  text: string | null;
+  button: string | null;
+  buttonText: string | null;
+}
+export const BRAND_TOPBAR_KEYS = ['background', 'text', 'button', 'buttonText'] as const;
+export type BrandTopbarKey = (typeof BRAND_TOPBAR_KEYS)[number];
 
 export const BRAND_LOGO_PLATES = [
   { id: 'none', label: 'Ingen (för ljusa logotyper)' },
@@ -182,6 +198,7 @@ export const DEFAULT_BRANDING: BrandingDTO = {
   body: { preset: 'plex-sans', custom: null },
   logo: null,
   logoPlate: 'none',
+  topbar: { background: null, text: null, button: null, buttonText: null },
 };
 
 export function isBrandFontPreset(v: unknown): v is BrandFontPresetId {

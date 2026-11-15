@@ -129,3 +129,25 @@ describe('subtitles', () => {
     expect(SUBTITLE_STYLE.background).not.toBeNull();
   });
 });
+
+import { brandTextFont, brandTextStyle, TEXT_FONTS, TEXT_PRESETS as PRESETS } from '../src';
+
+describe("the customer's typefaces in text presets", () => {
+  const title = PRESETS.find((p) => p.id === 'title')!;
+  const caption = PRESETS.find((p) => p.id === 'caption')!;
+  it('headings use the heading typeface, subtitles and body text the text typeface', () => {
+    const brand = { heading: true, body: true };
+    expect(brandTextStyle(title.style, title.role, brand).font).toBe('brand-heading');
+    expect(brandTextStyle(caption.style, caption.role, brand).font).toBe('brand-body');
+    expect(brandTextStyle(title.style, title.role, brand).weight).toBe(title.style.weight);
+  });
+  it('one uploaded typeface is used for everything; none keeps the defaults', () => {
+    expect(brandTextFont('body', { heading: true, body: false })).toBe('brand-heading');
+    expect(brandTextFont('heading', { heading: false, body: true })).toBe('brand-body');
+    expect(brandTextStyle(title.style, title.role, { heading: false, body: false })).toBe(title.style);
+    expect(brandTextStyle(title.style, title.role, null)).toBe(title.style);
+  });
+  it('brand fonts fall back to IBM Plex Sans when the file is missing', () => {
+    expect(TEXT_FONTS['brand-heading'].family).toContain('IBM Plex Sans');
+  });
+});

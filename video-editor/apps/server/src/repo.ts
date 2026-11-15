@@ -4,6 +4,7 @@ import type {
   BrandFontPresetId,
   BrandingDTO,
   BrandLogoPlate,
+  BrandTopbarDTO,
   CompositionDTO,
   CompositionSummaryDTO,
   FieldOverride,
@@ -115,7 +116,12 @@ export interface StoredBrand {
   body: StoredBrandFont;
   logo: { key: string; mime: string } | null;
   logoPlate: BrandLogoPlate;
+  topbar: BrandTopbarDTO;
 }
+
+export const isHexColor = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+/** Same keys as BRAND_TOPBAR_KEYS in @ve/core. */
+export const BRAND_TOPBAR_KEY_LIST = ['background', 'text', 'button', 'buttonText'] as const satisfies readonly (keyof BrandTopbarDTO)[];
 
 /** Same ids as BRAND_LOGO_PLATES in @ve/core. */
 export const BRAND_LOGO_PLATE_IDS = ['none', 'accent', 'light'] as const satisfies readonly BrandLogoPlate[];
@@ -124,7 +130,7 @@ export function isBrandLogoPlate(v: unknown): v is BrandLogoPlate {
 }
 
 export function parseBrand(json: string | null): StoredBrand {
-  const d: StoredBrand = { accent: null, heading: { preset: 'plex-sans', custom: null }, body: { preset: 'plex-sans', custom: null }, logo: null, logoPlate: 'none' };
+  const d: StoredBrand = { accent: null, heading: { preset: 'plex-sans', custom: null }, body: { preset: 'plex-sans', custom: null }, logo: null, logoPlate: 'none', topbar: { background: null, text: null, button: null, buttonText: null } };
   if (!json) return d;
   try {
     const b = JSON.parse(json) as Partial<StoredBrand>;
@@ -138,6 +144,9 @@ export function parseBrand(json: string | null): StoredBrand {
       body: font(b.body),
       logo: b.logo && typeof b.logo.key === 'string' ? b.logo : null,
       logoPlate: isBrandLogoPlate(b.logoPlate) ? b.logoPlate : 'none',
+      topbar: Object.fromEntries(
+        BRAND_TOPBAR_KEY_LIST.map((k) => [k, isHexColor(b.topbar?.[k]) ? (b.topbar[k] as string).toLowerCase() : null]),
+      ) as unknown as BrandTopbarDTO,
     };
   } catch {
     return d;
@@ -160,6 +169,7 @@ export function brandToDTO(b: StoredBrand, base: string): BrandingDTO {
     body: font(b.body, 'body'),
     logo: b.logo ? { url: `${base}/branding/logo?v=${b.logo.key.slice(0, 12)}`, mime: b.logo.mime } : null,
     logoPlate: b.logoPlate,
+    topbar: b.topbar,
   };
 }
 

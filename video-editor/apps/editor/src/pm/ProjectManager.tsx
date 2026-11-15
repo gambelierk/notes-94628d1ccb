@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BrandMark } from '../components/BrandMark';
+import { BrandMark, useTopbarStyle } from '../components/BrandMark';
 import { createProject, type CompositionSummaryDTO, type MediaDTO } from '@ve/core';
 import { ApiError, compositionUrl, customerApi } from '../services/api';
 import { templates } from '../services/templates';
@@ -32,6 +32,7 @@ function formatWhen(iso: string): string {
  */
 export function ProjectManager({ token }: { token: string }) {
   const library = useEditor((s) => s.library);
+  const topbarStyle = useTopbarStyle();
   const tpls = useEditor((s) => s.templates);
   const uploads = useEditor((s) => s.uploads);
   const toasts = useEditor((s) => s.toasts);
@@ -70,7 +71,7 @@ export function ProjectManager({ token }: { token: string }) {
 
   return (
     <div className="admin pm-shell" data-testid="project-manager">
-      <header className="topbar">
+      <header className="topbar" style={topbarStyle} data-testid="topbar">
         <BrandMark />
         <span className="project-name" data-testid="customer-name">
           {library.kind === 'share' ? library.name : ' '}

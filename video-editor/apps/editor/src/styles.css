@@ -98,6 +98,7 @@ textarea {
 /* ------------------------------------------------------------- topbar */
 .topbar {
   background: var(--panel);
+  color: var(--text); /* the bar may redefine the colour tokens (customer branding) */
   display: flex;
   align-items: center;
   gap: 12px;
@@ -124,7 +125,7 @@ textarea {
 .brand-custom.plate-light {
   padding: 5px 9px;
   border-radius: 6px;
-  background: var(--accent);
+  background: var(--brand-accent, var(--accent));
 }
 .brand-custom.plate-light {
   background: #ffffff;

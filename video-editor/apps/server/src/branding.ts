@@ -2,8 +2,8 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { BlobStore } from './blobs.ts';
 import { cleanText, HttpError, readJson, sendBlob, sniffFont, sniffMedia, uploadFileName } from './http.ts';
-import type { BrandFontPresetId, BrandLogoPlate } from '@ve/core';
-import { isBrandFontPreset, isBrandLogoPlate, type Repo, type StoredBrand } from './repo.ts';
+import type { BrandFontPresetId, BrandLogoPlate, BrandTopbarDTO } from '@ve/core';
+import { BRAND_TOPBAR_KEY_LIST, isBrandFontPreset, isBrandLogoPlate, isHexColor, type Repo, type StoredBrand } from './repo.ts';
 
 /** Logos and font files are small; anything bigger is a mistake. */
 export const MAX_BRAND_FILE_BYTES = 5 * 1024 * 1024;
@@ -81,8 +81,20 @@ export function brandingAdminRoutes(repo: Repo, blobs: BlobStore) {
       if (!isBrandLogoPlate(body.logoPlate)) throw new HttpError(400, 'Okänd platta för logotypen');
       logoPlate = body.logoPlate;
     }
+    const topbar: Partial<BrandTopbarDTO> = {};
+    if ('topbar' in body) {
+      const t = body.topbar;
+      if (!t || typeof t !== 'object' || Array.isArray(t)) throw new HttpError(400, 'topbar måste vara ett objekt');
+      for (const k of BRAND_TOPBAR_KEY_LIST) {
+        if (!(k in t)) continue;
+        const v = (t as Record<string, unknown>)[k];
+        if (v !== null && !isHexColor(v)) throw new HttpError(400, 'Färgen måste anges som #rrggbb');
+        topbar[k] = v === null ? null : v.toLowerCase();
+      }
+    }
     return save(c, (b) => ({
       ...b,
+      topbar: { ...b.topbar, ...topbar },
       logoPlate: logoPlate ?? b.logoPlate,
       accent: accent === undefined ? b.accent : accent,
       heading: { ...b.heading, preset: presets.heading ?? b.heading.preset },

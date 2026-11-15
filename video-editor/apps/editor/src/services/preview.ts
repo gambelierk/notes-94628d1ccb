@@ -13,6 +13,7 @@ import { currentProject, useEditor } from '../state/store';
 import { media } from './media';
 import { templates } from './templates';
 import { vectors } from './vector';
+import { BRAND_FONTS_EVENT } from './branding';
 
 /** Preview renders at most this wide; export always renders full size. */
 const MAX_PREVIEW_WIDTH = 1280;
@@ -87,11 +88,21 @@ class PreviewEngine {
         this.request(s.playhead);
       }
     });
+    window.addEventListener(BRAND_FONTS_EVENT, this.onFontsChanged);
     this.request(useEditor.getState().playhead);
   }
 
+  /** The customer's typefaces finished loading: text drawn in a fallback font is drawn again. */
+  private onFontsChanged = () => {
+    this.resources?.invalidateText();
+    this.version++;
+    const s = useEditor.getState();
+    if (!s.playing) this.request(s.playhead);
+  };
+
   detach() {
     this.pause();
+    window.removeEventListener(BRAND_FONTS_EVENT, this.onFontsChanged);
     this.unsub?.();
     this.resources?.disposeAll();
     this.compositor?.dispose();

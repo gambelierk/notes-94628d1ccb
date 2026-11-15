@@ -2,6 +2,7 @@ import type {
   BrandFontPresetId,
   BrandFontSlot,
   BrandLogoPlate,
+  BrandTopbarDTO,
   CompositionDTO,
   CompositionSummaryDTO,
   MediaDTO,
@@ -134,7 +135,13 @@ export const api = {
   /* branding: the look of a customer's pages */
   setBranding: (
     id: string,
-    patch: { accent?: string | null; headingPreset?: BrandFontPresetId; bodyPreset?: BrandFontPresetId; logoPlate?: BrandLogoPlate },
+    patch: {
+      accent?: string | null;
+      headingPreset?: BrandFontPresetId;
+      bodyPreset?: BrandFontPresetId;
+      logoPlate?: BrandLogoPlate;
+      topbar?: Partial<BrandTopbarDTO>;
+    },
   ) =>
     call<WorkspaceDTO>('PUT', `/api/admin/workspaces/${id}/branding`, patch),
   uploadBrandLogo: (id: string, file: File) =>

@@ -2,8 +2,8 @@
 // heading font from a font file, logo) and the customer's pages show it,
 // while the admin pages and other customers keep the default look.
 //
-// Requires: pnpm build, Playwright with Chromium.
-import { spawn } from 'node:child_process';
+// Requires: pnpm build, Playwright with Chromium, ffmpeg, python3 + Pillow.
+import { execFileSync, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -105,7 +105,13 @@ try {
   await card.getByLabel('Typsnitt för text').selectOption('serif');
   await admin.waitForTimeout(400);
 
-  const prevBtn = await card.getByTestId('brand-preview').locator('.btn.primary').evaluate((e) => getComputedStyle(e).backgroundColor);
+  // top section: its own background; text and buttons left on automatic must stay readable
+  await card.getByTestId('brand-topbar-background').fill('#ffe14d');
+  await admin.waitForTimeout(900);
+  const prevTop = await card.getByTestId('brand-preview').locator('.bp-top').evaluate((e) => [getComputedStyle(e).backgroundColor, getComputedStyle(e).color]);
+  check(prevTop[0] === 'rgb(255, 225, 77)' && prevTop[1] === 'rgb(12, 12, 12)', `admin: förhandsvisningen visar övre sektionens färg med mörk text (${prevTop.join(' / ')})`);
+
+  const prevBtn = await card.getByTestId('brand-preview').locator('.bp-body .btn.primary').evaluate((e) => getComputedStyle(e).backgroundColor);
   check(prevBtn === 'rgb(255, 90, 31)', `admin: förhandsvisningen visar accentfärgen (${prevBtn})`);
   const adminLook = await look(admin);
   check(adminLook.accent === '#ececec', 'admin: adminsidorna behåller sitt eget utseende');
@@ -113,7 +119,7 @@ try {
   const link = await admin.getByTestId('share-link').inputValue();
 
   /* ------------------------------------------------ customer */
-  const cust = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const cust = await (await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true, deviceScaleFactor: 1 })).newPage();
   cust.on('pageerror', (e) => errors.push('kund: ' + e));
   await cust.goto(link);
   await cust.getByTestId('project-manager').waitFor();
@@ -139,6 +145,86 @@ try {
   l = await look(cust);
   check(l.accent === '#ff5a1f' && l.logo?.loaded, 'kund: editorn har samma färg och logotyp');
   await cust.screenshot({ path: path.join(out, 'branding-editor.png') });
+
+  // top section colours in the editor
+  const top = () =>
+    cust.getByTestId('topbar').evaluate((e) => {
+      const b = e.querySelector('.btn.primary');
+      return { bg: getComputedStyle(e).backgroundColor, text: getComputedStyle(e).color, btn: getComputedStyle(b).backgroundColor, btnText: getComputedStyle(b).color };
+    });
+  let tb = await top();
+  check(tb.bg === 'rgb(255, 225, 77)' && tb.text === 'rgb(12, 12, 12)', `kund: övre sektionen i vald färg, texten väljs automatiskt mörk (${tb.bg})`);
+  check(tb.btn === 'rgb(255, 90, 31)' && tb.btnText === 'rgb(12, 12, 12)', 'kund: knappen i övre sektionen behåller accentfärgen när inget annat valts');
+  await card.getByTestId('brand-topbar-text').fill('#102030');
+  await card.getByTestId('brand-topbar-button').fill('#000000');
+  await card.getByTestId('brand-topbar-buttonText').fill('#ffee00');
+  await admin.waitForTimeout(900);
+  await cust.reload();
+  await cust.waitForFunction(() => document.querySelector('[data-testid=brand-logo]')?.complete && window.__editor?.getState().composition, null, { timeout: 20000 });
+  await cust.waitForFunction(() => [...document.fonts].some((f) => f.family === 'KlippBrand-page-heading' && f.status === 'loaded'), null, { timeout: 15000 });
+  tb = await top();
+  check(
+    tb.text === 'rgb(16, 32, 48)' && tb.btn === 'rgb(0, 0, 0)' && tb.btnText === 'rgb(255, 238, 0)',
+    `kund: egna färger på text, knappar och knapptext i övre sektionen (${tb.text} / ${tb.btn} / ${tb.btnText})`,
+  );
+  const mainBtn = await cust.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+  check(mainBtn === '#ff5a1f', 'kund: resten av sidan behåller accentfärgen');
+
+  /* ---- the customer's typeface in text presets, in the preview and in the exported film ---- */
+  await cust.getByRole('tab', { name: 'Text' }).click();
+  const sample = await cust.locator('[data-text-preset=title] .text-preset-sample').evaluate((e) => getComputedStyle(e).fontFamily);
+  check(sample.includes('KlippBrand-page-heading'), 'kund: textmallarna visas i kundens typsnitt');
+  await cust.locator('[data-text-preset=title]').hover();
+  await cust.locator('[data-text-preset=title] .lib-add').click();
+  await cust.getByTestId('text-inspector').locator('textarea').fill('illiilli');
+  const clip = await cust.evaluate(() => {
+    const s = window.__editor.getState();
+    const p = s.history.present.project;
+    const c = p.tracks.flatMap((t) => t.clips).find((x) => x.kind === 'text');
+    const px = c.style.size * p.settings.height;
+    const m = new OffscreenCanvas(1, 1).getContext('2d');
+    const w = (fam) => {
+      m.font = `${c.style.weight} ${px}px ${fam}`;
+      return m.measureText('illiilli').width;
+    };
+    return { font: c.style.font, brand: w('"KlippBrand-page-heading"'), plex: w('"IBM Plex Sans Variable"'), W: p.settings.width };
+  });
+  check(clip.font === 'brand-heading', 'kund: en ny rubrik får kundens rubriktypsnitt');
+  const opts = await cust.getByTestId('text-inspector').locator('select').first().locator('option').allTextContents();
+  check(opts.some((o) => o.startsWith('Acme Display Bold')), `kund: kundens typsnitt går att välja för text (${opts.join(', ')})`);
+  await cust.evaluate(() => window.__editor.getState().setPlayhead(10));
+  await cust.waitForTimeout(1000);
+  // width of the white text, in project pixels, in a picture
+  const inkWidth = (png, W) => {
+    const s = execFileSync('python3', ['-I', '-c', `
+import sys
+from PIL import Image
+im = Image.open(sys.argv[1]).convert('L')
+box = im.point(lambda v: 255 if v > 170 else 0).getbbox()
+print((box[2] - box[0]) * float(sys.argv[2]) / im.width if box else 0)`, png, String(W)]);
+    return Number(s.toString());
+  };
+  const prevPng = path.join(out, 'branding-text-preview.png');
+  await cust.getByTestId('preview-canvas').screenshot({ path: prevPng });
+  await cust.evaluate(() => window.__editor.getState().select(null));
+  await cust.waitForTimeout(300);
+  await cust.getByTestId('preview-canvas').screenshot({ path: prevPng });
+  const pw = inkWidth(prevPng, clip.W);
+  check(Math.abs(pw - clip.brand) < Math.abs(pw - clip.plex) && Math.abs(pw - clip.brand) / clip.brand < 0.08, `förhandsvisning: rubriken ritas i kundens typsnitt (bredd ${Math.round(pw)} px; kundens ${Math.round(clip.brand)}, standard ${Math.round(clip.plex)})`);
+
+  await cust.getByRole('button', { name: 'Exportera' }).first().click();
+  await cust.getByTestId('export-dialog').getByRole('button', { name: 'Exportera' }).click();
+  await cust.locator('[data-testid=export-done], [data-testid=export-error]').first().waitFor({ timeout: 180000 });
+  if (await cust.getByTestId('export-error').count()) throw new Error('Export: ' + (await cust.getByTestId('export-error').textContent()));
+  const dlP = cust.waitForEvent('download');
+  await cust.getByTestId('export-download').click();
+  const mp4 = path.join(out, 'branding-export.mp4');
+  await (await dlP).saveAs(mp4);
+  const frame = path.join(out, 'branding-export.png');
+  execFileSync('ffmpeg', ['-y', '-v', 'error', '-ss', '1', '-i', mp4, '-frames:v', '1', frame]);
+  const ew = inkWidth(frame, clip.W);
+  check(Math.abs(ew - clip.brand) < Math.abs(ew - clip.plex) && Math.abs(ew - clip.brand) / clip.brand < 0.08, `export: rubriken i filmen är satt i kundens typsnitt (bredd ${Math.round(ew)} px)`);
+  await cust.keyboard.press('Escape');
 
   // another customer is not affected
   const other = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();

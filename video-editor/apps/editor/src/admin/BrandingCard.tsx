@@ -7,14 +7,99 @@ import {
   type BrandFontSlot,
   type BrandingDTO,
   type BrandLogoPlate,
+  type BrandTopbarDTO,
+  type BrandTopbarKey,
+  textOn,
   type WorkspaceDTO,
 } from '@ve/core';
 import { api } from '../services/api';
-import { brandVariables, loadBrandFonts, MIN_ACCENT_CONTRAST } from '../services/branding';
+import { brandVariables, loadBrandFonts, MIN_ACCENT_CONTRAST, topbarVariables } from '../services/branding';
 import { Logo, Plus, Trash, Upload } from '../components/Icons';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const SAVE_DELAY_MS = 400;
+
+const TOPBAR_FIELDS: { key: BrandTopbarKey; label: string; auto: string }[] = [
+  { key: 'background', label: 'Bakgrund', auto: 'Automatiskt: mörk' },
+  { key: 'text', label: 'Text', auto: 'Automatiskt: svart eller vit' },
+  { key: 'button', label: 'Knappar', auto: 'Automatiskt: accentfärgen' },
+  { key: 'buttonText', label: 'Text i knappar', auto: 'Automatiskt: svart eller vit' },
+];
+
+type Run = (label: string, f: () => Promise<WorkspaceDTO>) => Promise<void>;
+
+/**
+ * A colour with a picker, a hex field and a reset to "automatic" (null).
+ * The value follows the picker at once (`onLive`, for the preview) and is
+ * saved a moment after the last change – also if the card closes first.
+ */
+function ColorField(props: {
+  label: string;
+  hint?: string;
+  value: string | null;
+  /** Shown in the picker while the value is automatic. */
+  swatch: string;
+  resetLabel: string;
+  testid: string;
+  compact?: boolean;
+  onLive: (v: string | null) => void;
+  save: (v: string | null) => Promise<WorkspaceDTO>;
+  run: Run;
+}) {
+  const { label, hint, swatch, resetLabel, testid, compact, onLive, run } = props;
+  const [value, setValue] = useState<string | null>(props.value);
+  const [draft, setDraft] = useState(props.value ?? '');
+  const timer = useRef(0);
+  const pending = useRef<(() => Promise<WorkspaceDTO>) | null>(null);
+  const save = useRef(props.save);
+  save.current = props.save;
+
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+      void pending.current?.().catch(() => undefined); // leaving within the delay still saves
+    },
+    [],
+  );
+
+  const change = (v: string | null) => {
+    setValue(v);
+    setDraft(v ?? '');
+    onLive(v);
+    clearTimeout(timer.current);
+    const send = () => save.current(v);
+    pending.current = send;
+    timer.current = window.setTimeout(() => {
+      pending.current = null;
+      void run(testid, send);
+    }, SAVE_DELAY_MS);
+  };
+
+  return (
+    <div className={`brand-color-field${compact ? ' compact' : ''}`}>
+      <span className={compact ? 'brand-color-label' : 'field-label'}>{label}</span>
+      <div className="brand-row">
+        <input type="color" className="brand-color" value={value ?? swatch} aria-label={`Välj färg: ${label}`} onChange={(e) => change(e.target.value.toLowerCase())} />
+        <input
+          className="input mono brand-hex"
+          value={draft}
+          placeholder={value === null ? 'auto' : '#rrggbb'}
+          aria-label={`${label} som hexkod`}
+          data-testid={testid}
+          onChange={(e) => {
+            const v = e.target.value.trim();
+            setDraft(v);
+            if (HEX.test(v)) change(v.toLowerCase());
+          }}
+        />
+        <button className="btn" disabled={value === null} onClick={() => change(null)}>
+          {resetLabel}
+        </button>
+        {hint && value === null && <span className="dim brand-color-hint">{hint}</span>}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Admin: the look of one customer's pages – accent colour, heading and body
@@ -23,29 +108,11 @@ const SAVE_DELAY_MS = 400;
 export function BrandingCard(props: { ws: WorkspaceDTO; onChange: (w: WorkspaceDTO) => void; toast: (t: string, k?: 'info' | 'error') => void }) {
   const { ws, onChange, toast } = props;
   const b = ws.branding;
-  // the colour is edited locally (the picker fires continuously) and saved shortly after
+  // colours follow the pickers live in the preview; each field saves itself shortly after a change
   const [accent, setAccent] = useState<string | null>(b.accent);
-  const [hexDraft, setHexDraft] = useState(b.accent ?? '');
+  const [topbar, setTopbar] = useState<BrandTopbarDTO>(b.topbar);
   const [busy, setBusy] = useState<string | null>(null);
-  const timer = useRef(0);
-  /** A colour waiting to be saved (sent right away if the card closes first). */
-  const pendingAccent = useRef<{ id: string; accent: string | null } | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
-
-  // only when switching customer: a save landing mid-drag must not pull the picker back
-  useEffect(() => {
-    setAccent(ws.branding.accent);
-    setHexDraft(ws.branding.accent ?? '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ws.id]);
-  useEffect(
-    () => () => {
-      clearTimeout(timer.current);
-      const p = pendingAccent.current;
-      if (p) void api.setBranding(p.id, { accent: p.accent }).catch(() => undefined);
-    },
-    [],
-  );
 
   const run = async (label: string, f: () => Promise<WorkspaceDTO>) => {
     setBusy(label);
@@ -58,23 +125,28 @@ export function BrandingCard(props: { ws: WorkspaceDTO; onChange: (w: WorkspaceD
     }
   };
 
-  const changeAccent = (v: string | null) => {
-    setAccent(v);
-    setHexDraft(v ?? '');
-    clearTimeout(timer.current);
-    pendingAccent.current = { id: ws.id, accent: v };
-    timer.current = window.setTimeout(() => {
-      pendingAccent.current = null;
-      void run('accent', () => api.setBranding(ws.id, { accent: v }));
-    }, SAVE_DELAY_MS);
-  };
-
-  const preview: BrandingDTO = { ...b, accent };
+  const preview: BrandingDTO = { ...b, accent, topbar };
   const scope = `admin-${ws.id}`;
   useEffect(() => {
     void loadBrandFonts(b, scope);
   }, [b, scope]);
   const weak = accent && contrastRatio(accent, '#151515') < MIN_ACCENT_CONTRAST;
+  // what "automatic" currently resolves to (shown in the swatches), and a warning for unreadable choices
+  const tbVars = topbarVariables(preview);
+  const topbarAuto: Record<BrandTopbarKey, string> = {
+    background: tbVars['--panel'] ?? '#151515',
+    text: tbVars['--text'] ?? '#ececec',
+    button: tbVars['--accent'] ?? accent ?? '#ececec',
+    buttonText: tbVars['--on-accent'] ?? textOn(tbVars['--accent'] ?? accent ?? '#ececec'),
+  };
+  const lowContrast =
+    contrastRatio(topbarAuto.text, topbarAuto.background) < 3
+      ? 'Texten syns dåligt mot bakgrunden i övre sektionen. Välj en ljusare eller mörkare textfärg.'
+      : contrastRatio(topbarAuto.buttonText, topbarAuto.button) < 3
+        ? 'Texten i knapparna syns dåligt mot knappfärgen.'
+        : contrastRatio(topbarAuto.button, topbarAuto.background) < 1.3
+          ? 'Knapparna har nästan samma färg som bakgrunden i övre sektionen.'
+          : null;
 
   return (
     <section className="card" aria-labelledby="brand-h" data-testid="branding-card">
@@ -88,34 +160,46 @@ export function BrandingCard(props: { ws: WorkspaceDTO; onChange: (w: WorkspaceD
         <div className="brand-fields">
           {/* colour */}
           <div className="brand-field">
-            <span className="field-label">Accentfärg</span>
-            <div className="brand-row">
-              <input
-                type="color"
-                className="brand-color"
-                value={accent ?? '#ececec'}
-                aria-label="Välj accentfärg"
-                onChange={(e) => changeAccent(e.target.value.toLowerCase())}
-              />
-              <input
-                className="input mono brand-hex"
-                value={hexDraft}
-                placeholder="#rrggbb"
-                aria-label="Accentfärg som hexkod"
-                data-testid="brand-hex"
-                onChange={(e) => {
-                  const v = e.target.value.trim();
-                  setHexDraft(v);
-                  if (HEX.test(v)) changeAccent(v.toLowerCase());
-                }}
-              />
-              <button className="btn" disabled={accent === null} onClick={() => changeAccent(null)}>
-                Standard (grå)
-              </button>
-            </div>
+            <ColorField
+              label="Accentfärg"
+              hint="Knappar, markeringar och fokus"
+              value={b.accent}
+              swatch="#ececec"
+              resetLabel="Standard (grå)"
+              testid="brand-hex"
+              onLive={setAccent}
+              save={(v) => api.setBranding(ws.id, { accent: v })}
+              run={run}
+            />
             {weak && (
               <p className="hint" role="status">
                 Färgen är mörk mot den mörka bakgrunden. Knappar får färgen, men markeringar och fokusramar visas ljusa så att de syns.
+              </p>
+            )}
+          </div>
+
+          {/* top section */}
+          <div className="brand-field" data-testid="brand-topbar">
+            <span className="field-label">Övre sektionen</span>
+            <p className="hint">Raden högst upp med logotypen och exportknappen. Det som lämnas på Automatiskt väljs så att det syns mot bakgrunden.</p>
+            {TOPBAR_FIELDS.map((f) => (
+              <ColorField
+                key={f.key}
+                label={f.label}
+                hint={f.auto}
+                value={b.topbar[f.key]}
+                swatch={topbarAuto[f.key]}
+                resetLabel="Automatiskt"
+                testid={`brand-topbar-${f.key}`}
+                compact
+                onLive={(v) => setTopbar((t) => ({ ...t, [f.key]: v }))}
+                save={(v) => api.setBranding(ws.id, { topbar: { [f.key]: v } })}
+                run={run}
+              />
+            ))}
+            {lowContrast && (
+              <p className="hint" role="status" data-testid="brand-topbar-warning">
+                {lowContrast}
               </p>
             )}
           </div>
@@ -129,7 +213,11 @@ export function BrandingCard(props: { ws: WorkspaceDTO; onChange: (w: WorkspaceD
           <div className="brand-field">
             <span className="field-label">Logotyp</span>
             <div className="brand-row">
-              <div className={`brand-logo-box plate-${b.logo ? b.logoPlate : 'none'}`} style={b.logoPlate === 'accent' && accent ? { background: accent } : undefined}>
+              <div className={`brand-logo-box plate-${b.logo ? b.logoPlate : 'none'}`} style={
+                  // shown as on the customer's page: on its plate, or straight on the top section
+                  b.logoPlate === 'accent' ? { background: accent ?? '#ececec' } : b.logoPlate === 'none' ? { background: topbarAuto.background } : undefined
+                }
+              >
                 {b.logo ? <img src={b.logo.url} alt="Kundens logotyp" /> : <span className="dim">Ingen logotyp</span>}
               </div>
               <button className="btn" onClick={() => logoRef.current?.click()} disabled={busy === 'logo'}>
@@ -243,7 +331,7 @@ function BrandPreview({ branding, scope, name }: { branding: BrandingDTO; scope:
   const style = brandVariables(branding, scope) as CSSProperties;
   return (
     <div className="brand-preview" style={style} aria-label="Förhandsvisning av kundens sida" data-testid="brand-preview">
-      <div className="bp-top">
+      <div className="bp-top topbar" style={topbarVariables(branding) as CSSProperties}>
         {branding.logo ? (
           <span className={`brand brand-custom plate-${branding.logoPlate}`}>
             <img className="brand-logo" src={branding.logo.url} alt="" />
@@ -257,6 +345,10 @@ function BrandPreview({ branding, scope, name }: { branding: BrandingDTO; scope:
           </span>
         )}
         <span className="bp-name">{name}</span>
+        <span className="spacer" />
+        <button className="btn primary" tabIndex={-1} data-testid="brand-preview-export">
+          Exportera
+        </button>
       </div>
       <div className="bp-body">
         <div className="bp-head">

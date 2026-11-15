@@ -51,11 +51,21 @@ projekthanteraren och editorn:
 - **Logotyp** som SVG, PNG, JPEG eller WebP. Den ersätter Klipps märke uppe till vänster och
   används som ikon i webbläsarfliken.
 
+- **Övre sektionen** (raden högst upp med logotypen och exportknappen): egen bakgrundsfärg,
+  textfärg, knappfärg och färg på texten i knapparna. Det som lämnas på *Automatiskt* väljs så att
+  det syns: texten blir svart eller vit mot bakgrunden, och knapparna behåller accentfärgen. Admin
+  varnas om en vald kombination är svår att läsa.
 - **Platta bakom logotypen**: ingen, accentfärg eller vit. Används när logotypen är mörk och
   annars inte skulle synas mot det mörka gränssnittet.
 
 Kundens egna typsnitt får sina riktiga vikter om filen är ett variabelt typsnitt. Annars gör
 webbläsaren fet stil själv.
+
+Uppladdade typsnitt används också **i filmerna**: textmallarna (rubrik, underrubrik, brödtext,
+etikett och undertext) och importerade undertexter sätts i kundens typsnitt, både i
+förhandsvisningen och i exporten. Rubriker använder rubriktypsnittet och övrig text
+texttypsnittet. Finns bara ett uppladdat typsnitt används det till allt. Typsnittet går också att
+välja i textens egenskaper.
 
 En förhandsvisning i admin visar resultatet direkt. Adminsidorna och andra kunder påverkas inte.
 Filerna lagras i projektet och tas bort när de byts ut eller när kundprojektet tas bort.
@@ -63,7 +73,7 @@ Filerna lagras i projektet och tas bort när de byts ut eller när kundprojektet
 ### Kundprofiler i repot
 
 En kundprofil kan sparas som en mapp under `customers/` och läggas in på en server med ett kommando.
-Mappen innehåller `profile.json` (namn, accentfärg, logotyp, platta och typsnitt) och filerna den
+Mappen innehåller `profile.json` (namn, accentfärg, färger för övre sektionen, logotyp, platta och typsnitt) och filerna den
 pekar på. `customers/kid-collective/` är ett exempel:
 
 ```bash
