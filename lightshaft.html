@@ -75,9 +75,39 @@
     background: rgba(12, 13, 16, .82); color: var(--accent); font-weight: 600; z-index: 5; pointer-events: none;
   }
 
-  .transport { display: flex; align-items: center; gap: 12px; }
-  .transport input[type=range] { flex: 1 1 auto; min-width: 0; }
-  .transport .time { font-family: var(--font-mono); font-size: 12px; color: var(--mute); white-space: nowrap; }
+  .time { font-family: var(--font-mono); font-size: 12px; color: var(--mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .row .head .hr { display: flex; align-items: center; gap: 8px; }
+  .kfbtn { width: 18px; height: 18px; padding: 0; border: 0; background: transparent; cursor: pointer; display: grid; place-items: center; }
+  .kfbtn::before { content: ""; width: 8px; height: 8px; transform: rotate(45deg); border: 1.5px solid var(--mute); border-radius: 1px; }
+  .kfbtn:hover::before { border-color: var(--fg); }
+  .kfbtn.anim::before { border-color: var(--accent); }
+  .kfbtn.on::before { background: var(--accent); border-color: var(--accent); }
+
+  .timeline { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .tl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .tl-head .spacer { flex: 1 1 0; }
+  .inline { display: inline-flex; align-items: center; gap: 6px; color: var(--mute); font-size: 12px; }
+  .inline input, .inline select, .field input[type=number] {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; min-width: 0; color: var(--fg);
+  }
+  .inline input[type=number] { width: 64px; }
+  .tl-grid { --lab: 150px; position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  #tlRows { display: flex; flex-direction: column; gap: 4px; }
+  .tl-row { display: grid; grid-template-columns: var(--lab) minmax(0, 1fr); gap: 8px; align-items: center; }
+  .tl-label { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 12px; color: var(--mute); min-width: 0; }
+  .tl-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-x { background: none; border: 0; color: var(--mute); cursor: pointer; padding: 0 4px; font-size: 14px; line-height: 1; }
+  .tl-x:hover { color: var(--danger); }
+  .tl-lane { position: relative; height: 24px; background: var(--panel-2); border-radius: 4px; cursor: col-resize; touch-action: none; }
+  .tl-ruler { background: transparent; border-bottom: 1px solid var(--line); border-radius: 0; height: 20px; }
+  .tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line); padding-left: 3px; font-size: 10px; color: var(--mute); font-family: var(--font-mono); line-height: 18px; pointer-events: none; }
+  .kf { position: absolute; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; transform: rotate(45deg); background: var(--fg); border: 0; padding: 0; border-radius: 2px; cursor: grab; z-index: 2; }
+  .kf.sel { background: var(--accent); box-shadow: 0 0 0 3px rgba(255, 179, 71, .3); }
+  .tl-overlay { position: absolute; top: 0; bottom: 0; left: calc(var(--lab) + 8px); right: 0; pointer-events: none; }
+  .playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--accent); box-shadow: 0 0 8px rgba(255, 179, 71, .6); }
+  @media (max-width: 560px) { .tl-grid { --lab: 92px; } }
+  .field.two { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center; }
+  .field.two input { width: 100%; }
   .hint { color: var(--mute); margin: 0; font-size: 13px; }
   .status { min-height: 1.4em; margin: 0; font-size: 13px; color: var(--mute); }
   .status.err { color: var(--danger); }
@@ -129,7 +159,7 @@
   .bar { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
   .bar > i { display: block; height: 100%; width: 0; background: var(--accent); }
   .note { font-size: 12px; color: var(--mute); margin: 0; }
-  .drop[hidden], .transport[hidden], .bar[hidden], .btn[hidden], .field[hidden] { display: none !important; }
+  .drop[hidden], .bar[hidden], .note[hidden], .btn[hidden], .field[hidden] { display: none !important; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 
@@ -152,11 +182,24 @@
       </div>
       <div class="drop" id="drop" hidden>Drop to load</div>
     </div>
-    <div class="transport" id="transport" hidden>
-      <button class="btn" id="playBtn" type="button" aria-label="Play or pause">Pause</button>
-      <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Seek">
-      <span class="time" id="time">0:00 / 0:00</span>
-    </div>
+    <section class="timeline" id="timeline" aria-label="Timeline">
+      <div class="tl-head">
+        <button class="btn" id="playBtn" type="button">Play</button>
+        <span class="time" id="time">0:00.0 / 0:04.0</span>
+        <label class="inline" id="durWrap" for="dur">Length <input type="number" id="dur" min="1" max="120" step="0.5" value="4"> s</label>
+        <span class="spacer"></span>
+        <label class="inline" for="keyEase"><span id="easeLab">Default easing</span>
+          <select id="keyEase"><option value="linear">Linear</option><option value="in">Ease in</option><option value="out">Ease out</option><option value="inout" selected>Ease in-out</option><option value="hold">Hold</option></select>
+        </label>
+        <button class="btn" id="delKey" type="button" disabled>Delete key</button>
+      </div>
+      <div class="tl-grid" id="tlBody">
+        <div class="tl-row"><div class="tl-label"><span>Time</span></div><div class="tl-lane tl-ruler" id="tlRuler"></div></div>
+        <div id="tlRows"></div>
+        <p class="note" id="tlEmpty">No animation yet. Click the diamond beside a slider to key it at the playhead. Move the playhead, change the value and it keys again.</p>
+        <div class="tl-overlay"><div class="playhead" id="playhead"></div></div>
+      </div>
+    </section>
     <p class="hint">Drop, paste (Ctrl/Cmd+V) or open an image or video. Drag the amber ring to place the light.</p>
     <p class="status" id="status" role="status" aria-live="polite"></p>
   </section>
@@ -193,6 +236,10 @@
     </div>
     <div class="group" id="gFog"><h2>Fog and dispersion</h2></div>
     <div class="group" id="gFilm"><h2>Film</h2></div>
+    <div class="group" id="gMotion">
+      <h2>Motion</h2>
+      <p class="note">Stabilization blends the rays across neighbouring frames to remove flicker. It only acts while a video plays or exports.</p>
+    </div>
     <div class="group">
       <h2>Export</h2>
       <p class="note" id="exportNote">Exports whatever the Output setting shows.</p>
@@ -204,6 +251,15 @@
         <button class="btn primary" id="saveImg" type="button">Save image</button>
         <button class="btn rec" id="recBtn" type="button" hidden>Record video</button>
         <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
+      </div>
+      <div class="group" id="seq" style="gap:10px">
+        <h2>Frame-exact export</h2>
+        <div class="field"><label for="seqFps">Frame rate</label>
+          <select id="seqFps"><option value="24">24 fps</option><option value="25">25 fps</option><option value="30" selected>30 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select>
+        </div>
+        <div class="field two"><label for="seqFrom">From</label><input type="number" id="seqFrom" min="0" step="0.1" value="0"><label for="seqTo">to</label><input type="number" id="seqTo" min="0" step="0.1" value="4"></div>
+        <button class="btn" id="seqBtn" type="button">Export frames (ZIP of PNGs)</button>
+        <p class="note">Renders every frame offline, so none are dropped, whatever your computer speed. Includes keyframes and stabilization. Join them in any editor, or with ffmpeg: <span style="font-family:var(--font-mono)">ffmpeg -framerate 30 -i name_%05d.png out.mp4</span></p>
       </div>
       <button class="btn" id="resetBtn" type="button">Reset settings</button>
     </div>
@@ -255,6 +311,9 @@
       { k: 'grain', l: 'Film grain', min: 0, max: 100, step: 1, v: 18, f: v => Math.round(v) + '%' },
       { k: 'gsize', l: 'Grain size', min: 50, max: 400, step: 5, v: 100, f: v => Math.round(v) + '%' },
     ],
+    gMotion: [
+      { k: 'stab', l: 'Temporal stabilization', min: 0, max: 100, step: 1, v: 35, f: v => Math.round(v) + '%', ends: ['Off', 'Smooth'] },
+    ],
     gLook: [
       { k: 'tintMix', l: 'Ray color strength', min: 0, max: 100, step: 1, v: 55, f: v => Math.round(v) + '%', ends: ['Image colors', 'Ray color'], first: true },
     ],
@@ -269,7 +328,7 @@
     const row = document.createElement('div');
     row.className = 'row';
     const ends = c.ends ? `<div class="ends"><span>${c.ends[0]}</span><span>${c.ends[1]}</span></div>` : '';
-    row.innerHTML = `<div class="head"><label for="s_${c.k}">${c.l}</label><output id="o_${c.k}" for="s_${c.k}"></output></div>
+    row.innerHTML = `<div class="head"><label for="s_${c.k}">${c.l}</label><span class="hr"><button type="button" class="kfbtn" aria-label="Keyframe ${c.l} at the playhead" title="Keyframe at the playhead"></button><output id="o_${c.k}" for="s_${c.k}"></output></span></div>
       <input type="range" id="s_${c.k}" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.v}">${ends}`;
     return row;
   }
@@ -278,7 +337,8 @@
     list.forEach(c => {
       const row = buildSlider(c);
       if (c.first) g.insertBefore(row, g.querySelector('.field')); else g.appendChild(row);
-      refs[c.k] = { c, input: row.querySelector('input'), out: row.querySelector('output') };
+      refs[c.k] = { c, input: row.querySelector('input'), out: row.querySelector('output'), kf: row.querySelector('.kfbtn') };
+      refs[c.k].kf.addEventListener('click', () => toggleKey(c.k));
       refs[c.k].input.addEventListener('input', () => setParam(c.k, parseFloat(refs[c.k].input.value), true));
     });
   });
@@ -290,6 +350,7 @@
   }
   function setParam(k, v, fromInput) {
     P[k] = v;
+    if (tracks[k]) { pausePlayback(); upsertKey(k, curTime(), v); }
     if (!fromInput) refs[k].input.value = v;
     paintSlider(k);
     dirty = true;
@@ -304,6 +365,7 @@
     P.tint = '#ffd9a0'; $('tint').value = P.tint;
     P.samples = 96; $('samples').value = '96';
     P.dmode = 1; $('dmode').value = '1'; P.dinv = true; $('dinv').checked = true; syncDepthUi();
+    Object.keys(tracks).forEach(k => delete tracks[k]); selKey = null; renderTracks();
     updateHandle(); dirty = true;
   });
 
@@ -342,7 +404,7 @@ precision highp float;
 varying vec2 vUv;
 uniform sampler2D uTex, uDepth;
 uniform float uAspect, uAmount, uLen, uThr, uReach, uFall, uSamples, uHalf, uSoft, uConeOn, uTintMix, uMode;
-uniform float uDMode, uDInv, uShowDepth, uOcc, uThick, uLZ, uClear, uFog, uFogScale, uTime, uDisp, uPhase;
+uniform float uDMode, uDInv, uShowDepth, uOcc, uThick, uLZ, uClear, uFog, uFogScale, uTime, uDisp, uPhase, uFrame;
 uniform vec2 uLight, uApex, uAxis;
 uniform vec3 uTint;
 float lum(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
@@ -372,7 +434,7 @@ void main(){
   float dist = length(toL);
   vec2 dir = toL / max(dist, 1e-4);
   float L = min(uLen, dist);                  // rays never run past the light
-  float j = ign(gl_FragCoord.xy);
+  float j = fract(ign(gl_FragCoord.xy) + uFrame * 0.61803);   // jitter moves each frame so stabilization averages it out
   vec3 o = texture2D(uTex, vUv).rgb;
   float dp = depthAt(vUv, o);
   if (uShowDepth > 0.5) { gl_FragColor = vec4(vec3(dp), 1.0); return; }
@@ -443,9 +505,26 @@ void main(){
   float rl = lum(rays);
   vec3 tinted = vec3(rl) * uTint + (rays - vec3(rl)) * min(1.0, uDisp * 2.0);
   rays = mix(rays, tinted, uTintMix);
-  rays = 1.0 - exp(-rays);
-  vec3 res = uMode < 0.5 ? 1.0 - (1.0 - o) * (1.0 - rays) : rays;
-  gl_FragColor = vec4(res, 1.0);
+  gl_FragColor = vec4(1.0 - exp(-rays), 1.0);
+}`;
+  // Pass T: blend this frame's rays with the previous frame's rays
+  const FS_T = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uCur, uHist;
+uniform float uK;
+void main(){ gl_FragColor = vec4(mix(texture2D(uCur, vUv).rgb, texture2D(uHist, vUv).rgb, uK), 1.0); }`;
+  // Pass M: lay the rays over the original (or show them alone)
+  const FS_M = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uTex, uR;
+uniform float uMode, uShowDepth;
+void main(){
+  vec3 r = texture2D(uR, vUv).rgb;
+  if (uShowDepth > 0.5) { gl_FragColor = vec4(r, 1.0); return; }
+  vec3 o = texture2D(uTex, vUv).rgb;
+  gl_FragColor = vec4(uMode < 0.5 ? 1.0 - (1.0 - o) * (1.0 - r) : r, 1.0);
 }`;
   // Pass B: shrink to quarter size, keeping only highlights (source for bloom and halation)
   const FS_B = `
@@ -494,7 +573,8 @@ void main(){
   gl_FragColor = vec4(clamp(res, 0.0, 1.0), 1.0);
 }`;
 
-  let progA, progB, progC, tex, texD, tA, tB;
+  let progA, progB, progC, progT, progM, tex, texD, tA, tB, tR;
+  const tH = [null, null];
   const loc = (pr, n) => (n in pr.u ? pr.u[n] : (pr.u[n] = gl.getUniformLocation(pr.p, n)));
   const f1 = (pr, n, v) => gl.uniform1f(loc(pr, n), v);
   function mkTex() {
@@ -518,7 +598,8 @@ void main(){
   }
   function ensureTargets() {
     if (!gl || !progA) return;
-    [tA, tB].forEach(x => { if (x) { gl.deleteTexture(x.t); gl.deleteFramebuffer(x.f); } });
+    [tA, tB, tR, tH[0], tH[1]].forEach(x => { if (x) { gl.deleteTexture(x.t); gl.deleteFramebuffer(x.f); } });
+    tR = mkTarget(W, H); tH[0] = mkTarget(W, H); tH[1] = mkTarget(W, H);
     tA = mkTarget(W, H);
     tB = mkTarget(Math.max(1, W >> 2), Math.max(1, H >> 2));
   }
@@ -538,7 +619,7 @@ void main(){
       return { p, u: {} };
     };
     try {
-      progA = mkProg(FS); progB = mkProg(FS_B); progC = mkProg(FS_C);
+      progA = mkProg(FS); progB = mkProg(FS_B); progC = mkProg(FS_C); progT = mkProg(FS_T); progM = mkProg(FS_M);
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
@@ -554,7 +635,7 @@ void main(){
 
   const srcDist = s => 0.9 * s / (1 - 0.97 * s);        // slider 0..1 to distance from center, in frame heights
   const srcFromDist = d => d / (0.9 + 0.97 * d);
-  let fogT = 0;
+  let fogT = 0, hIdx = 0, histValid = false, lastDrawT = 0, frameNo = 0, exportingSeq = false;
 
   function draw() {
     if (!gl || !progA || !tA) return;
@@ -568,8 +649,16 @@ void main(){
     const dm = P.dmode === 2 && !depthLoaded ? 0 : P.dmode;
     const A = progA;
 
-    // pass A: rays and composite into an offscreen target
-    gl.bindFramebuffer(gl.FRAMEBUFFER, tA.f);
+    // temporal stabilization only applies while time moves forward in small steps
+    const tNow = curTime();
+    const stepT = tNow - lastDrawT;
+    lastDrawT = tNow;
+    const live = (kind === 'video' && video ? (!video.paused || recording) : imgPlaying) || exportingSeq;
+    const useHist = P.stab > 0 && histValid && live && stepT > 0 && stepT < 0.25;
+    frameNo++;
+
+    // pass A: rays (or depth preview) into an offscreen target
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tR.f);
     gl.viewport(0, 0, W, H);
     gl.useProgram(A.p);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -600,10 +689,35 @@ void main(){
     f1(A, 'uTime', fogT);
     f1(A, 'uDisp', P.disp / 100);
     f1(A, 'uPhase', P.phase / 100);
+    f1(A, 'uFrame', useHist ? frameNo % 64 : 0);
     gl.uniform2f(loc(A, 'uLight'), dx * d, dy * d);
     gl.uniform2f(loc(A, 'uApex'), dx * ap, dy * ap);
     gl.uniform2f(loc(A, 'uAxis'), -dx, -dy);
     gl.uniform3f(loc(A, 'uTint'), tint[0], tint[1], tint[2]);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // pass T: blend with the previous frame's rays
+    const hSrc = tH[hIdx], hDst = tH[1 - hIdx];
+    gl.bindFramebuffer(gl.FRAMEBUFFER, hDst.f);
+    gl.viewport(0, 0, W, H);
+    gl.useProgram(progT.p);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tR.t);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, hSrc.t);
+    gl.uniform1i(loc(progT, 'uCur'), 0);
+    gl.uniform1i(loc(progT, 'uHist'), 1);
+    f1(progT, 'uK', useHist ? 0.85 * P.stab / 100 : 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    hIdx = 1 - hIdx; histValid = true;
+
+    // pass M: composite over the original
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tA.f);
+    gl.useProgram(progM.p);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, hDst.t);
+    gl.uniform1i(loc(progM, 'uTex'), 0);
+    gl.uniform1i(loc(progM, 'uR'), 1);
+    f1(progM, 'uMode', outMode);
+    f1(progM, 'uShowDepth', P.dshow ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     // pass B: highlights at quarter size
@@ -632,7 +746,7 @@ void main(){
     f1(progC, 'uHR', P.halR / 100 * 0.35);
     f1(progC, 'uGrain', off * P.grain / 100);
     f1(progC, 'uCell', Math.max(1, P.gsize / 100 * H / 1080));
-    f1(progC, 'uSeed', kind === 'video' && video ? Math.floor(video.currentTime * 24) : 0);
+    f1(progC, 'uSeed', Math.floor(tNow * 24));
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.activeTexture(gl.TEXTURE0);
   }
@@ -701,11 +815,15 @@ void main(){
     [W, H] = [w, h];
     cv.width = W; cv.height = H;
     ensureTargets();
+    histValid = false; tI = 0; imgPlaying = false;
+    Object.keys(tracks).forEach(k => delete tracks[k]); selKey = null;
+    $('durWrap').hidden = type === 'video';
+    $('seqFrom').value = '0'; $('seqTo').value = duration().toFixed(2);
+    buildRuler(); renderTracks();
     depthLoaded = false;
     if (P.dmode === 2) { P.dmode = 1; $('dmode').value = '1'; syncDepthUi(); }
     if (type === 'image') upload(source);
     $('fileName').textContent = label;
-    $('transport').hidden = type !== 'video';
     $('recBtn').hidden = type !== 'video';
     $('saveImg').textContent = type === 'video' ? 'Save current frame' : 'Save image';
     updateHandle();
@@ -822,33 +940,185 @@ void main(){
     if (files && files.length) { e.preventDefault(); loadFile(files[0]); }
   });
 
-  /* ---------- Transport ---------- */
-  const fmtT = s => { s = Math.max(0, s || 0); return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'); };
-  function updateTransport() {
-    if (!video) return;
-    const dur = video.duration || 0;
-    if (!seeking) $('seek').value = dur ? Math.round(video.currentTime / dur * 1000) : 0;
-    $('seek').style.setProperty('--pct', ($('seek').value / 10) + '%');
-    $('time').textContent = fmtT(video.currentTime) + ' / ' + fmtT(dur);
-    $('playBtn').textContent = video.paused ? 'Play' : 'Pause';
+  /* ---------- Timeline ---------- */
+  const tracks = {};              // param key -> sorted keys [{t, v, e}]
+  let selKey = null;              // {k, key}
+  let defaultEase = 'inout';
+  let tI = 0, imgPlaying = false, tlDur = 4;
+  const EASE = { linear: u => u, in: u => u * u * u, out: u => 1 - Math.pow(1 - u, 3),
+    inout: u => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2, hold: () => 0 };
+  const hasKeys = () => Object.keys(tracks).length > 0;
+  const curTime = () => (kind === 'video' && video ? video.currentTime : tI);
+  const duration = () => (kind === 'video' && video ? (video.duration || 0) : tlDur);
+  const isPlaying = () => (kind === 'video' && video ? !video.paused : imgPlaying);
+  function pausePlayback() { if (kind === 'video' && video) video.pause(); else imgPlaying = false; }
+  const fmtT = s => { s = Math.max(0, s || 0); const m = Math.floor(s / 60); return m + ':' + (s - m * 60).toFixed(1).padStart(4, '0'); };
+
+  function lerpVal(k, a, b, u) {
+    if (k === 'angle') { const d = ((b - a + 540) % 360) - 180; return (a + d * u + 360) % 360; }
+    return a + (b - a) * u;
   }
-  let seeking = false;
-  $('seek').addEventListener('input', e => { if (video && video.duration) { seeking = true; video.currentTime = e.target.value / 1000 * video.duration; } });
-  $('seek').addEventListener('change', () => { seeking = false; });
-  $('playBtn').addEventListener('click', () => { if (!video) return; if (video.paused) video.play().catch(() => {}); else video.pause(); });
+  function evalTrack(k, t) {
+    const arr = tracks[k];
+    if (t <= arr[0].t) return arr[0].v;
+    const last = arr[arr.length - 1];
+    if (t >= last.t) return last.v;
+    let i = 0;
+    while (i < arr.length - 2 && arr[i + 1].t <= t) i++;
+    const a = arr[i], b = arr[i + 1];
+    return lerpVal(k, a.v, b.v, EASE[b.e]((t - a.t) / (b.t - a.t)));
+  }
+  function applyTimeline(t) {
+    const ks = Object.keys(tracks);
+    ks.forEach(k => { P[k] = evalTrack(k, t); paintSlider(k); });
+    if (tracks.angle || tracks.source) updateHandle();
+  }
+  function upsertKey(k, t, v) {
+    const arr = tracks[k] || (tracks[k] = []);
+    const ex = arr.find(x => Math.abs(x.t - t) < 0.02);
+    if (ex) ex.v = v; else { arr.push({ t, v, e: defaultEase }); arr.sort((a, b) => a.t - b.t); }
+    renderTracks();
+  }
+  function toggleKey(k) {
+    const t = curTime(), arr = tracks[k];
+    const ex = arr && arr.find(x => Math.abs(x.t - t) < 0.02);
+    if (ex) {
+      arr.splice(arr.indexOf(ex), 1);
+      if (!arr.length) delete tracks[k];
+      if (selKey && selKey.key === ex) selKey = null;
+      renderTracks();
+    } else upsertKey(k, t, P[k]);
+  }
+  function setTime(t) {
+    const d = duration();
+    t = Math.max(0, Math.min(d, t));
+    if (kind === 'video' && video) video.currentTime = Math.min(t, Math.max(0, d - 0.001)); else tI = t;
+    applyTimeline(t); dirty = true; updateTimelineUI();
+  }
+  function buildRuler() {
+    const r = $('tlRuler'); r.textContent = '';
+    const d = Math.max(duration(), 0.001);
+    const step = d <= 12 ? 1 : d <= 40 ? 5 : d <= 120 ? 10 : 30;
+    for (let t = 0; t < d - 1e-6; t += step) {
+      const sp = document.createElement('span');
+      sp.className = 'tick'; sp.style.left = (t / d * 100) + '%'; sp.textContent = Math.round(t) + 's';
+      r.appendChild(sp);
+    }
+  }
+  function syncEaseSelect() {
+    $('keyEase').value = selKey ? selKey.key.e : defaultEase;
+    $('easeLab').textContent = selKey ? 'Easing into key' : 'Default easing';
+    $('delKey').disabled = !selKey;
+  }
+  function renderTracks() {
+    const rows = $('tlRows'); rows.textContent = '';
+    const ks = Object.keys(tracks);
+    $('tlEmpty').hidden = ks.length > 0;
+    const dur = Math.max(duration(), 0.001);
+    ks.forEach(k => {
+      const row = document.createElement('div'); row.className = 'tl-row';
+      const lab = document.createElement('div'); lab.className = 'tl-label';
+      const sp = document.createElement('span'); sp.textContent = refs[k].c.l.replace(' (grows with distance)', '');
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'tl-x'; x.textContent = '×';
+      x.setAttribute('aria-label', 'Remove animation of ' + sp.textContent);
+      x.addEventListener('click', () => { delete tracks[k]; if (selKey && selKey.k === k) selKey = null; renderTracks(); });
+      lab.append(sp, x);
+      const lane = document.createElement('div'); lane.className = 'tl-lane';
+      tracks[k].forEach(key => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'kf' + (selKey && selKey.key === key ? ' sel' : '');
+        b.style.left = (key.t / dur * 100) + '%';
+        b.setAttribute('aria-label', 'Keyframe at ' + key.t.toFixed(1) + ' seconds');
+        b.addEventListener('pointerdown', e => startKeyDrag(e, k, key, lane, b));
+        lane.appendChild(b);
+      });
+      row.append(lab, lane); rows.appendChild(row);
+    });
+    syncEaseSelect(); markDiamonds(); dirty = true;
+  }
+  function startKeyDrag(e, k, key, lane, btn) {
+    e.preventDefault(); e.stopPropagation();
+    selKey = { k, key }; syncEaseSelect();
+    document.querySelectorAll('.kf.sel').forEach(n => n.classList.remove('sel'));
+    btn.classList.add('sel');
+    btn.setPointerCapture(e.pointerId);
+    const dur = duration();
+    const move = ev => {
+      const r = lane.getBoundingClientRect();
+      key.t = Math.max(0, Math.min(dur, (ev.clientX - r.left) / r.width * dur));
+      btn.style.left = (key.t / dur * 100) + '%';
+      setTime(key.t);
+    };
+    const up = () => {
+      btn.removeEventListener('pointermove', move); btn.removeEventListener('pointerup', up);
+      tracks[k].sort((a, b) => a.t - b.t); renderTracks();
+    };
+    btn.addEventListener('pointermove', move); btn.addEventListener('pointerup', up);
+  }
+  function markDiamonds() {
+    const t = curTime();
+    Object.keys(refs).forEach(k => {
+      const arr = tracks[k];
+      refs[k].kf.classList.toggle('anim', !!arr);
+      refs[k].kf.classList.toggle('on', !!arr && arr.some(x => Math.abs(x.t - t) < 0.02));
+    });
+  }
+  function updateTimelineUI() {
+    const d = duration(), t = curTime();
+    $('playhead').style.left = (d ? Math.min(100, t / d * 100) : 0) + '%';
+    $('time').textContent = fmtT(t) + ' / ' + fmtT(d);
+    $('playBtn').textContent = isPlaying() ? 'Pause' : 'Play';
+    markDiamonds();
+  }
+  // scrubbing on the ruler or any lane
+  let scrubbing = false;
+  const scrubTo = e => { const r = $('tlRuler').getBoundingClientRect(); setTime((e.clientX - r.left) / r.width * duration()); };
+  $('tlBody').addEventListener('pointerdown', e => {
+    if (!e.target.closest('.tl-lane') || e.target.closest('.kf')) return;
+    scrubbing = true; scrubTo(e);
+    if (selKey) { selKey = null; renderTracks(); }
+  });
+  window.addEventListener('pointermove', e => { if (scrubbing) scrubTo(e); });
+  window.addEventListener('pointerup', () => { scrubbing = false; });
+  $('keyEase').addEventListener('change', e => { if (selKey) selKey.key.e = e.target.value; else defaultEase = e.target.value; dirty = true; });
+  const delSel = () => {
+    if (!selKey) return;
+    const arr = tracks[selKey.k]; arr.splice(arr.indexOf(selKey.key), 1);
+    if (!arr.length) delete tracks[selKey.k];
+    selKey = null; renderTracks();
+  };
+  $('delKey').addEventListener('click', delSel);
+  document.addEventListener('keydown', e => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selKey && !/INPUT|SELECT|TEXTAREA/.test((e.target.tagName || ''))) { e.preventDefault(); delSel(); }
+  });
+  $('dur').addEventListener('change', e => {
+    tlDur = Math.max(1, Math.min(120, parseFloat(e.target.value) || 4));
+    e.target.value = tlDur; if (tI > tlDur) tI = tlDur;
+    $('seqTo').value = tlDur.toFixed(2);
+    buildRuler(); renderTracks();
+  });
+  $('playBtn').addEventListener('click', () => {
+    if (kind === 'video' && video) { if (video.paused) video.play().catch(() => {}); else video.pause(); }
+    else { imgPlaying = !imgPlaying; if (imgPlaying && tI >= tlDur) tI = 0; }
+    updateTimelineUI();
+  });
 
   /* ---------- Render loop ---------- */
-  let lastNow = performance.now();
+  let lastNow = performance.now(), lastApplied = -1;
   function frame() {
     requestAnimationFrame(frame);
+    if (exportingSeq) return;
     const now = performance.now(), dt = Math.min(0.1, (now - lastNow) / 1000); lastNow = now;
     if (P.fogSpeed > 0 && P.fog > 0) { fogT += dt * P.fogSpeed / 25; dirty = true; }
+    if (kind === 'image' && imgPlaying) { tI += dt; if (tI >= tlDur) tI = tI % tlDur; if (hasKeys()) dirty = true; }
     if (kind === 'video' && video) {
       const t = video.currentTime;
       if (t !== lastT || recording) dirty = true;
       lastT = t;
-      updateTransport();
     }
+    const tn = curTime();
+    if (tn !== lastApplied) { lastApplied = tn; if (hasKeys()) { applyTimeline(tn); dirty = true; } }
+    updateTimelineUI();
     if (!dirty) return;
     dirty = false;
     if (kind === 'video' && video && video.readyState >= 2) upload(video);
@@ -873,15 +1143,9 @@ void main(){
   const baseName = () => name.replace(/\.[^.]+$/, '').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'lightshaft';
   const suffix = () => outMode === 1 ? 'light-only' : 'light';
 
-  $('saveImg').addEventListener('click', async () => {
-    if (!gl) return;
-    const fmt = $('fmt').value, mime = 'image/' + fmt;
-    const ext = fmt === 'jpeg' ? 'jpg' : fmt;
-    if (P.dshow) { P.dshow = false; $('dshow').checked = false; }
-    if (kind === 'video' && video && video.readyState >= 2) upload(video);
-    draw();
-    let blob;
-    if ($('alpha').checked && outMode === 1 && fmt !== 'jpeg') {
+  async function snapshotBlob(fmt, alpha) {
+    const mime = 'image/' + fmt;
+    if (alpha && outMode === 1 && fmt !== 'jpeg') {
       const w = cv.width, h = cv.height;
       const px = new Uint8Array(w * h * 4);
       gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
@@ -895,12 +1159,116 @@ void main(){
       }
       const c2 = document.createElement('canvas'); c2.width = w; c2.height = h;
       c2.getContext('2d').putImageData(new ImageData(out, w, h), 0, 0);
-      blob = await new Promise(r => c2.toBlob(r, mime, 0.95));
-    } else {
-      blob = await new Promise(r => cv.toBlob(r, mime, 0.95));
+      return new Promise(r => c2.toBlob(r, mime, 0.95));
     }
+    return new Promise(r => cv.toBlob(r, mime, 0.95));
+  }
+  $('saveImg').addEventListener('click', async () => {
+    if (!gl) return;
+    const fmt = $('fmt').value;
+    const ext = fmt === 'jpeg' ? 'jpg' : fmt;
+    if (P.dshow) { P.dshow = false; $('dshow').checked = false; }
+    if (kind === 'video' && video && video.readyState >= 2) upload(video);
+    draw();
+    const blob = await snapshotBlob(fmt, $('alpha').checked);
     if (!blob) { status('The browser could not encode that image.', true); return; }
     saveFile(`${baseName()}-${suffix()}.${ext}`, blob);
+  });
+
+  /* ---- ZIP (stored) writer for frame sequences ---- */
+  const crcTable = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = u8 => { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = crcTable[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zipBuilder() {
+    const parts = [], central = [], enc = new TextEncoder(); let offset = 0;
+    const d = new Date();
+    const dosT = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    const dosD = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    return {
+      async add(name, blob) {
+        const buf = new Uint8Array(await blob.arrayBuffer()), crc = crc32(buf), nm = enc.encode(name);
+        const h = new DataView(new ArrayBuffer(30));
+        h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+        h.setUint16(10, dosT, true); h.setUint16(12, dosD, true); h.setUint32(14, crc, true);
+        h.setUint32(18, buf.length, true); h.setUint32(22, buf.length, true); h.setUint16(26, nm.length, true); h.setUint16(28, 0, true);
+        parts.push(h.buffer, nm, blob);
+        central.push({ nm, crc, size: buf.length, offset });
+        offset += 30 + nm.length + buf.length;
+      },
+      finish() {
+        const cd = []; let cdSize = 0;
+        for (const e of central) {
+          const c = new DataView(new ArrayBuffer(46));
+          c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+          c.setUint16(10, 0, true); c.setUint16(12, dosT, true); c.setUint16(14, dosD, true); c.setUint32(16, e.crc, true);
+          c.setUint32(20, e.size, true); c.setUint32(24, e.size, true); c.setUint16(28, e.nm.length, true);
+          c.setUint32(42, e.offset, true);
+          cd.push(c.buffer, e.nm); cdSize += 46 + e.nm.length;
+        }
+        const end = new DataView(new ArrayBuffer(22));
+        end.setUint32(0, 0x06054b50, true); end.setUint16(8, central.length, true); end.setUint16(10, central.length, true);
+        end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+        return new Blob([...parts, ...cd, end.buffer], { type: 'application/zip' });
+      },
+    };
+  }
+
+  /* ---- Frame-exact sequence export ---- */
+  let cancelSeq = false, seqError = false;
+  function seekVideo(t) {
+    return new Promise(res => {
+      if (Math.abs(video.currentTime - t) < 0.0005) { res(); return; }
+      const done = () => { video.removeEventListener('seeked', done); res(); };
+      video.addEventListener('seeked', done);
+      video.currentTime = t;
+      setTimeout(done, 2000);
+    });
+  }
+  $('seqBtn').addEventListener('click', async () => {
+    const btn = $('seqBtn');
+    if (exportingSeq) { cancelSeq = true; return; }
+    if (!gl) return;
+    const fps = parseInt($('seqFps').value, 10);
+    const dur = duration();
+    let from = Math.max(0, parseFloat($('seqFrom').value) || 0);
+    let to = Math.min(dur, parseFloat($('seqTo').value) || dur);
+    if (to <= from) { status('"To" must be later than "From".', true); return; }
+    if (kind === 'image' && !hasKeys()) { status('A still image has nothing to animate yet. Add keyframes first, or use Save image.', true); return; }
+    const total = Math.max(1, Math.round((to - from) * fps));
+    if (total > 5000) { status('That is ' + total + ' frames. Choose a shorter range or a lower frame rate (limit 5000).', true); return; }
+    if (P.dshow) { P.dshow = false; $('dshow').checked = false; }
+    const fmtAlpha = $('alpha').checked;
+    const resume = { t: curTime(), playing: isPlaying() };
+    pausePlayback();
+    exportingSeq = true; cancelSeq = false; seqError = false; histValid = false; lastDrawT = from - 1;
+    btn.textContent = 'Cancel export'; $('saveImg').disabled = true; $('recBtn').disabled = true;
+    $('barWrap').hidden = false;
+    const zip = zipBuilder(), base = baseName();
+    let done = 0;
+    try {
+      for (let i = 0; i < total && !cancelSeq; i++) {
+        const t = Math.min(dur, from + i / fps);
+        if (kind === 'video') { await seekVideo(Math.min(t, Math.max(0, dur - 0.001))); await new Promise(r => requestAnimationFrame(r)); if (video.readyState >= 2) upload(video); }
+        else tI = t;
+        applyTimeline(t);
+        fogT = t * (P.fogSpeed / 25);
+        draw();
+        const blob = await snapshotBlob('png', fmtAlpha);
+        if (!blob) throw new Error('The browser could not encode a frame.');
+        await zip.add(`${base}_${String(i + 1).padStart(5, '0')}.png`, blob);
+        done = i + 1;
+        $('bar').style.width = (done / total * 100) + '%';
+        status(`Rendering frame ${done} of ${total}`);
+        if (i % 4 === 3) await new Promise(r => setTimeout(r, 0));
+      }
+    } catch (e) { status(e.message || 'Export failed.', true); cancelSeq = true; seqError = true; }
+    exportingSeq = false; histValid = false;
+    btn.textContent = 'Export frames (ZIP of PNGs)'; $('saveImg').disabled = false; $('recBtn').disabled = false;
+    $('barWrap').hidden = true; $('bar').style.width = '0';
+    if (kind === 'video' && video) { await seekVideo(resume.t); if (resume.playing) video.play().catch(() => {}); } else { tI = resume.t; imgPlaying = resume.playing; }
+    lastApplied = -1; dirty = true;
+    if (cancelSeq) { if (!seqError) status('Export cancelled.'); return; }
+    status(`Rendered ${done} frames. Choose where to save the ZIP.`);
+    saveFile(`${base}-frames-${fps}fps.zip`, zip.finish());
   });
 
   let cancelRec = false;
@@ -974,6 +1342,6 @@ void main(){
   /* ---------- Boot ---------- */
   loadSample();
   requestAnimationFrame(frame);
-  window.__lightshaft = { P, setParam, setOut, draw };
+  window.__lightshaft = { P, setParam, setOut, draw, tracks, upsertKey, setTime, curTime };
 })();
 </script>
