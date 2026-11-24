@@ -129,7 +129,7 @@
   .bar { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
   .bar > i { display: block; height: 100%; width: 0; background: var(--accent); }
   .note { font-size: 12px; color: var(--mute); margin: 0; }
-  .drop[hidden], .transport[hidden], .bar[hidden], .btn[hidden] { display: none !important; }
+  .drop[hidden], .transport[hidden], .bar[hidden], .btn[hidden], .field[hidden] { display: none !important; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 
@@ -178,6 +178,21 @@
         <select id="samples"><option value="48">Draft (48 steps)</option><option value="96" selected>Good (96 steps)</option><option value="160">Best (160 steps)</option></select>
       </div>
     </div>
+    <div class="group" id="gDepth">
+      <h2>Depth and shadows</h2>
+      <p class="note">Objects in front cast shadow shafts and keep clear of rays. Auto estimate treats dark and low areas as near. For exact results, load a depth map.</p>
+      <div class="field"><label for="dmode">Depth source</label>
+        <select id="dmode"><option value="0">Off</option><option value="1" selected>Auto estimate</option><option value="2">Depth map file</option></select>
+      </div>
+      <div class="field" id="dmapRow" hidden>
+        <label class="btn" for="dmapIn">Load depth map…</label>
+        <input class="visually-hidden" type="file" id="dmapIn" accept="image/*">
+      </div>
+      <label class="check" id="dinvWrap" hidden><input type="checkbox" id="dinv" checked> White is near (Depth Anything, MiDaS)</label>
+      <label class="check"><input type="checkbox" id="dshow"> Preview depth</label>
+    </div>
+    <div class="group" id="gFog"><h2>Fog and dispersion</h2></div>
+    <div class="group" id="gFilm"><h2>Film</h2></div>
     <div class="group">
       <h2>Export</h2>
       <p class="note" id="exportNote">Exports whatever the Output setting shows.</p>
@@ -212,11 +227,33 @@
         f: v => v < 2 ? 'Center' : v > 98 ? 'Far away' : Math.round(v) + '%', ends: ['Center: rays go out everywhere', 'Far: parallel rays'] },
       { k: 'spread', l: 'Cone spread', min: 5, max: 360, step: 1, v: 140, f: v => v >= 359 ? 'Full circle' : Math.round(v) + '°', ends: ['Narrow', 'Full circle'] },
       { k: 'soft', l: 'Cone edge softness (grows with distance)', min: 0, max: 90, step: 1, v: 40, f: v => Math.round(v) + '°' },
+      { k: 'phase', l: 'Scatter toward viewer', min: -90, max: 90, step: 1, v: 30, f: v => (v > 0 ? '+' : '') + Math.round(v), ends: ['Back scatter', 'Glows when facing the light'] },
     ],
     gPixels: [
       { k: 'thr', l: 'Threshold', min: 0, max: 100, step: 1, v: 66, f: v => Math.round(v) + '%', ends: ['Everything', 'Only the brightest'] },
       { k: 'reach', l: 'Reach by brightness', min: 0, max: 100, step: 1, v: 60, f: v => Math.round(v) + '%', ends: ['Same reach', 'Brighter reaches further'] },
       { k: 'fall', l: 'Fade with distance', min: 0.2, max: 4, step: 0.05, v: 1.5, f: v => v.toFixed(2), ends: ['Hard edge', 'Quick fade'] },
+    ],
+    gDepth: [
+      { k: 'occ', l: 'Shadow strength', min: 0, max: 100, step: 1, v: 70, f: v => Math.round(v) + '%' },
+      { k: 'thick', l: 'Occluder thickness', min: 2, max: 100, step: 1, v: 35, f: v => Math.round(v) + '%', ends: ['Thin', 'Thick'] },
+      { k: 'lightZ', l: 'Light depth', min: 0, max: 100, step: 1, v: 100, f: v => Math.round(v) + '%', ends: ['Near', 'Far behind scene'] },
+      { k: 'clear', l: 'Clear the foreground', min: 0, max: 100, step: 1, v: 40, f: v => Math.round(v) + '%', ends: ['Rays everywhere', 'None on near objects'] },
+    ],
+    gFog: [
+      { k: 'fog', l: 'Fog amount', min: 0, max: 100, step: 1, v: 35, f: v => Math.round(v) + '%' },
+      { k: 'fogScale', l: 'Fog scale', min: 1, max: 30, step: 0.5, v: 8, f: v => v.toFixed(1), ends: ['Broad shafts', 'Fine shafts'] },
+      { k: 'fogSpeed', l: 'Fog drift', min: 0, max: 100, step: 1, v: 0, f: v => v < 1 ? 'Still' : Math.round(v) + '%', ends: ['Still', 'Fast'] },
+      { k: 'disp', l: 'Dispersion', min: 0, max: 100, step: 1, v: 25, f: v => Math.round(v) + '%', ends: ['None', 'Rainbow edges'] },
+    ],
+    gFilm: [
+      { k: 'bloom', l: 'Bloom', min: 0, max: 100, step: 1, v: 30, f: v => Math.round(v) + '%' },
+      { k: 'bloomR', l: 'Bloom radius', min: 1, max: 100, step: 1, v: 30, f: v => Math.round(v) + '%' },
+      { k: 'hal', l: 'Halation', min: 0, max: 100, step: 1, v: 35, f: v => Math.round(v) + '%' },
+      { k: 'halR', l: 'Halation radius', min: 1, max: 100, step: 1, v: 55, f: v => Math.round(v) + '%' },
+      { k: 'pthr', l: 'Highlight threshold', min: 0, max: 100, step: 1, v: 60, f: v => Math.round(v) + '%', ends: ['Everything glows', 'Only highlights'] },
+      { k: 'grain', l: 'Film grain', min: 0, max: 100, step: 1, v: 18, f: v => Math.round(v) + '%' },
+      { k: 'gsize', l: 'Grain size', min: 50, max: 400, step: 5, v: 100, f: v => Math.round(v) + '%' },
     ],
     gLook: [
       { k: 'tintMix', l: 'Ray color strength', min: 0, max: 100, step: 1, v: 55, f: v => Math.round(v) + '%', ends: ['Image colors', 'Ray color'], first: true },
@@ -225,7 +262,8 @@
   const P = {};
   const refs = {};
   Object.values(CONTROLS).flat().forEach(c => { P[c.k] = c.v; });
-  P.tint = '#ffd9a0'; P.samples = 96;
+  P.tint = '#ffd9a0'; P.samples = 96; P.dmode = 1; P.dinv = true; P.dshow = false;
+  let depthLoaded = false;
 
   function buildSlider(c) {
     const row = document.createElement('div');
@@ -265,8 +303,21 @@
     Object.values(refs).forEach(r => { P[r.c.k] = r.c.v; paintSlider(r.c.k); });
     P.tint = '#ffd9a0'; $('tint').value = P.tint;
     P.samples = 96; $('samples').value = '96';
+    P.dmode = 1; $('dmode').value = '1'; P.dinv = true; $('dinv').checked = true; syncDepthUi();
     updateHandle(); dirty = true;
   });
+
+  function syncDepthUi() {
+    $('dmapRow').hidden = P.dmode !== 2;
+    $('dinvWrap').hidden = P.dmode !== 2;
+  }
+  $('dmode').addEventListener('change', e => {
+    P.dmode = parseInt(e.target.value, 10); syncDepthUi();
+    if (P.dmode === 2 && !depthLoaded) status('Load a depth map image to use it. Until then depth is off.');
+    dirty = true;
+  });
+  $('dinv').addEventListener('change', e => { P.dinv = e.target.checked; dirty = true; });
+  $('dshow').addEventListener('change', e => { P.dshow = e.target.checked; dirty = true; });
 
   let outMode = 0; // 0 light + original, 1 light only
   function setOut(m) {
@@ -289,12 +340,31 @@
   const FS = `
 precision highp float;
 varying vec2 vUv;
-uniform sampler2D uTex;
+uniform sampler2D uTex, uDepth;
 uniform float uAspect, uAmount, uLen, uThr, uReach, uFall, uSamples, uHalf, uSoft, uConeOn, uTintMix, uMode;
+uniform float uDMode, uDInv, uShowDepth, uOcc, uThick, uLZ, uClear, uFog, uFogScale, uTime, uDisp, uPhase;
 uniform vec2 uLight, uApex, uAxis;
 uniform vec3 uTint;
 float lum(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+float hash21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p){
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 3; i++) { v += a * vnoise(p); p = p * 2.03 + 17.1; a *= 0.5; }
+  return v / 0.875;
+}
+// 0 = near, 1 = far
+float depthAt(vec2 uv, vec3 c){
+  if (uDMode > 1.5) { float t = texture2D(uDepth, uv).r; return mix(t, 1.0 - t, uDInv); }
+  float l = lum(c);
+  return clamp(1.0 - 0.75 * (1.0 - smoothstep(0.12, 0.6, l)) - 0.25 * (1.0 - uv.y), 0.0, 1.0);
+}
+float hg(float c, float g){ return (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * c, 1e-3), 1.5); }
 void main(){
   vec2 sc = vec2(uAspect, 1.0);
   vec2 ap = (vUv - 0.5) * sc;                 // aspect-corrected position, y up
@@ -303,22 +373,67 @@ void main(){
   vec2 dir = toL / max(dist, 1e-4);
   float L = min(uLen, dist);                  // rays never run past the light
   float j = ign(gl_FragCoord.xy);
+  vec3 o = texture2D(uTex, vUv).rgb;
+  float dp = depthAt(vUv, o);
+  if (uShowDepth > 0.5) { gl_FragColor = vec4(vec3(dp), 1.0); return; }
+
+  float fogA = 1.0;
+  vec2 q = vec2(0.0);
+  if (uFog > 0.0) {                           // shaft pattern is constant along each ray
+    vec2 vv = ap - uLight;
+    vec2 ud = vv / max(length(vv), 1e-4);
+    float cr = uAxis.x * vv.y - uAxis.y * vv.x;
+    float wLat = clamp(length(uLight) - 1.0, 0.0, 1.0);   // far lights: lateral stripes instead of angles
+    q = (ud * (1.0 - wLat) + vec2(cr, 0.0) * wLat) * uFogScale + vec2(uTime * 0.30, uTime * 0.17);
+    fogA = fbm(q);
+  }
+
+  float T = 1.0;                              // transmittance along the ray
   vec3 acc = vec3(0.0);
   for (int i = 0; i < 160; i++) {
     if (float(i) >= uSamples) break;
     float s = (float(i) + j) / uSamples;      // 0 = this pixel, 1 = end of the ray
-    vec2 suv = (ap + dir * (L * s)) / sc + 0.5;
+    float pl = L * s;
+    vec2 sp = ap + dir * pl;
+    vec2 suv = sp / sc + 0.5;
     if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) continue;
-    vec3 c = texture2D(uTex, suv).rgb;
+    vec3 c;
+    if (uDisp > 0.0) {                        // red and blue are gathered from opposite sides of the ray
+      vec2 off = vec2(-dir.y, dir.x) * (uDisp * 0.08 * pl);
+      c = vec3(texture2D(uTex, (sp + off) / sc + 0.5).r, texture2D(uTex, suv).g, texture2D(uTex, (sp - off) / sc + 0.5).b);
+    } else {
+      c = texture2D(uTex, suv).rgb;
+    }
     float l = lum(c);
     float gate = smoothstep(uThr, uThr + 0.08, l);
-    if (gate <= 0.0) continue;
-    float bn = clamp((l - uThr) / max(1.0 - uThr, 0.05), 0.0, 1.0);
-    float reach = mix(1.0, max(bn, 0.05), uReach);   // brighter pixels throw light further
-    float f = clamp(1.0 - s / reach, 0.0, 1.0);
-    acc += c * gate * pow(f, uFall);
+    if (gate > 0.0) {
+      float bn = clamp((l - uThr) / max(1.0 - uThr, 0.05), 0.0, 1.0);
+      float reach = mix(1.0, max(bn, 0.05), uReach);   // brighter pixels throw light further
+      float f = clamp(1.0 - s / reach, 0.0, 1.0);
+      float wgt = pow(f, uFall) * T;
+      if (uFog > 0.0) {
+        float patch = vnoise(q * 0.7 + vec2((dist - pl) * uFogScale * 0.6, uTime * 0.2 + 9.0));
+        float m = smoothstep(0.28, 0.78, fogA * 0.75 + patch * 0.25);
+        wgt *= mix(1.0, m * 1.8, uFog);
+      }
+      acc += c * gate * wgt;
+    }
+    if (uDMode > 0.5) {                       // ray depth runs from this pixel to the light; thin surfaces on it block light
+      float z = mix(dp, uLZ, clamp(pl, 0.0, 1.0));
+      float dz = z - depthAt(suv, c);
+      float occ = smoothstep(0.0, 0.04, dz) * (1.0 - smoothstep(uThick * 0.6, uThick, dz));
+      T *= exp(-occ * uOcc * 60.0 / uSamples);
+    }
   }
   vec3 rays = acc / uSamples * uAmount * 3.0;
+
+  vec3 camP = vec3(0.0, 0.0, -1.4);           // scattering phase: strongest when you look into the light
+  vec3 pp = vec3(ap, 0.0);
+  vec3 Lp = vec3(uLight, 0.3 + 2.2 * uLZ);
+  float cs = dot(normalize(pp - camP), normalize(Lp - pp));
+  rays *= clamp(hg(cs, uPhase) / hg(0.8, uPhase), 0.0, 4.0);
+
+  if (uDMode > 0.5) rays *= mix(1.0, dp, uClear);
   if (uConeOn > 0.5) {
     vec2 v = ap - uApex;
     float cg = dot(v / max(length(v), 1e-4), uAxis);
@@ -326,75 +441,200 @@ void main(){
     rays *= smoothstep(cos(min(uHalf + softD, 3.14159)), cos(uHalf), cg);
   }
   float rl = lum(rays);
-  rays = mix(rays, vec3(rl) * uTint, uTintMix);
+  vec3 tinted = vec3(rl) * uTint + (rays - vec3(rl)) * min(1.0, uDisp * 2.0);
+  rays = mix(rays, tinted, uTintMix);
   rays = 1.0 - exp(-rays);
-  vec3 o = texture2D(uTex, vUv).rgb;
   vec3 res = uMode < 0.5 ? 1.0 - (1.0 - o) * (1.0 - rays) : rays;
   gl_FragColor = vec4(res, 1.0);
 }`;
-  let prog, U = {}, tex;
+  // Pass B: shrink to quarter size, keeping only highlights (source for bloom and halation)
+  const FS_B = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uSrc;
+uniform vec2 uTexel;
+uniform float uThr;
+vec3 hl(vec2 uv){ vec3 c = texture2D(uSrc, uv).rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); return c * smoothstep(uThr, uThr + 0.3, l); }
+void main(){
+  vec3 a = hl(vUv + uTexel * vec2(-1.0, -1.0)) + hl(vUv + uTexel * vec2(1.0, -1.0)) + hl(vUv + uTexel * vec2(-1.0, 1.0)) + hl(vUv + uTexel * vec2(1.0, 1.0));
+  gl_FragColor = vec4(a * 0.25, 1.0);
+}`;
+  // Pass C: bloom, red halation and grain on top of the lit image
+  const FS_C = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uA, uB;
+uniform float uAspect, uBloom, uBR, uHal, uHR, uGrain, uCell, uSeed;
+float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+vec3 blur(float r, float rot){
+  vec3 acc = vec3(0.0);
+  for (int i = 0; i < 20; i++) {
+    float fi = float(i);
+    float rr = sqrt((fi + 0.5) / 20.0) * r;
+    float a = fi * 2.39996 + rot;
+    acc += texture2D(uB, vUv + vec2(cos(a), sin(a)) * rr * vec2(1.0 / uAspect, 1.0)).rgb;
+  }
+  return acc / 20.0;
+}
+void main(){
+  vec3 base = texture2D(uA, vUv).rgb;
+  float rot = hash(gl_FragCoord.xy) * 6.2831;
+  vec3 add = vec3(0.0);
+  if (uBloom > 0.0) add += blur(uBR, rot) * uBloom * 1.6;
+  if (uHal > 0.0) add += blur(uHR, rot + 1.7) * vec3(1.0, 0.32, 0.12) * uHal * 2.0;
+  vec3 res = 1.0 - (1.0 - base) * (1.0 - clamp(add, 0.0, 1.0));
+  if (uGrain > 0.0) {
+    vec2 gp = floor(gl_FragCoord.xy / uCell);
+    float n = hash(gp + uSeed * 17.13) + hash(gp * 1.37 + uSeed * 7.7 + 3.1) + hash(gp * 0.71 + uSeed * 3.3 + 8.4) - 1.5;
+    vec3 chroma = vec3(hash(gp + 5.0 + uSeed), hash(gp + 9.0 + uSeed), hash(gp + 13.0 + uSeed)) - 0.5;
+    float l = dot(res, vec3(0.2126, 0.7152, 0.0722));
+    float m = 0.25 + 0.75 * 4.0 * l * (1.0 - l);        // grain shows most in the midtones
+    res += (vec3(n) + chroma * 0.5) * uGrain * 0.3 * m;
+  }
+  gl_FragColor = vec4(clamp(res, 0.0, 1.0), 1.0);
+}`;
+
+  let progA, progB, progC, tex, texD, tA, tB;
+  const loc = (pr, n) => (n in pr.u ? pr.u[n] : (pr.u[n] = gl.getUniformLocation(pr.p, n)));
+  const f1 = (pr, n, v) => gl.uniform1f(loc(pr, n), v);
+  function mkTex() {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  function mkTarget(w, h) {
+    gl.activeTexture(gl.TEXTURE0);
+    const t = mkTex();
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const f = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { t, f, w, h };
+  }
+  function ensureTargets() {
+    if (!gl || !progA) return;
+    [tA, tB].forEach(x => { if (x) { gl.deleteTexture(x.t); gl.deleteFramebuffer(x.f); } });
+    tA = mkTarget(W, H);
+    tB = mkTarget(Math.max(1, W >> 2), Math.max(1, H >> 2));
+  }
   if (gl) {
     const sh = (type, src) => {
       const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
       if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
       return s;
     };
+    const mkProg = (fs) => {
+      const p = gl.createProgram();
+      gl.attachShader(p, sh(gl.VERTEX_SHADER, VS));
+      gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+      gl.bindAttribLocation(p, 0, 'aPos');
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+      return { p, u: {} };
+    };
     try {
-      prog = gl.createProgram();
-      gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
-      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
-      gl.linkProgram(prog);
-      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
-      gl.useProgram(prog);
+      progA = mkProg(FS); progB = mkProg(FS_B); progC = mkProg(FS_C);
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-      const loc = gl.getAttribLocation(prog, 'aPos');
-      gl.enableVertexAttribArray(loc);
-      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-      ['uTex', 'uAspect', 'uAmount', 'uLen', 'uThr', 'uReach', 'uFall', 'uSamples', 'uHalf', 'uSoft', 'uConeOn',
-        'uTintMix', 'uMode', 'uLight', 'uApex', 'uAxis', 'uTint'].forEach(n => { U[n] = gl.getUniformLocation(prog, n); });
-      tex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.activeTexture(gl.TEXTURE0); tex = mkTex();
+      gl.activeTexture(gl.TEXTURE1); texD = mkTex();
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([128, 128, 128, 255]));
+      gl.activeTexture(gl.TEXTURE0);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    } catch (e) { status('Shader error: ' + e.message, true); }
+    } catch (e) { progA = null; status('Shader error: ' + e.message, true); }
   }
 
   const srcDist = s => 0.9 * s / (1 - 0.97 * s);        // slider 0..1 to distance from center, in frame heights
   const srcFromDist = d => d / (0.9 + 0.97 * d);
+  let fogT = 0;
 
   function draw() {
-    if (!gl || !prog) return;
-    const aspect = cv.width / cv.height;
+    if (!gl || !progA || !tA) return;
+    const aspect = W / H;
     const th = P.angle * Math.PI / 180;
     const dx = Math.cos(th), dy = Math.sin(th);
     const d = srcDist(P.source / 100);
     const ap = Math.min(d, 0.9);
     const hx = P.tint.replace('#', '');
     const tint = [0, 2, 4].map(i => parseInt(hx.substr(i, 2), 16) / 255);
-    gl.viewport(0, 0, cv.width, cv.height);
-    gl.uniform1i(U.uTex, 0);
-    gl.uniform1f(U.uAspect, aspect);
-    gl.uniform1f(U.uAmount, P.amount);
-    gl.uniform1f(U.uLen, P.length / 100);
-    gl.uniform1f(U.uThr, P.thr / 100);
-    gl.uniform1f(U.uReach, P.reach / 100);
-    gl.uniform1f(U.uFall, P.fall);
-    gl.uniform1f(U.uSamples, P.samples);
-    gl.uniform1f(U.uHalf, P.spread * Math.PI / 360);
-    gl.uniform1f(U.uSoft, Math.max(P.soft, 0.6) * Math.PI / 180);
-    gl.uniform1f(U.uConeOn, P.spread < 359 ? 1 : 0);
-    gl.uniform1f(U.uTintMix, P.tintMix / 100);
-    gl.uniform1f(U.uMode, outMode);
-    gl.uniform2f(U.uLight, dx * d, dy * d);
-    gl.uniform2f(U.uApex, dx * ap, dy * ap);
-    gl.uniform2f(U.uAxis, -dx, -dy);
-    gl.uniform3f(U.uTint, tint[0], tint[1], tint[2]);
+    const dm = P.dmode === 2 && !depthLoaded ? 0 : P.dmode;
+    const A = progA;
+
+    // pass A: rays and composite into an offscreen target
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tA.f);
+    gl.viewport(0, 0, W, H);
+    gl.useProgram(A.p);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texD);
+    gl.uniform1i(loc(A, 'uTex'), 0);
+    gl.uniform1i(loc(A, 'uDepth'), 1);
+    f1(A, 'uAspect', aspect);
+    f1(A, 'uAmount', P.amount);
+    f1(A, 'uLen', P.length / 100);
+    f1(A, 'uThr', P.thr / 100);
+    f1(A, 'uReach', P.reach / 100);
+    f1(A, 'uFall', P.fall);
+    f1(A, 'uSamples', P.samples);
+    f1(A, 'uHalf', P.spread * Math.PI / 360);
+    f1(A, 'uSoft', Math.max(P.soft, 0.6) * Math.PI / 180);
+    f1(A, 'uConeOn', P.spread < 359 ? 1 : 0);
+    f1(A, 'uTintMix', P.tintMix / 100);
+    f1(A, 'uMode', outMode);
+    f1(A, 'uDMode', dm);
+    f1(A, 'uDInv', P.dinv ? 1 : 0);
+    f1(A, 'uShowDepth', P.dshow ? 1 : 0);
+    f1(A, 'uOcc', P.occ / 100);
+    f1(A, 'uThick', P.thick / 100);
+    f1(A, 'uLZ', P.lightZ / 100);
+    f1(A, 'uClear', P.clear / 100);
+    f1(A, 'uFog', P.fog / 100);
+    f1(A, 'uFogScale', P.fogScale);
+    f1(A, 'uTime', fogT);
+    f1(A, 'uDisp', P.disp / 100);
+    f1(A, 'uPhase', P.phase / 100);
+    gl.uniform2f(loc(A, 'uLight'), dx * d, dy * d);
+    gl.uniform2f(loc(A, 'uApex'), dx * ap, dy * ap);
+    gl.uniform2f(loc(A, 'uAxis'), -dx, -dy);
+    gl.uniform3f(loc(A, 'uTint'), tint[0], tint[1], tint[2]);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // pass B: highlights at quarter size
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tB.f);
+    gl.viewport(0, 0, tB.w, tB.h);
+    gl.useProgram(progB.p);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tA.t);
+    gl.uniform1i(loc(progB, 'uSrc'), 0);
+    gl.uniform2f(loc(progB, 'uTexel'), 1 / W, 1 / H);
+    f1(progB, 'uThr', P.pthr / 100);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // pass C: film look to the screen
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, W, H);
+    gl.useProgram(progC.p);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tA.t);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, tB.t);
+    gl.uniform1i(loc(progC, 'uA'), 0);
+    gl.uniform1i(loc(progC, 'uB'), 1);
+    const off = P.dshow ? 0 : 1;
+    f1(progC, 'uAspect', aspect);
+    f1(progC, 'uBloom', off * P.bloom / 100);
+    f1(progC, 'uBR', P.bloomR / 100 * 0.25);
+    f1(progC, 'uHal', off * P.hal / 100);
+    f1(progC, 'uHR', P.halR / 100 * 0.35);
+    f1(progC, 'uGrain', off * P.grain / 100);
+    f1(progC, 'uCell', Math.max(1, P.gsize / 100 * H / 1080));
+    f1(progC, 'uSeed', kind === 'video' && video ? Math.floor(video.currentTime * 24) : 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.activeTexture(gl.TEXTURE0);
   }
 
   /* ---------- Handle ---------- */
@@ -446,6 +686,7 @@ void main(){
   }
   function upload(src) {
     if (!gl) return;
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
   }
@@ -459,6 +700,9 @@ void main(){
     name = label;
     [W, H] = [w, h];
     cv.width = W; cv.height = H;
+    ensureTargets();
+    depthLoaded = false;
+    if (P.dmode === 2) { P.dmode = 1; $('dmode').value = '1'; syncDepthUi(); }
     if (type === 'image') upload(source);
     $('fileName').textContent = label;
     $('transport').hidden = type !== 'video';
@@ -541,6 +785,24 @@ void main(){
       }
     } catch (e) { status(e.message || 'Could not load that file.', true); }
   }
+  async function loadDepth(file) {
+    if (!file || !gl) return;
+    try {
+      const url = URL.createObjectURL(file);
+      const img = new Image(); img.src = url; await img.decode();
+      const [w, h] = fit(img.naturalWidth, img.naturalHeight, 4096);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, texD);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+      gl.activeTexture(gl.TEXTURE0);
+      depthLoaded = true; dirty = true;
+      status('Depth map loaded: ' + file.name + (Math.abs(w / h - W / H) > 0.02 ? ' (its shape differs from the image, so it will be stretched)' : ''));
+    } catch (e) { status('Could not read that depth map.', true); }
+  }
+  $('dmapIn').addEventListener('change', e => { loadDepth(e.target.files[0]); e.target.value = ''; });
   $('fileIn').addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = ''; });
   $('sampleBtn').addEventListener('click', loadSample);
 
@@ -576,8 +838,11 @@ void main(){
   $('playBtn').addEventListener('click', () => { if (!video) return; if (video.paused) video.play().catch(() => {}); else video.pause(); });
 
   /* ---------- Render loop ---------- */
+  let lastNow = performance.now();
   function frame() {
     requestAnimationFrame(frame);
+    const now = performance.now(), dt = Math.min(0.1, (now - lastNow) / 1000); lastNow = now;
+    if (P.fogSpeed > 0 && P.fog > 0) { fogT += dt * P.fogSpeed / 25; dirty = true; }
     if (kind === 'video' && video) {
       const t = video.currentTime;
       if (t !== lastT || recording) dirty = true;
@@ -612,6 +877,7 @@ void main(){
     if (!gl) return;
     const fmt = $('fmt').value, mime = 'image/' + fmt;
     const ext = fmt === 'jpeg' ? 'jpg' : fmt;
+    if (P.dshow) { P.dshow = false; $('dshow').checked = false; }
     if (kind === 'video' && video && video.readyState >= 2) upload(video);
     draw();
     let blob;
@@ -648,6 +914,7 @@ void main(){
     const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
 
     const btn = $('recBtn');
+    if (P.dshow) { P.dshow = false; $('dshow').checked = false; }
     video.pause();
     video.currentTime = 0;
     await new Promise(r => { const f = () => { video.removeEventListener('seeked', f); r(); }; video.addEventListener('seeked', f); setTimeout(r, 800); });
