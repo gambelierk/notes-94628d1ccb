@@ -383,11 +383,11 @@
         blob = await F.exportMP4(Object.assign({ width: W, height: H, fps: state.fps, codec: fmt, bitrate: Math.round((+$('expBitrate').value || 40) * 1e6) }, common));
         name = stamp + (fmt === 'vp9' ? '_vp9' : '') + '.mp4';
       }
-      if (blob) { F.download(blob, name); $('expMsg').textContent = 'Klar: ' + name + ' (' + (blob.size / 1048576).toFixed(1) + ' MB)'; }
+      if (blob) { await F.download(blob, name); $('expMsg').textContent = 'Klar: ' + name + ' (' + (blob.size / 1048576).toFixed(1) + ' MB)'; }
       else $('expMsg').textContent = 'Exporten avbröts.';
     } catch (e) {
       console.error(e);
-      $('expMsg').textContent = 'Exportfel: ' + e.message;
+      $('expMsg').textContent = e && e.code === 'declined' ? 'Sparandet avbröts.' : 'Exportfel: ' + (e.message || e.code);
     }
     $('exportBtn').disabled = false; $('expBar').hidden = true; $('expCancel').hidden = true;
     r.gl.getExtension('WEBGL_lose_context') && r.gl.getExtension('WEBGL_lose_context').loseContext();
@@ -443,20 +443,25 @@
       if (v.startsWith('b:')) applyParams(PRESETS[v.slice(2)], true);
       else if (v.startsWith('u:')) applyParams(userPresets()[v.slice(2)] || {}, false);
     });
-    $('presetSave').addEventListener('click', () => {
-      const name = (prompt('Namn på preset:') || '').trim();
+    const savePreset = () => {
+      const inp = $('presetName');
+      if (inp.hidden) { inp.hidden = false; inp.focus(); return; }
+      const name = inp.value.trim();
+      inp.hidden = true; inp.value = '';
       if (!name) return;
       const all = userPresets(); all[name] = Object.assign({}, P);
       try { localStorage.setItem(USER_KEY, JSON.stringify(all)); } catch (e) { /* ignore */ }
       refreshPresetList('u:' + name);
-    });
+    };
+    $('presetSave').addEventListener('click', savePreset);
+    $('presetName').addEventListener('keydown', (e) => { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') { $('presetName').hidden = true; } });
     $('presetDel').addEventListener('click', () => {
       const v = $('preset').value; if (!v.startsWith('u:')) return;
       const all = userPresets(); delete all[v.slice(2)];
       try { localStorage.setItem(USER_KEY, JSON.stringify(all)); } catch (e) { /* ignore */ }
       refreshPresetList('');
     });
-    $('jsonSave').addEventListener('click', () => F.download(new Blob([JSON.stringify({ app: 'lens-flare', version: 1, params: P }, null, 2)], { type: 'application/json' }), 'lensflare-preset.json'));
+    $('jsonSave').addEventListener('click', () => Promise.resolve(F.download(new Blob([JSON.stringify({ app: 'lens-flare', version: 1, params: P }, null, 2)], { type: 'application/json' }), 'lensflare-preset.json')).catch(() => {}));
     $('jsonLoad').addEventListener('change', async (e) => {
       const f = e.target.files[0]; if (!f) return;
       try { const j = JSON.parse(await f.text()); applyParams(j.params || j, false); } catch (err) { $('status').textContent = 'Ogiltig JSON.'; }

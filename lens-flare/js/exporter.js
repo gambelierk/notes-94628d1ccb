@@ -6,7 +6,12 @@
 
   const sleep0 = () => new Promise((r) => setTimeout(r, 0));
 
-  F.download = function (blob, name) {
+  // I en publicerad artifact måste filen gå via viewerns "downloads"-capability.
+  F.download = async function (blob, name) {
+    if (window.claude && window.claude.use) {
+      const d = await window.claude.use('downloads');
+      if (d) { await d.save({ filename: name, data: blob }); return; }
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
