@@ -211,7 +211,7 @@
       { k: 'source', l: 'Source position', min: 0, max: 100, step: 0.1, v: 39,
         f: v => v < 2 ? 'Center' : v > 98 ? 'Far away' : Math.round(v) + '%', ends: ['Center: rays go out everywhere', 'Far: parallel rays'] },
       { k: 'spread', l: 'Cone spread', min: 5, max: 360, step: 1, v: 140, f: v => v >= 359 ? 'Full circle' : Math.round(v) + '°', ends: ['Narrow', 'Full circle'] },
-      { k: 'soft', l: 'Cone edge softness', min: 0, max: 90, step: 1, v: 40, f: v => Math.round(v) + '°' },
+      { k: 'soft', l: 'Cone edge softness (grows with distance)', min: 0, max: 90, step: 1, v: 40, f: v => Math.round(v) + '°' },
     ],
     gPixels: [
       { k: 'thr', l: 'Threshold', min: 0, max: 100, step: 1, v: 66, f: v => Math.round(v) + '%', ends: ['Everything', 'Only the brightest'] },
@@ -322,7 +322,8 @@ void main(){
   if (uConeOn > 0.5) {
     vec2 v = ap - uApex;
     float cg = dot(v / max(length(v), 1e-4), uAxis);
-    rays *= smoothstep(cos(min(uHalf + uSoft, 3.14159)), cos(uHalf), cg);
+    float softD = uSoft * (0.15 + 2.0 * length(v));   // edge softness widens with distance from the source
+    rays *= smoothstep(cos(min(uHalf + softD, 3.14159)), cos(uHalf), cg);
   }
   float rl = lum(rays);
   rays = mix(rays, vec3(rl) * uTint, uTintMix);
